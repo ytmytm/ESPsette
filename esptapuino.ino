@@ -25,19 +25,25 @@
 RemoteDebug Debug;
 ESP8266WebServer HTTPServer(80);
 
+enum class State : uint8_t { INIT, MOTOR_WAIT_LOW, MOTOR_WAIT_HIGH, STREAMING };
+
+State state = State::INIT;
+
 void setupPins() {
   //GPIO 1 (TX) swap the pin to a GPIO.
   pinMode(1, FUNCTION_3);
-  pinMode(1, INPUT_PULLUP); 
+  pinMode(1, INPUT);
   //GPIO 3 (RX) swap the pin to a GPIO.
   pinMode(3, FUNCTION_3);
-  pinMode(3, INPUT_PULLUP);
+  pinMode(3, INPUT);
   // GPIO
-  pinMode(0, INPUT_PULLUP);
-  pinMode(2, INPUT_PULLUP);
+  pinMode(0, INPUT);
+  pinMode(2, INPUT);
   // setup
   pinMode(PIN_SENSE, OUTPUT);
   digitalWrite(PIN_SENSE, LOW); // always pushed so motor can be controlled
+  pinMode(PIN_READ, OUTPUT);
+  digitalWrite(PIN_READ, HIGH); // high is default
 }
 
 void connectWiFi() {
@@ -96,17 +102,20 @@ uint8_t lastSense=0;
 uint8_t lastWrite=0;
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(115200); // will lock up without this :/
   setupPins();
   setupNetwork();
   initializeOTA();
   setupDebug();
   setupWebserver();
+  digitalWrite(PIN_SENSE, LOW); // always pushed so motor can be controlled
+  state = State::INIT;
   debugV("setup completed");
   lastcall = 0;
   lastMotor = digitalRead(PIN_MOTOR);
   lastSense = digitalRead(PIN_SENSE);
   lastWrite = digitalRead(PIN_WRITE);
+  state = State::MOTOR_WAIT_LOW;
 }
 
 void debugGPIOs() {
@@ -124,21 +133,39 @@ void loop() {
   // do stuff
   uint8_t motor, sense, wr;
   motor = digitalRead(PIN_MOTOR);
+  sense = digitalRead(PIN_SENSE);
+  wr = digitalRead(PIN_WRITE);
+
+  switch (state) {
+    case MOTOR_WAIT_LOW:
+      if ((motor!=lastMotor) && (motor==LOW)) {
+        state = State::MOTOR_WAIT_HIGH;
+        debugW("* transition into MOTOR_WAIT_HIGH");
+      }
+      break;
+   case MOTOR_WAIT_HIGH:
+     if ((motor!=lastMotor) && (motor==HIGH)) {
+      state = State::STREAMING;
+      debugW("* transition into STREAMING");
+     }
+     break;
+   default:
+     break;
+  }
+
   if (motor!=lastMotor) {
     lastMotor=motor;
     debugW("* motor state changed to %u",motor);
   }
-  sense = digitalRead(PIN_SENSE);
   if (sense!=lastSense) {
     lastSense=sense;
     debugW("* sense state changed to %u",sense);
   }
-  wr = digitalRead(PIN_WRITE);
   if (wr!=lastWrite) {
     lastWrite = wr;
     debugW("* write state changed to %u",wr);
   }
-  
+
   if ((millis()-lastcall)>10000) {
     lastcall = millis();
     debugV("* heartbeat millis=%u",lastcall);
