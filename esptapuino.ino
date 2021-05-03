@@ -20,6 +20,11 @@
 #include <ESP8266WebServer.h>
 #include <ArduinoOTA.h>
 
+#include <i2s.h>
+#include <i2s_reg.h>
+
+#include "draxcaught.h"
+
 #include <RemoteDebug.h>
 
 RemoteDebug Debug;
@@ -29,21 +34,163 @@ enum class State : uint8_t { INIT, MOTOR_WAIT_LOW, MOTOR_WAIT_HIGH, STREAMING };
 
 State state = State::INIT;
 
+///////////////////////////////////
+// i2s
+
+static inline uint8_t readRomByte(const uint8_t* addr)
+{
+    uint32_t bytes;
+    bytes = *(uint32_t*)((uint32_t)addr & ~3);
+    return ((uint8_t*)&bytes)[(uint32_t)addr & 3];
+}
+
+struct I2S_status_s {
+  int playing;
+  int input_index;
+  int input_len;
+} I2S_WAV;
+
+void wav_setup()
+{
+  debugI("wav_setup");
+  I2S_WAV.playing = false;
+}
+
+void wav_stopPlaying()
+{
+  i2s_end();
+  I2S_WAV.playing = false;
+  state = State::MOTOR_WAIT_LOW;
+}
+
+void wav_startPlayingFile()
+{
+  debugI("start playing");
+
+  I2S_WAV.input_index = 0x14; // skip over TAP header
+  I2S_WAV.input_len = draxcaught_tap_len; // length of data
+  I2S_WAV.playing = true;
+
+  i2s_begin();
+  i2s_set_rate(985248 / 8 / 2);    // bit rate = PAL / 8 (tap div) / 2 (our div), must be >40312
+
+  debugI("enter loop for playing");
+  wav_loop();
+}
+
+int readPulse(void) {
+  if (I2S_WAV.input_index == I2S_WAV.input_len) {
+    debugI("EOF");
+    return -1;
+  }
+  int a = I2S_WAV.input_index;
+  int pulseLen = readRomByte(draxcaught_tap + a);
+  if (pulseLen == 0) {
+      a++;
+      pulseLen = readRomByte(draxcaught_tap + a);
+      a++;
+      pulseLen |= readRomByte(draxcaught_tap + a) << 8;
+      a++;
+      pulseLen |= readRomByte(draxcaught_tap + a) << 16;
+  }
+  a++;
+  I2S_WAV.input_index = a;
+  pulseLen /= 2;
+  if (a % 10240 == 0) {
+    debugI("index=%i",a);
+  }
+  return pulseLen;
+}
+
+bool ICACHE_FLASH_ATTR wavPulse(int pulseLen) {
+  static uint32_t bitStream = 0; // static so we can pick up from here
+  static int bitStreamLen = 0; // static so we can pick up from here
+  static int lastindex = 0;
+
+  // complete previous unfinished job
+  if (bitStreamLen == 32) {
+      if (!(i2s_write_sample(bitStream))) {
+        debugV("Buffer still full");
+        return true; // play needs to continue
+      }
+      bitStreamLen = 0;
+  }
+
+  for (int b = 0; b < pulseLen; b++) {
+      int outBit = 1; // 1=reverse logic b/c we are driving through a transistor
+      if (b > pulseLen / 2) outBit = 0; //0=reversed logic
+      bitStream = (bitStream << 1) | outBit;
+      bitStreamLen++;
+      if (bitStreamLen == 32) {
+          if (i2s_is_full()) {
+            if (lastindex == 0) {
+              debugV("Buffer full, yielding at %i",I2S_WAV.input_index);
+              lastindex = I2S_WAV.input_index;
+            }
+            yield();
+          }
+          if (!(i2s_write_sample(bitStream))) {
+            debugV("Buffer full");
+            return true; // play needs to continue
+          }
+          lastindex = 0;
+          bitStreamLen = 0;
+      }
+  }
+  return false; // pulse completed
+}
+
+void wav_loop() {
+  int i = 0;
+
+  while (I2S_WAV.playing) {
+    int pulseLen = readPulse();
+    if (pulseLen<0 || digitalRead(PIN_MOTOR)==LOW) {
+      debugW("Stop playing");
+      wav_stopPlaying();
+      debugI("EOF");
+      break;
+    }
+    while (wavPulse(pulseLen)) {
+      i++;
+      if (i==10000) {
+        debugW("%i loop counts, index is %i", i, I2S_WAV.input_index );
+        i=0;
+        debugV("i2s available: %i", i2s_available());
+        debugV("i2s is empty %i", i2s_is_empty());
+        debugV("i2s is full %i", i2s_is_full());
+      }
+      yield();
+      if (digitalRead(PIN_MOTOR)==LOW) {
+        debugW("Stop playing while wavpulseloop");
+        wav_stopPlaying();
+        break;
+      }
+    }; // repeat through full buffer until pulse completed
+    // read next pulse
+    // break? // handle something every pulse?
+  }
+}
+
+///////////////////////////////////
+
+
 void setupPins() {
   //GPIO 1 (TX) swap the pin to a GPIO.
   pinMode(1, FUNCTION_3);
   pinMode(1, INPUT);
   //GPIO 3 (RX) swap the pin to a GPIO.
-  pinMode(3, FUNCTION_3);
-  pinMode(3, INPUT);
+//  pinMode(3, FUNCTION_3);
+  pinMode(3, FUNCTION_1);
+  pinMode(3, OUTPUT);
   // GPIO
   pinMode(0, INPUT);
   pinMode(2, INPUT);
   // setup
   pinMode(PIN_SENSE, OUTPUT);
   digitalWrite(PIN_SENSE, LOW); // always pushed so motor can be controlled
-  pinMode(PIN_READ, OUTPUT);
-  digitalWrite(PIN_READ, HIGH); // high is default
+//  pinMode(PIN_READ, OUTPUT);
+//  digitalWrite(PIN_READ, HIGH); // high is default
 }
 
 void connectWiFi() {
@@ -108,6 +255,7 @@ void setup() {
   initializeOTA();
   setupDebug();
   setupWebserver();
+  wav_setup();
   digitalWrite(PIN_SENSE, LOW); // always pushed so motor can be controlled
   state = State::INIT;
   debugV("setup completed");
@@ -137,17 +285,20 @@ void loop() {
   wr = digitalRead(PIN_WRITE);
 
   switch (state) {
-    case MOTOR_WAIT_LOW:
+    case State::MOTOR_WAIT_LOW:
       if ((motor!=lastMotor) && (motor==LOW)) {
         state = State::MOTOR_WAIT_HIGH;
         debugW("* transition into MOTOR_WAIT_HIGH");
       }
       break;
-   case MOTOR_WAIT_HIGH:
+   case State::MOTOR_WAIT_HIGH:
      if ((motor!=lastMotor) && (motor==HIGH)) {
       state = State::STREAMING;
       debugW("* transition into STREAMING");
+      wav_startPlayingFile();
      }
+     break;
+   case State::STREAMING:
      break;
    default:
      break;
@@ -173,6 +324,7 @@ void loop() {
   }
   // ...
   // housekeeping
+  wav_loop();
   ArduinoOTA.handle();
   HTTPServer.handleClient();
   Debug.handle();
