@@ -102,6 +102,49 @@ int readPulse(void) {
   return pulseLen;
 }
 
+void ICACHE_FLASH_ATTR tapTask(void)
+{
+    uint32_t bitStream = 0;
+    int bitStreamLen = 0;
+
+    debugW("Start stream");
+
+    i2s_begin();
+    i2s_set_rate(985248 / 8 / 2);    // bit rate = PAL / 8 (tap div) / 2 (our div), must be >40312, czemu tylko 3.7s? ~61000
+    //i2s_set_rate(8000);    // bit rate = PAL / 8 (tap div) / 2 (our div), must be >40312 <- ma wplyw, jest 30s zamiast 4s, 7x dłużej
+
+        for (int a = 0x14; a < draxcaught_tap_len; a++) {
+            int pulseLen = readRomByte(draxcaught_tap + a);
+            if (pulseLen == 0) {
+                a++;
+                pulseLen = readRomByte(draxcaught_tap + a);
+                a++;
+                pulseLen |= readRomByte(draxcaught_tap + a) << 8;
+                a++;
+                pulseLen |= readRomByte(draxcaught_tap + a) << 16;
+            }
+            pulseLen /= 2;
+
+            for (int b = 0; b < pulseLen; b++) {
+                int outBit = 0; // 1; // reverse logic b/c we are driving through a transistor
+                if (b > pulseLen / 2) outBit = 1; //0; reverse logic
+                bitStream = (bitStream << 1) | outBit;
+                bitStreamLen++;
+                if (bitStreamLen == 32) {
+                    bitStreamLen = 0;
+                    i2s_write_sample(bitStream);
+                }
+            }
+            if (digitalRead(PIN_MOTOR)==LOW) {
+              debugW("Stop playing while wavpulseloop");
+              break;
+            }
+    }
+    i2s_end();
+    state = State::MOTOR_WAIT_LOW;
+    debugW("Completed stream");
+}
+
 bool ICACHE_FLASH_ATTR wavPulse(int pulseLen) {
   static uint32_t bitStream = 0; // static so we can pick up from here
   static int bitStreamLen = 0; // static so we can pick up from here
@@ -181,7 +224,7 @@ void setupPins() {
   pinMode(1, INPUT);
   //GPIO 3 (RX) swap the pin to a GPIO.
 //  pinMode(3, FUNCTION_3);
-  pinMode(3, FUNCTION_1);
+//  pinMode(3, FUNCTION_1);
   pinMode(3, OUTPUT);
   // GPIO
   pinMode(0, INPUT);
@@ -189,8 +232,8 @@ void setupPins() {
   // setup
   pinMode(PIN_SENSE, OUTPUT);
   digitalWrite(PIN_SENSE, LOW); // always pushed so motor can be controlled
-//  pinMode(PIN_READ, OUTPUT);
-//  digitalWrite(PIN_READ, HIGH); // high is default
+  pinMode(PIN_READ, OUTPUT);
+  digitalWrite(PIN_READ, LOW); // high is default
 }
 
 void connectWiFi() {
@@ -295,7 +338,8 @@ void loop() {
      if ((motor!=lastMotor) && (motor==HIGH)) {
       state = State::STREAMING;
       debugW("* transition into STREAMING");
-      wav_startPlayingFile();
+      tapTask();
+      //wav_startPlayingFile();
      }
      break;
    case State::STREAMING:
