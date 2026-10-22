@@ -360,8 +360,8 @@ void setupPins() {
   pinMode(PIN_MOTOR, INPUT);
   pinMode(2, INPUT_PULLUP); // GPIO2 must stay high at boot; WRITE is not connected.
   pinMode(PIN_SENSE, FUNCTION_3); // Release UART TX for GPIO1.
+  digitalWrite(PIN_SENSE, HIGH); // Release PLAY until the embedded TAP is ready.
   pinMode(PIN_SENSE, OUTPUT);
-  digitalWrite(PIN_SENSE, LOW);
   idleReadPin();
 }
 

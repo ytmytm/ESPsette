@@ -44,6 +44,8 @@ Profil `PROFILE=512k` jest przewidziany tylko do flashowania kablem i może nie 
 
 ## Pierwsza próba C64 i zdalny debug
 
+Po starcie ESP trzyma SENSE w stanie zwolnionego PLAY podczas konfiguracji Wi-Fi i sprawdzania osadzonego TAP. Po poprawnej walidacji naciska wirtualny PLAY (SENSE niski) i czeka na MOTOR. Wpisanie `LOAD` na C64 uruchamia MOTOR; dopiero wtedy firmware rozpoczyna impulsy READ. Zatrzymanie MOTOR wstrzymuje odtwarzanie i po wznowieniu ma kontynuować z zapamiętanej pozycji.
+
 Po wgraniu i uruchomieniu modułu odczytać jego IP w panelu routera. Na Macu otworzyć `http://ADRES_IP/` — obecna prosta strona podaje stan GPIO, MOTOR, odtwarzacza i długość TAP. Kolorowe logi RemoteDebug są na porcie TCP 23; przed wpisaniem `LOAD` na C64 połączyć terminal:
 
 ```sh
