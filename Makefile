@@ -29,7 +29,7 @@ flash:
 ota:
 	@test -n "$(OTA_ENV)" || { echo 'OTA is not planned for 512 KB'; exit 1; }
 	@test -n "$(OTA_HOST)" || { echo 'Set OTA_HOST to the device IP or .local name'; exit 1; }
-	./scripts/pio.sh run -e $(OTA_ENV) -t upload --upload-port "$(OTA_HOST)"
+	@./scripts/ota.sh $(OTA_ENV) "$(OTA_HOST)"
 
 flash-id:
 	@test -n "$(PORT)" || { echo 'Set PORT=/dev/cu.usbserial-...'; exit 1; }

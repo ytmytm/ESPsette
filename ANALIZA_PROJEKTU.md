@@ -1,6 +1,6 @@
 # Analiza esptapuino (ESP-01 → port kasety C64)
 
-> Stan dokumentu: pierwotna analiza projektu `esptapuino`. W repozytorium `espsette` patch `poprawka-i2s-rate.patch` został już nałożony na `src/main.ino` i usunięty jako osobny plik. Historia repozytorium została oczyszczona z definicji danych Wi-Fi; daty commitów zachowano. Opisy przyszłych funkcji nadal są planem, dopóki nie zostaną osobno zaimplementowane.
+> Stan dokumentu: pierwotna analiza projektu `esptapuino`. W repozytorium `espsette` patch `poprawka-i2s-rate.patch` został już nałożony na `src/main.ino` i usunięty jako osobny plik. Historia repozytorium została oczyszczona z definicji danych Wi-Fi; daty commitów zachowano. Na pierwszą próbę sprzętową dodano ignorowany przez Git plik `include/local_wifi.h` z lokalnymi danymi sieci; portal i LittleFS nadal są planem. Opisy pozostałych przyszłych funkcji także są planem, dopóki nie zostaną osobno zaimplementowane.
 
 Data analizy: 2026-10-22. Zakres: przegląd `esptapuino.ino`, dekodowanie danych z `draxcaught.h` i dokumentacji formatu TAP oraz rdzenia Arduino dla ESP8266. Nie było dostępu do zmontowanego układu, oscyloskopu ani wersji użytego rdzenia; wnioski o przebiegu na pinach wymagają potwierdzenia na sprzęcie.
 

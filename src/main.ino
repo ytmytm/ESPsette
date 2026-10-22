@@ -12,8 +12,10 @@
 #define PIN_READ  3 // GPIO3 (RxD) -> READ  (D,4) CIA#1 /FLAG, I2S, pulled to 5V in C64, normal high (input pullup), impulse low
 
 #define HOST_NAME "espsette"
-#define WIFI_SSID ""
-#define WIFI_PASS ""
+
+#if __has_include("local_wifi.h")
+#include "local_wifi.h" // Local build-only credentials; ignored by Git.
+#endif
 
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
@@ -41,6 +43,8 @@ static const uint32_t DRAIN_GUARD_US = 40000;
 
 State state = State::WAITING;
 uint32_t tapEnd = 0;
+bool networkReady = false;
+bool otaReady = false;
 
 static inline uint8_t readRomByte(const uint8_t* addr) {
   uint32_t bytes = *(const uint32_t*)((uintptr_t)addr & ~3U);
@@ -362,11 +366,19 @@ void setupPins() {
 }
 
 void connectWiFi() {
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
-  uint32_t timeout = millis() + 20000; // Time out
-  while (WiFi.status() != WL_CONNECTED && millis() < timeout) {
+  WiFi.persistent(false);
+  WiFi.mode(WIFI_OFF);
+#if defined(ESPSETTE_WIFI_SSID) && defined(ESPSETTE_WIFI_PASS)
+  if (ESPSETTE_WIFI_SSID[0] == '\0') return;
+  WiFi.mode(WIFI_STA);
+  WiFi.hostname(HOST_NAME);
+  WiFi.begin(ESPSETTE_WIFI_SSID, ESPSETTE_WIFI_PASS);
+  const uint32_t started = millis();
+  while (WiFi.status() != WL_CONNECTED && (uint32_t)(millis() - started) < 20000) {
     delay(250);
   }
+  networkReady = WiFi.status() == WL_CONNECTED;
+#endif
 }
 
 void setupNetwork() {
@@ -374,12 +386,16 @@ void setupNetwork() {
 }
 
 void setupWebserver() {
+  if (!networkReady) return;
   HTTPServer.on("/", handleRoot);
   HTTPServer.onNotFound(handleNotFound);
   HTTPServer.begin();
 }
 
 void initializeOTA() {
+  if (!networkReady) return;
+#if defined(ESPSETTE_OTA_PASSWORD)
+  if (ESPSETTE_OTA_PASSWORD[0] == '\0') return;
   ArduinoOTA.onStart([]() {
     debugI("* OTA: Start");
   });
@@ -387,7 +403,8 @@ void initializeOTA() {
     debugI("\n*OTA: End");
   });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    debugV("*OTA: Progress: %u%%\r", (progress / (total / 100)));
+    const unsigned int percent = total ? (unsigned int)((uint64_t)progress * 100 / total) : 0;
+    debugV("*OTA: Progress: %u%%\r", percent);
   });
   ArduinoOTA.onError([](ota_error_t error) {
     debugE("*OTA: Error[%u]: ", error);
@@ -398,11 +415,15 @@ void initializeOTA() {
     else if (error == OTA_END_ERROR) debugE("End Failed");
   });
   ArduinoOTA.setHostname(HOST_NAME);
+  ArduinoOTA.setPassword(ESPSETTE_OTA_PASSWORD);
   // Begin
   ArduinoOTA.begin();
+  otaReady = true;
+#endif
 }
 
 void setupDebug() {
+  if (!networkReady) return;
   Debug.begin(HOST_NAME); // Initialize the WiFi server
   //Debug.setPassword("r3m0t0."); // Password on telnet connection ?
   Debug.setResetCmdEnabled(false); // Do not expose remote reset without authentication.
@@ -415,7 +436,6 @@ uint8_t lastMotor = 0;
 
 void setup() {
   setupPins();
-  WiFi.hostname(HOST_NAME);
   setupNetwork();
   initializeOTA();
   setupDebug();
@@ -469,9 +489,11 @@ void loop() {
     }
   }
 
-  if (state != State::STREAMING && state != State::DRAINING) ArduinoOTA.handle();
-  HTTPServer.handleClient();
-  Debug.handle();
+  if (otaReady && state != State::STREAMING && state != State::DRAINING) ArduinoOTA.handle();
+  if (networkReady) {
+    HTTPServer.handleClient();
+    Debug.handle();
+  }
   yield();
   if ((uint32_t)(millis() - lastcall) >= 10000) {
     lastcall = millis();
@@ -495,7 +517,12 @@ void loop() {
   g2 = digitalRead(2);
   g3 = digitalRead(3);
 
-  doc = "["+String(g0)+","+String(g1)+","+String(g2)+","+String(g3)+"]";
+  doc = "GPIO=["+String(g0)+","+String(g1)+","+String(g2)+","+String(g3)+"]\n";
+  doc += "IP=" + WiFi.localIP().toString() + "\n";
+  doc += "TAP bytes=" + String(tapEnd) + "\n";
+  doc += "motor=" + String(g0) + "\n";
+  doc += "player state=" + String(static_cast<uint8_t>(state)) + "\n";
+  doc += "debug=RemoteDebug (TCP 23)\n";
 
   debugV("* reply: [%s]",doc.c_str());
      HTTPServer.send(200, "text/plain", doc);

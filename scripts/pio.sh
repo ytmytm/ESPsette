@@ -10,5 +10,6 @@ fi
 export PLATFORMIO_CORE_DIR="$project_dir/tools/pio-core"
 export PLATFORMIO_CACHE_DIR="$project_dir/tools/pio-cache"
 export PLATFORMIO_BUILD_CACHE_DIR="$project_dir/tools/build-cache"
+export ESPSETTE_OTA_PASSWORD="${ESPSETTE_OTA_PASSWORD:-}"
 cd "$project_dir"
 exec "$pio_bin" "$@"
