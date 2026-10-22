@@ -48,6 +48,8 @@ Po starcie ESP trzyma SENSE w stanie zwolnionego PLAY podczas konfiguracji Wi-Fi
 
 Po wgraniu i uruchomieniu modułu odczytać jego IP w panelu routera. Na Macu otworzyć `http://ADRES_IP/` — obecna prosta strona podaje stan GPIO, MOTOR, odtwarzacza i długość TAP. Kolorowe logi RemoteDebug są na porcie TCP 23; przed wpisaniem `LOAD` na C64 połączyć terminal:
 
+Domyślny hostname firmware to `espsette`. Ta sama nazwa jest przekazywana do Wi-Fi, ArduinoOTA i RemoteDebug. Obecny firmware nie uruchamia mDNS, więc `espsette.local` nie jest jeszcze gwarantowanym adresem; do pierwszej próby użyć IP przydzielonego przez router.
+
 ```sh
 nc ADRES_IP 23
 ```
