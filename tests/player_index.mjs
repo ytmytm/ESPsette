@@ -3,6 +3,10 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 
 const html = readFileSync(new URL('../web/player.html', import.meta.url), 'utf8');
+const portal = readFileSync(new URL('../src/network_config.cpp', import.meta.url), 'utf8');
+assert.match(html, /<html lang="en">/);
+assert.match(portal, /html lang='en'/);
+assert.doesNotMatch(html + portal, /[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/);
 const script = html.split('<script>')[1].split('</script>')[0];
 const elements = new Map();
 function element() {
@@ -11,7 +15,8 @@ function element() {
     classList: {add(){}, remove(){}, toggle(){}},
     replaceChildren(){this.children = []}, append(child){(this.children ||= []).push(child)},
     play(){this.paused = false; return Promise.resolve()},
-    pause(){this.paused = true}, removeAttribute(){}, setAttribute(){}, load(){}
+    pause(){this.paused = true}, removeAttribute(){},
+    setAttribute(name, value){(this.attributes ||= {})[name] = value}, load(){}
   };
 }
 const context = vm.createContext({
@@ -104,7 +109,7 @@ context.navSource = {type:'tap', id:90, seekCycles:0, indexEntries:[], timeline:
   {offset:200, prefixCycles:19704960, phase:0},
   {offset:300, prefixCycles:29557440, phase:1}]};
 vm.runInContext('source=navSource; last={sessionId:90, playedCycles:4926240, clockHz:985248}', context);
-assert.equal(vm.runInContext('navigationTarget(1).offset', context), 200);
+assert.equal(vm.runInContext('navigationTarget(1).offset', context), 300);
 assert.equal(vm.runInContext('navigationTarget(-1).offset', context), 20);
 vm.runInContext(`navSource.indexEntries=[{offset:100,prefixCycles:9852480,phase:1},
   {offset:200,prefixCycles:19704960,phase:0}];
@@ -112,11 +117,20 @@ vm.runInContext(`navSource.indexEntries=[{offset:100,prefixCycles:9852480,phase:
 assert.equal(vm.runInContext('navigationTarget(1).offset', context), 200);
 assert.equal(vm.runInContext('navigationTarget(-1).offset', context), 100);
 vm.runInContext('source=null', context);
+for (const [seconds, expected] of [[0, 0], [10, 4], [30, 11],
+  [60, 22], [120, 43], [600, 185], [3600, 732]])
+  assert.equal(vm.runInContext(`tapeCounterAtSeconds(${seconds})`, context), expected);
+assert.ok(Math.abs(vm.runInContext('secondsAtTapeCounter(100)', context) - 315) < 40);
+vm.runInContext('mock.playedCycles = 60 * mock.clockHz; render({...mock})', context);
+assert.equal(elements.get('counter').attributes['aria-label'], 'Tape counter 022');
+assert.equal(elements.get('counterNext2').textContent, '2');
+vm.runInContext('showTapeCounter(999); showTapeCounter(1000)', context);
+assert.equal(elements.get('counter').attributes['aria-label'], 'Tape counter 000');
 
 for (const payload of [[0, 0x10, 0], [0, 0, 0, 0]]) {
   context.badTape = new Blob([new Uint8Array(20), Uint8Array.from(payload)]);
   await assert.rejects(vm.runInContext('scanTape(badTape)', context),
-    /Ucięty impuls TAP|Zerowy impuls TAP/);
+    /Truncated TAP pulse|Zero-length TAP pulse/);
 }
 context.badTape = new Blob([new Uint8Array(20), Uint8Array.of(0x2f)]);
 context.badHeader = new Uint8Array(20);
@@ -124,7 +138,7 @@ context.badHeader.set(new TextEncoder().encode('C64-TAPE-RAW'));
 context.badHeader[12] = 1;
 context.badHeader[16] = 2; // Declares two data bytes, Blob has one.
 assert.throws(() => vm.runInContext('tapFormat(badHeader, badTape.size)', context),
-  /Długość danych TAP/);
+  /TAP data length/);
 
 context.recoveryFile = {type:'tap', id:41, offset:20, logicalSize:128};
 context.recoveryState = {sourceType:'tap', sessionId:41, logicalSize:128,
@@ -159,7 +173,7 @@ assert.notEqual(jumped.sessionId, created.sessionId);
 for (const offset of [19, 26]) {
   await assert.rejects(vm.runInContext(
     `mockApi('/seek', {body:new URLSearchParams({sid:'${jumped.sessionId}',
-      offset:'${offset}', cycles:'100', phase:'0'})})`, context), /Błędny offset TAP/);
+      offset:'${offset}', cycles:'100', phase:'0'})})`, context), /Invalid TAP offset/);
   assert.equal(vm.runInContext('mock.sessionId', context), jumped.sessionId);
 }
 await assert.rejects(vm.runInContext(
@@ -169,7 +183,7 @@ await assert.rejects(vm.runInContext(
 await assert.rejects(
   vm.runInContext('parseIdx(bad)', vm.createContext({...context,
     bad:{size:10, text:async()=> '0xGG Unsupported'}})),
-  /Nieznany format IDX/
+  /Unknown IDX format/
 );
 
 // A PRG stays in one browser File. Logical offsets for the two ROM copies
@@ -234,12 +248,12 @@ vm.runInContext(`source = {file:resumeTape, type:'tap', id:${resume.sessionId},
   originalApi = api; api = async () => { throw Error('offline'); };`, context);
 await vm.runInContext('step()', context);
 assert.equal(vm.runInContext('source.offset', context), 20);
-assert.match(elements.get('transport').textContent, /Brak połączenia/);
+assert.match(elements.get('transport').textContent, /Connection lost/);
 vm.runInContext('api = originalApi; mock.fileOffsetReceived = 21; mockBytes = 1;', context);
 await vm.runInContext('step()', context);
 assert.equal(vm.runInContext('source.offset', context), 26);
 assert.equal(vm.runInContext('mock.fileOffsetReceived', context), 26);
-assert.match(elements.get('transport').textContent, /Połączenie wznowione/);
+assert.match(elements.get('transport').textContent, /Connection restored/);
 await vm.runInContext("document.getElementById('rewind').onclick()", context);
 assert.equal(vm.runInContext('source.offset', context), 20);
 assert.equal(vm.runInContext('mock.fileOffsetReceived', context), 20);
@@ -251,7 +265,7 @@ assert.equal(vm.runInContext('mock.fileOffsetReceived', context), 25);
 vm.runInContext('mock.sessionId++', context);
 await vm.runInContext('step()', context);
 assert.equal(vm.runInContext('source', context), null);
-assert.match(elements.get('transport').textContent, /Brak pliku źródłowego/);
+assert.match(elements.get('transport').textContent, /no source file/);
 await vm.runInContext("document.getElementById('demo').onclick()", context);
 vm.runInContext('mock.playedCycles = 1234; render({...mock})', context);
 await vm.runInContext("document.getElementById('rewind').onclick()", context);
@@ -261,4 +275,4 @@ vm.runInContext("document.getElementById('saveMock').onclick()", context);
 assert.match(elements.get('writeDetail').textContent, /ESP:TEST/);
 vm.runInContext("mock.writeMachine = 'c16'; render({...mock})", context);
 assert.match(elements.get('writeDetail').textContent, /C16\/Plus4/);
-console.log('IDX/TAP, navigation, default machine, session recovery and WRITE preview OK');
+console.log('IDX/TAP, VICE counter, English UI, session recovery and WRITE preview OK');

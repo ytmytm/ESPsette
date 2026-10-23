@@ -43,11 +43,11 @@ NetworkConfig::NetworkConfig(ESP8266WebServer& server, uint8_t motorPin)
 
 bool NetworkConfig::validate(const Settings& value, String& error) const {
   if (value.ssid.length() == 0 || value.ssid.length() > 32 || value.password.length() > 63) {
-    error = F("SSID lub hasło ma nieprawidłową długość.");
+    error = F("SSID or password has an invalid length.");
     return false;
   }
   if (!validHostname(value.hostname)) {
-    error = F("Nazwa hosta: 1–32 znaki ASCII, litery, cyfry lub łącznik.");
+    error = F("Hostname: 1–32 ASCII letters, digits or hyphens.");
     return false;
   }
   if (!value.dhcp) {
@@ -55,7 +55,7 @@ bool NetworkConfig::validate(const Settings& value, String& error) const {
     if (!address.fromString(value.address) || !mask.fromString(value.mask) ||
         !gateway.fromString(value.gateway) || !dns.fromString(value.dns) ||
         address == IPAddress(0, 0, 0, 0) || mask == IPAddress(0, 0, 0, 0)) {
-      error = F("Podaj poprawne adresy IPv4, maskę, bramę i DNS.");
+      error = F("Enter valid IPv4 address, mask, gateway and DNS.");
       return false;
     }
   }
@@ -170,23 +170,23 @@ String NetworkConfig::address() const {
 
 void NetworkConfig::sendPortal() {
   if (digitalRead(motorPin_) == HIGH) {
-    server_.send(503, "text/plain", "Otwórz konfigurację po zatrzymaniu MOTOR.");
+    server_.send(503, "text/plain", "Open settings after MOTOR stops.");
     return;
   }
   String page;
   page.reserve(2200);
-  page += F("<!doctype html><html lang='pl'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>espsette Wi-Fi</title><style>body{font:1rem system-ui;max-width:32rem;margin:2rem auto;padding:0 1rem;background:#16191e;color:#eee}label{display:block;margin:1rem 0}input{box-sizing:border-box;width:100%;padding:.7rem;font:inherit}input[type=checkbox]{width:auto}button{padding:.8rem 1.2rem;font:inherit}a{color:#8ad}</style><h1>espsette — Wi-Fi</h1>");
-  page += apActive_ ? F("<p>Tryb punktu dostępowego. Po zapisie moduł uruchomi się ponownie.</p>") :
-                      F("<p>Połączono z siecią lokalną. Po zapisie moduł uruchomi się ponownie.</p>");
-  if (!fsReady_) page += F("<p>LittleFS jest niedostępny; nie można zapisać ustawień.</p>");
+  page += F("<!doctype html><html lang='en'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>espsette Wi-Fi</title><style>body{font:1rem system-ui;max-width:32rem;margin:2rem auto;padding:0 1rem;background:#16191e;color:#eee}label{display:block;margin:1rem 0}input{box-sizing:border-box;width:100%;padding:.7rem;font:inherit}input[type=checkbox]{width:auto}button{padding:.8rem 1.2rem;font:inherit}a{color:#8ad}</style><h1>espsette — Wi-Fi</h1>");
+  page += apActive_ ? F("<p>Access point mode. The module will restart after saving.</p>") :
+                      F("<p>Connected to the local network. The module will restart after saving.</p>");
+  if (!fsReady_) page += F("<p>LittleFS is unavailable; settings cannot be saved.</p>");
   page += F("<form method='post' action='/wifi'><label>SSID<input name='ssid' maxlength='32' required value='");
   page += escapeHtml(settings_.ssid);
-  page += F("'></label><label>Hasło sieci (puste zachowuje dotychczasowe dla tego SSID)<input type='password' name='password' maxlength='63'></label><label>Nazwa hosta<input name='hostname' maxlength='32' required value='");
+  page += F("'></label><label>Wi-Fi password (leave blank to keep the password for this SSID)<input type='password' name='password' maxlength='63'></label><label>Hostname<input name='hostname' maxlength='32' required value='");
   page += escapeHtml(hostname_);
   page += F("'></label><label><input type='checkbox' name='static' value='1'");
   if (!settings_.dhcp) page += F(" checked");
-  page += F("> Statyczny adres IPv4</label>");
-  const char* labels[] = {"Adres IP", "Maska", "Brama", "DNS"};
+  page += F("> Static IPv4 address</label>");
+  const char* labels[] = {"IP address", "Subnet mask", "Gateway", "DNS"};
   const char* names[] = {"address", "mask", "gateway", "dns"};
   const String* values[] = {&settings_.address, &settings_.mask, &settings_.gateway, &settings_.dns};
   for (uint8_t i = 0; i < 4; ++i) {
@@ -194,14 +194,14 @@ void NetworkConfig::sendPortal() {
     page += names[i]; page += F("' value='"); page += escapeHtml(*values[i]);
     page += F("'></label>");
   }
-  page += F("<button type='submit'>Zapisz i połącz</button></form><form method='post' action='/retry'><button type='submit'>Ponów połączenie</button></form><p><a href='/player'>Otwórz odtwarzacz</a></p></html>");
+  page += F("<button type='submit'>Save and connect</button></form><form method='post' action='/retry'><button type='submit'>Retry connection</button></form><p><a href='/player'>Open player</a></p></html>");
   server_.sendHeader("Cache-Control", "no-store");
   server_.send(200, "text/html; charset=utf-8", page);
 }
 
 void NetworkConfig::receiveSettings() {
   if (digitalRead(motorPin_) == HIGH) {
-    server_.send(409, "text/plain", "Zatrzymaj MOTOR przed zmianą konfiguracji.");
+    server_.send(409, "text/plain", "Stop MOTOR before changing settings.");
     return;
   }
   Settings value;
@@ -220,24 +220,24 @@ void NetworkConfig::receiveSettings() {
     return;
   }
   if (!save(value)) {
-    server_.send(500, "text/plain; charset=utf-8", "Nie udało się zapisać konfiguracji w LittleFS.");
+    server_.send(500, "text/plain; charset=utf-8", "Could not save settings to LittleFS.");
     return;
   }
   settings_ = value;
   hostname_ = value.hostname;
   restartPending_ = true;
   restartAfter_ = millis() + 1500;
-  server_.send(200, "text/html; charset=utf-8", "<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><p>Zapisano. Moduł uruchomi się ponownie i spróbuje połączyć z Wi-Fi.</p>");
+  server_.send(200, "text/html; charset=utf-8", "<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><p>Saved. The module will restart and try to connect to Wi-Fi.</p>");
 }
 
 void NetworkConfig::retry() {
   if (digitalRead(motorPin_) == HIGH) {
-    server_.send(409, "text/plain", "Zatrzymaj MOTOR przed ponowieniem połączenia.");
+    server_.send(409, "text/plain", "Stop MOTOR before retrying the connection.");
     return;
   }
   restartPending_ = true;
   restartAfter_ = millis() + 1500;
-  server_.send(200, "text/html; charset=utf-8", "<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><p>Moduł uruchomi się ponownie i ponowi połączenie.</p>");
+  server_.send(200, "text/html; charset=utf-8", "<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><p>The module will restart and retry the connection.</p>");
 }
 
 void NetworkConfig::handle(bool motorOn) {

@@ -1,36 +1,38 @@
 <!doctype html>
-<html lang="pl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>espsette</title>
 <style>
 :root{color-scheme:dark;font:16px system-ui}*{box-sizing:border-box}body{margin:0;background:#11151b;color:#edf0f2}
 main{max-width:760px;margin:auto;padding:18px}h1{font-size:1.6rem;margin:0 0 4px}p{line-height:1.45;color:#abb7c3}
 .deck{background:linear-gradient(135deg,#373d44,#1d232b 58%,#353d42);border:3px solid #60666b;border-radius:20px;padding:20px;box-shadow:0 22px 45px #0008,inset 0 2px 4px #ffffff33}
-.deck-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;color:#b9c2c7;font-size:.75rem;font-weight:700;letter-spacing:.18em}.counter{font:700 1.15rem ui-monospace,monospace;letter-spacing:.18em;color:#b9f0a5;background:#101913;border:2px solid #4e5b4b;border-radius:4px;padding:2px 8px;text-shadow:0 0 7px #6adf55}
+.deck-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;color:#b9c2c7;font-size:.75rem;font-weight:700;letter-spacing:.18em}.counter{display:flex;gap:2px;padding:3px 5px;background:linear-gradient(#65645e,#c2bdad 25%,#948f81 80%,#3d3b36);border:2px solid #222326;border-radius:4px;box-shadow:inset 0 2px 5px #0009,0 1px 1px #ffffff50;font:700 1.45rem/1.15 ui-monospace,monospace;color:#101010;font-variant-numeric:tabular-nums}.counter-digit{display:block;width:.69em;height:1.15em;overflow:hidden;background:linear-gradient(#aaa69a,#e4dfcf 35%,#e2ddce 65%,#928e84);border:1px solid #5f5c53;border-radius:2px;text-align:center;box-shadow:inset 0 1px 2px #0005}.counter-strip{display:block}.counter-strip span{display:block;height:1.15em}.counter-strip.rolling{animation:counter-roll .42s ease-out both}@keyframes counter-roll{from{transform:translateY(0)}to{transform:translateY(-50%)}}
 .window{height:clamp(190px,34vw,275px);border:10px solid #141a20;border-radius:12px;background:linear-gradient(145deg,#090c10,#20252c);box-shadow:inset 0 5px 15px #000;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
 .cassette{width:min(100%,570px);aspect-ratio:720/314;background:url('assets/cassette.webp') center/contain no-repeat;position:relative;filter:drop-shadow(0 5px 8px #0009)}
 .reel{position:absolute;top:48.5%;width:9%;aspect-ratio:1;border-radius:50%;background:repeating-conic-gradient(#cabfa8 0 12deg,#443d37 12deg 38deg,#e7dcc6 38deg 55deg,#292522 55deg 60deg);box-shadow:inset 0 0 0 6px #292522,0 0 3px #000;transform:translate(-50%,-50%)}
 .reel:first-child{left:30%}.reel:last-child{left:72%}
 .playing .reel{animation:spin 1.6s linear infinite}@keyframes spin{from{transform:translate(-50%,-50%) rotate(0)}to{transform:translate(-50%,-50%) rotate(360deg)}}
-.has-video .cassette,.ejected .cassette{display:none}.window video{width:100%;height:100%;object-fit:cover}.window video:not([src]),.ejected .window video{display:none}.ejected .window:after{content:'PUSTY DECK';color:#9aa6b2;letter-spacing:.2em}
+.has-video .cassette,.ejected .cassette{display:none}.window video{width:100%;height:100%;object-fit:cover}.window video:not([src]),.ejected .window video{display:none}.ejected .window:after{content:'EMPTY DECK';color:#9aa6b2;letter-spacing:.2em}
 .keys{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:15px}.key{margin:0;font:700 clamp(.66rem,2vw,.9rem) system-ui;background:linear-gradient(#34393d,#0c1015);border:2px solid #535a62;border-radius:5px 5px 10px 10px;min-height:52px;padding:8px 3px;box-shadow:0 5px 2px #080a0d;color:#d2dce3;cursor:pointer}.key.pressed{transform:translateY(4px);box-shadow:0 1px 2px #080a0d;color:#fff}.key:disabled{cursor:not-allowed;opacity:.45}.key:active{transform:translateY(4px);box-shadow:0 1px 2px #080a0d}.autoplay{margin:10px 0 0;color:#dce5e9;font-size:.9rem}.autoplay input{accent-color:#e1b54c;width:1.1rem;height:1.1rem;vertical-align:middle}#deckMessage{margin:12px 0 0;min-height:1.5em;text-align:center;font-size:.9rem}.key:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid #f4c354;outline-offset:2px}
 .debug{margin-top:12px;border-top:1px solid #42505d;padding-top:10px}.debug summary{cursor:pointer;color:#d7e0e8}.debug pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px ui-monospace,monospace;color:#b8c9d8;background:#10171e;border-radius:8px;padding:12px;max-height:330px;overflow:auto}
 @media(max-width:480px){main{padding:12px}.deck{padding:11px}.keys{gap:3px}.key{min-height:46px;padding:5px 2px}}
-@media(prefers-reduced-motion:reduce){.playing .reel{animation-duration:5s}}
+@media(prefers-reduced-motion:reduce){.playing .reel{animation-duration:5s}.counter-strip.rolling{animation:none;transform:translateY(-50%)}}
 .card{background:#202832;border:1px solid #36414b;border-radius:12px;padding:16px;margin-top:18px}
 label{display:block;margin:12px 0}input[type=file],select{display:block;width:100%;margin-top:8px}select{font:inherit;padding:10px;background:#111923;color:#fff;border:1px solid #566472;border-radius:8px}.drop{border:2px dashed #687786;border-radius:10px;padding:18px;text-align:center;color:#b9c7d3}.drop.over{border-color:#e2b94d;background:#39414a}button{font:inherit;border:0;border-radius:8px;background:#d5a43a;color:#17191a;padding:10px 15px;margin:4px 5px 4px 0;font-weight:700}button.secondary{background:#414e5b;color:#fff}button:disabled{opacity:.45}a{color:#9fcfff}
 .stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.stats div{background:#131a22;border-radius:7px;padding:12px}.stats b{display:block;font-size:1.2rem;overflow-wrap:anywhere}small{color:#a4b3bf}#error{color:#ffaaa6;min-height:1.3em}
 </style>
-<main><h1>espsette</h1><p>Kaseta przez Wi-Fi · C64 / C16 PAL</p>
-<div id="deck" class="deck"><div class="deck-top"><span>DATASETTE</span><output id="counter" class="counter" aria-label="Wirtualny licznik taśmy">0000</output></div><div class="window"><video id="windowVideo" muted loop playsinline></video><div class="cassette"><div class="reel"></div><div class="reel"></div></div></div><div class="keys" role="group" aria-label="Klawisze magnetofonu"><button id="rewind" class="key" type="button" aria-label="Poprzednia pozycja taśmy">◀◀<br>REW</button><button id="stop" class="key" type="button" aria-label="Zwolnij PLAY na linii SENSE">■<br>STOP</button><button id="play" class="key pressed" type="button" aria-label="Wciśnij PLAY na linii SENSE">▶<br>PLAY</button><button id="fastForward" class="key" type="button" aria-label="Następna pozycja taśmy">▶▶<br>FF</button><button id="deckEject" class="key" type="button" aria-label="Wysuń kasetę">⏏<br>EJECT</button></div><p id="deckMessage" role="status" aria-live="polite"></p><label class="autoplay"><input id="autoPlay" type="checkbox" checked> Autoplay przy włożeniu kasety</label></div>
-<section class="card"><div class="stats"><div><small>Kaseta</small><b id="loaded">—</b></div><div><small>Motor</small><b id="motor">—</b></div><div><small>Odtworzone</small><b id="played">—</b></div><div><small>Bufor ESP</small><b id="buffer">—</b></div><div><small>Pozostało sygnału</small><b id="remaining">—</b></div><div><small>WRITE / SAVE</small><b id="writeStatus">—</b></div></div><p id="writeDetail"></p><p id="phase">Łączenie…</p><p id="transport"></p><p id="error"></p><details id="debugPanel" class="debug"><summary>Debug / stan ESP</summary><p id="diagnostics"></p><pre id="debugJson"></pre></details></section>
-<section class="card"><label>Domyślny komputer dla PRG<select id="defaultMachine"><option value="c64">C64</option><option value="c16">C16 / Plus/4 PAL</option></select></label><p>Plik TAP sam określa komputer w nagłówku; kaseta demo jest przeznaczona dla C64.</p></section>
-<section class="card"><div id="dropzone" class="drop">Upuść TAP lub PRG; opcjonalnie także IDX dla TAP</div><p id="selectedFiles"></p><label>Kaseta TAP C64 / C16 v1–v2 PAL lub program PRG<input id="file" type="file" accept=".tap,.prg"></label><div id="indexPicker"><label>Indeks IDX (opcjonalny dla TAP)<input id="indexFile" type="file" accept=".idx,text/plain"></label><button id="clearIndex" class="secondary">Usuń wybór IDX</button></div><div id="prgOptions" hidden><label>Komputer<select id="machine"><option value="c64">C64</option><option value="c16">C16 / Plus/4 PAL</option></select></label><label>Dołącz loader turbo<select id="turbo"><option value="0">Nie — standardowy LOAD</option><option value="1" disabled>Tak — w przygotowaniu</option></select></label><label>Nazwa na kasecie<input id="programName" maxlength="16" placeholder="PROGRAM"></label></div><button id="load">Włóż kasetę</button><button id="demo" class="secondary">Kaseta demo</button><div id="indexControls" hidden><label>Pozycja z IDX<select id="idxPositions"></select></label><button id="seek" class="secondary">Przeskocz do pozycji</button><p id="indexInfo"></p></div><p>Plik pozostaje w tej karcie. Zostaw przeglądarkę otwartą podczas LOAD; przy braku miejsca kolejna porcja zaczeka bez otwartego żądania HTTP.</p><label>Opcjonalny film w okienku<input id="previewVideoFile" type="file" accept="video/mp4,video/webm"></label><p>Możesz użyć lokalnie pobranego <a href="https://pixabay.com/videos/tape-recorder-music-stale-nostalgic-118790/" target="_blank" rel="noopener">filmu magnetofonu z Pixabay</a>. Film pozostaje w przeglądarce i zatrzymuje się razem z MOTOR.</p><a id="wifiLink" href="/wifi">Konfiguracja Wi-Fi</a></section><section id="previewPanel" class="card" hidden><h2>Podgląd lokalny</h2><p>Symulacja bez ESP-01. Wybierz TAP lub PRG i przełącz MOTOR, aby sprawdzić animację, bufor i układ strony.</p><button id="motorToggle" class="secondary">MOTOR on/off</button><button id="saveMock" class="secondary">Symuluj SAVE</button></section></main>
+<main><h1>espsette</h1><p>Tape over Wi-Fi · C64 / C16 PAL</p>
+<div id="deck" class="deck"><div class="deck-top"><span>DATASETTE</span><output id="counter" class="counter" aria-label="Tape counter 000"><span class="counter-digit"><span id="counterStrip0" class="counter-strip"><span id="counterOld0">0</span><span id="counterNext0">0</span></span></span><span class="counter-digit"><span id="counterStrip1" class="counter-strip"><span id="counterOld1">0</span><span id="counterNext1">0</span></span></span><span class="counter-digit"><span id="counterStrip2" class="counter-strip"><span id="counterOld2">0</span><span id="counterNext2">0</span></span></span></output></div><div class="window"><video id="windowVideo" muted loop playsinline></video><div class="cassette"><div class="reel"></div><div class="reel"></div></div></div><div class="keys" role="group" aria-label="Datasette controls"><button id="rewind" class="key" type="button" aria-label="Previous tape position">◀◀<br>REW</button><button id="stop" class="key" type="button" aria-label="Release PLAY on SENSE">■<br>STOP</button><button id="play" class="key pressed" type="button" aria-label="Press PLAY on SENSE">▶<br>PLAY</button><button id="fastForward" class="key" type="button" aria-label="Next tape position">▶▶<br>FF</button><button id="deckEject" class="key" type="button" aria-label="Eject tape">⏏<br>EJECT</button></div><p id="deckMessage" role="status" aria-live="polite"></p><label class="autoplay"><input id="autoPlay" type="checkbox" checked> Autoplay when tape is inserted</label></div>
+<section class="card"><div class="stats"><div><small>Tape</small><b id="loaded">—</b></div><div><small>Motor</small><b id="motor">—</b></div><div><small>Played</small><b id="played">—</b></div><div><small>ESP buffer</small><b id="buffer">—</b></div><div><small>Signal remaining</small><b id="remaining">—</b></div><div><small>WRITE / SAVE</small><b id="writeStatus">—</b></div></div><p id="writeDetail"></p><p id="phase">Connecting…</p><p id="transport"></p><p id="error"></p><details id="debugPanel" class="debug"><summary>Debug / ESP state</summary><p id="diagnostics"></p><pre id="debugJson"></pre></details></section>
+<section class="card"><label>Default computer for PRG<select id="defaultMachine"><option value="c64">C64</option><option value="c16">C16 / Plus/4 PAL</option></select></label><p>A TAP identifies its computer in the header. The built-in demo is for C64.</p></section>
+<section class="card"><div id="dropzone" class="drop">Drop a TAP or PRG; optionally add an IDX for TAP</div><p id="selectedFiles"></p><label>C64 / C16 PAL TAP v1–v2 or PRG<input id="file" type="file" accept=".tap,.prg"></label><div id="indexPicker"><label>IDX index (optional for TAP)<input id="indexFile" type="file" accept=".idx,text/plain"></label><button id="clearIndex" class="secondary">Clear IDX selection</button></div><div id="prgOptions" hidden><label>Computer<select id="machine"><option value="c64">C64</option><option value="c16">C16 / Plus/4 PAL</option></select></label><label>Prepend turbo loader<select id="turbo"><option value="0">No — standard LOAD</option><option value="1" disabled>Yes — coming later</option></select></label><label>Tape name<input id="programName" maxlength="16" placeholder="PROGRAM"></label></div><button id="load">Insert tape</button><button id="demo" class="secondary">Demo tape</button><div id="indexControls" hidden><label>IDX position<select id="idxPositions"></select></label><button id="seek" class="secondary">Jump to position</button><p id="indexInfo"></p></div><p>The file stays in this tab. Keep the browser open during LOAD; when the ESP buffer is full, the next chunk waits without keeping an HTTP request open.</p><label>Optional video in the window<input id="previewVideoFile" type="file" accept="video/mp4,video/webm"></label><p>You can use a locally downloaded <a href="https://pixabay.com/videos/tape-recorder-music-stale-nostalgic-118790/" target="_blank" rel="noopener">tape recorder video from Pixabay</a>. The video stays in the browser and pauses when MOTOR stops.</p><a id="wifiLink" href="/wifi">Wi-Fi settings</a></section><section id="previewPanel" class="card" hidden><h2>Local preview</h2><p>Simulation without an ESP-01. Select a TAP or PRG and toggle MOTOR to check the animation, buffer and page layout.</p><button id="motorToggle" class="secondary">MOTOR on/off</button><button id="saveMock" class="secondary">Simulate SAVE</button></section></main>
 <script>
 const $ = id => document.getElementById(id);
 const preview = location.protocol === 'file:' || new URLSearchParams(location.search).has('preview');
 let source = null, busy = false, last = null, videoUrl = null;
 let selectedFile = null, selectedIdx = null;
 let selectedDefaultMachine = null;
+let lastCounterValue = null, lastCounterRaw = null;
+let counterOriginCycles = 0;
 let mockBytes = 0, mockSize = 0, mockDemo = true, mockTick = Date.now();
 let mockType = 'tap';
 const mock = {tapeState:'loaded', sourceType:'tap', machine:'c64', clockHz:985248, fileName:'draxcaught (demo)', motorOn:false,
@@ -66,18 +68,18 @@ async function mockApi(path, options = {}) {
   if (path === '/state') return {...mock};
   if (path === '/sense') {
     const pressed = options.body?.get('pressed');
-    if (pressed !== '0' && pressed !== '1') throw new Error('Niepoprawny stan PLAY');
+    if (pressed !== '0' && pressed !== '1') throw new Error('Invalid PLAY state');
     mock.sensePressed = pressed === '1';
     return {sensePressed:mock.sensePressed};
   }
   if (path === '/autoplay') {
-    if (mock.motorOn) throw new Error('Zatrzymaj MOTOR');
+    if (mock.motorOn) throw new Error('Stop MOTOR');
     mock.autoPlay = options.body?.get('enabled') === '1';
     return {autoPlay:mock.autoPlay};
   }
   if (path === '/default-machine') {
     const machine = options.body?.get('machine');
-    if (machine !== 'c64' && machine !== 'c16') throw new Error('Niepoprawny komputer');
+    if (machine !== 'c64' && machine !== 'c16') throw new Error('Invalid computer');
     mock.defaultMachine = machine;
     return {defaultMachine:machine};
   }
@@ -116,9 +118,9 @@ async function mockApi(path, options = {}) {
   if (path === '/seek') {
     const args = options.body;
     if (mockType !== 'tap' || mock.motorOn || Number(args.get('sid')) !== mock.sessionId)
-      throw new Error('Zatrzymaj MOTOR / nieaktualna sesja');
+      throw new Error('Stop MOTOR / stale session');
     const offset = Number(args.get('offset'));
-    if (offset < 20 || offset >= mockSize) throw new Error('Błędny offset TAP');
+    if (offset < 20 || offset >= mockSize) throw new Error('Invalid TAP offset');
     mock.sessionId++; mock.fileOffsetReceived = offset; mockBytes = 0;
     mock.tapeState = 'ejected'; mock.playedCycles = 0;
     mock.totalCycles = Number(args.get('cycles'));
@@ -126,14 +128,14 @@ async function mockApi(path, options = {}) {
     return {sessionId:mock.sessionId, nextOffset:offset, freeBytes:8192, tapeState:'ejected'};
   }
   if (path === '/eject') {
-    if (mock.motorOn) throw new Error('Zatrzymaj MOTOR');
+    if (mock.motorOn) throw new Error('Stop MOTOR');
     mock.tapeState = 'ejected'; mockBytes = 0; mock.phase = 'idle';
     mock.totalCycles = 0; mock.playedCycles = 0; mock.logicalSize = 0;
     mock.sessionId = 0; mock.fileOffsetReceived = 0; mock.sensePressed = false; source = null;
     return {tapeState:'ejected'};
   }
   if (path === '/demo') {
-    if (mock.motorOn) throw new Error('Zatrzymaj MOTOR');
+    if (mock.motorOn) throw new Error('Stop MOTOR');
     mock.tapeState = 'loaded'; mock.fileName = 'draxcaught (demo)';
     mockDemo = true; mockType = 'tap'; mock.sourceType = 'tap';
     mock.machine = 'c64'; mock.clockHz = 985248;
@@ -142,7 +144,7 @@ async function mockApi(path, options = {}) {
     mock.totalCycles = 117000000; mock.phase = 'idle'; mock.error = null;
     return {tapeState:'loaded'};
   }
-  throw new Error('Nieznane żądanie: ' + path);
+  throw new Error('Unknown request: ' + path);
 }
 
 async function api(path, options) {
@@ -167,6 +169,41 @@ function time(cycles, clockHz = 985248) {
   return Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0');
 }
 
+// Same spool geometry and rounding as Pi1551's TapeCounterAtTimeMs(),
+// with VICE's tape thickness, hub radius, tape speed and counter gearing.
+function tapeCounterAtSeconds(seconds) {
+  const d = 1.27e-5, r = 1.07e-2, v = 4.76e-2, g = 0.525;
+  const t = Math.floor(Math.max(0, seconds) * 1000) / 1000;
+  return Math.floor(g * (Math.sqrt(v * t / (d * Math.PI) + (r / d) ** 2) - r / d) + 0.5);
+}
+
+function secondsAtTapeCounter(counter) {
+  const d = 1.27e-5, r = 1.07e-2, v = 4.76e-2, g = 0.525;
+  const turns = counter / g + r / d;
+  return (turns * turns - (r / d) ** 2) * d * Math.PI / v;
+}
+
+function showTapeCounter(raw) {
+  const value = raw % 1000;
+  const digits = String(value).padStart(3, '0');
+  const before = String(lastCounterValue ?? value).padStart(3, '0');
+  const animate = lastCounterRaw !== null && raw === lastCounterRaw + 1;
+  for (let i = 0; i < 3; i++) {
+    if (lastCounterValue === value) break;
+    const strip = $('counterStrip' + i);
+    strip.classList.remove('rolling');
+    $('counterOld' + i).textContent = animate ? before[i] : digits[i];
+    $('counterNext' + i).textContent = digits[i];
+    if (animate && before[i] !== digits[i]) {
+      void strip.offsetWidth; // Restart the upward roll for this digit.
+      strip.classList.add('rolling');
+    }
+  }
+  $('counter').setAttribute('aria-label', 'Tape counter ' + digits);
+  lastCounterValue = value;
+  lastCounterRaw = raw;
+}
+
 function render(s) {
   last = s;
   const playing = !!s.playing;
@@ -182,9 +219,9 @@ function render(s) {
   $('deckEject').disabled = !!s.motorOn || s.tapeState === 'ejected' && !s.sessionId;
   if (!$('deckMessage').textContent)
     $('deckMessage').textContent = s.sensePressed ?
-      'PLAY wciśnięty. MOTOR uruchamia komputer.' : 'STOP zwolnił SENSE.';
-  $('loaded').textContent = s.tapeState === 'loaded' ? (s.fileName || 'Załadowana') : 'Wysunięta';
-  $('motor').textContent = s.motorOn ? 'Włączony' : 'Wyłączony';
+      'PLAY pressed. The computer controls MOTOR.' : 'STOP released SENSE.';
+  $('loaded').textContent = s.tapeState === 'loaded' ? (s.fileName || 'Loaded') : 'Ejected';
+  $('motor').textContent = s.motorOn ? 'On' : 'Off';
   $('autoPlay').checked = !!s.autoPlay;
   if (s.defaultMachine === 'c64' || s.defaultMachine === 'c16') {
     $('defaultMachine').value = s.defaultMachine;
@@ -193,39 +230,40 @@ function render(s) {
       $('machine').value = s.defaultMachine;
     }
   }
-  const absoluteCycles = (source?.type === 'tap' && source.id === s.sessionId ?
-    source.seekCycles || 0 : 0) + (s.playedCycles || 0);
-  $('counter').textContent = String(Math.floor(absoluteCycles / s.clockHz)).padStart(4, '0');
+  const origin = source?.type === 'tap' && source.id === s.sessionId ?
+    source.seekCycles || 0 : s.phase === 'done' || s.phase === 'error' ? counterOriginCycles : 0;
+  const absoluteCycles = origin + (s.playedCycles || 0);
+  showTapeCounter(tapeCounterAtSeconds(absoluteCycles / s.clockHz));
   const total = s.totalCycles || (source && source.id === s.sessionId ? source.total : null);
   $('played').textContent = time(s.playedCycles, s.clockHz) +
     (total ? ' / ' + time(total, s.clockHz) : '');
   $('remaining').textContent = total ? time(Math.max(0, total - s.playedCycles), s.clockHz) : '—';
   $('buffer').textContent = s.fileOffsetReceived ? (8192 - s.freeBytes) + ' B' : '—';
-  $('phase').textContent = 'Faza: ' + s.phase + ' · odebrano ' + s.fileOffsetReceived + ' B';
+  $('phase').textContent = 'Phase: ' + s.phase + ' · received ' + s.fileOffsetReceived + ' B';
   if ($('debugPanel').open) $('debugJson').textContent = JSON.stringify(s, null, 2);
   $('diagnostics').textContent = s.freeHeap == null ? '' :
-    'ESP: heap ' + s.freeHeap + ' B (blok ' + s.maxFreeBlock + ' B)' +
-    ' · max pętla/HTTP ' + s.maxLoopUs + '/' + s.maxHttpUs + ' µs' +
-    ' · underrun I2S/źródło ' + s.i2sUnderruns + '/' + s.sourceUnderruns +
-    ' · błędy uploadu ' + s.uploadErrors;
-  const writeLabels = {idle:'Czeka', listening:'Nasłuch', receiving_header:'Odbiera nagłówek',
-    header_verified_no_action:'Nagłówek zweryfikowany', incomplete:'Niepełny nagłówek',
-    capture_overflow:'Przepełniony bufor', checksum_error:'Błąd sumy',
-    copy_mismatch:'Kopie różne', parity_error:'Błąd parzystości',
-    sync_error:'Błąd synchronizacji', pulse_error:'Błąd impulsów',
-    invalid_header:'Błędny nagłówek',
-    missing_terminator:'Brak końca bloku', unexpected_terminator:'Błędny koniec bloku'};
+    'ESP: heap ' + s.freeHeap + ' B (largest block ' + s.maxFreeBlock + ' B)' +
+    ' · max loop/HTTP ' + s.maxLoopUs + '/' + s.maxHttpUs + ' µs' +
+    ' · I2S/source underruns ' + s.i2sUnderruns + '/' + s.sourceUnderruns +
+    ' · upload errors ' + s.uploadErrors;
+  const writeLabels = {idle:'Waiting', listening:'Listening', receiving_header:'Receiving header',
+    header_verified_no_action:'Header verified', incomplete:'Incomplete header',
+    capture_overflow:'Capture overflow', checksum_error:'Checksum error',
+    copy_mismatch:'Copies differ', parity_error:'Parity error',
+    sync_error:'Sync error', pulse_error:'Pulse error',
+    invalid_header:'Invalid header',
+    missing_terminator:'Missing block terminator', unexpected_terminator:'Unexpected block terminator'};
   $('writeStatus').textContent = s.writeEnabled ?
-    (writeLabels[s.writeStatus] || s.writeStatus) : 'Nieaktywny';
+    (writeLabels[s.writeStatus] || s.writeStatus) : 'Disabled';
   $('writeDetail').textContent = s.writeStatus === 'header_verified_no_action' ?
-    (s.writeMachine === 'c16' ? 'C16/Plus4' : 'C64') + ' · SAVE "' + s.writeName + '" · typ ' + s.writeType + ' · $' +
+    (s.writeMachine === 'c16' ? 'C16/Plus4' : 'C64') + ' · SAVE "' + s.writeName + '" · type ' + s.writeType + ' · $' +
     s.writeStart.toString(16).toUpperCase().padStart(4, '0') + '–$' +
     s.writeEnd.toString(16).toUpperCase().padStart(4, '0') +
-    ' · brak przypisanej akcji' :
-    (s.writeEnabled ? 'Zweryfikowane nagłówki: ' + s.writeHeaders +
-      ' · błędy: ' + s.writeErrors + ' · przepełnienia: ' + s.writeOverflows :
-      'GPIO2/WRITE wymaga bezpiecznego układu i profilu WRITE.');
-  if (s.error) $('error').textContent = 'Błąd odtwarzacza: ' + s.error;
+    ' · no action assigned' :
+    (s.writeEnabled ? 'Verified headers: ' + s.writeHeaders +
+      ' · errors: ' + s.writeErrors + ' · overflows: ' + s.writeOverflows :
+      'GPIO2/WRITE requires protected hardware and a WRITE profile.');
+  if (s.error) $('error').textContent = 'Player error: ' + s.error;
   $('seek').disabled = !!s.motorOn || !source || source.type !== 'tap' ||
     source.id !== s.sessionId;
   const video = $('windowVideo');
@@ -235,38 +273,38 @@ function render(s) {
 
 async function parseIdx(file) {
   if (!file) return [];
-  if (file.size > 262144) throw Error('IDX jest zbyt duży');
+  if (file.size > 262144) throw Error('IDX is too large');
   const lines = (await file.text()).replace(/^\uFEFF/, '').split(/\r?\n/);
   const entries = [];
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line || /^[#;']/.test(line)) continue;
     const match = /^(0[xX][0-9a-fA-F]+|0[0-7]+|[1-9][0-9]*|0)[ \t]+(.+)$/.exec(line);
-    if (!match) throw Error('Nieznany format IDX w wierszu ' + (i + 1));
+    if (!match) throw Error('Unknown IDX format on line ' + (i + 1));
     const token = match[1];
     const radix = /^0[xX]/.test(token) ? 16 : /^0[0-7]+$/.test(token) ? 8 : 10;
     const offset = parseInt(token, radix);
     if (!Number.isSafeInteger(offset) || offset < 20 || offset > 0xffffffff ||
         !match[2].trim())
-      throw Error('Błędny offset lub opis IDX w wierszu ' + (i + 1));
+      throw Error('Invalid IDX offset or label on line ' + (i + 1));
     entries.push({offset, label:match[2].trim().slice(0, 120)});
-    if (entries.length > 512) throw Error('IDX ma za dużo pozycji');
+    if (entries.length > 512) throw Error('IDX has too many entries');
   }
-  if (!entries.length) throw Error('IDX nie zawiera pozycji');
+  if (!entries.length) throw Error('IDX contains no entries');
   return entries;
 }
 
 function tapFormat(bytes, size) {
-  if (bytes.length !== 20 || size <= 20) throw Error('Niepełny nagłówek TAP');
+  if (bytes.length !== 20 || size <= 20) throw Error('Incomplete TAP header');
   const signature = String.fromCharCode(...bytes.slice(0, 12));
   const c64 = signature === 'C64-TAPE-RAW' && bytes[13] === 0 &&
     (bytes[12] === 1 || bytes[12] === 2);
   const c16 = signature === 'C16-TAPE-RAW' && bytes[13] === 2 &&
     (bytes[12] === 1 || bytes[12] === 2);
   if (bytes[14] !== 0 || !(c64 || c16))
-    throw Error('Obsługiwane są C64 i C16 PAL TAP v1/v2');
+    throw Error('Supported: C64 and C16 PAL TAP v1/v2');
   const declared = new DataView(bytes.buffer, bytes.byteOffset, 20).getUint32(16, true);
-  if (declared !== size - 20) throw Error('Długość danych TAP nie zgadza się z nagłówkiem');
+  if (declared !== size - 20) throw Error('TAP data length does not match the header');
   return {machine:c16 ? 'c16' : 'c64', version:bytes[12]};
 }
 
@@ -291,9 +329,9 @@ async function scanTape(file, indexedOffsets = [], clockHz = 985248) {
       }
       if (bytes[i]) { total += bytes[i] * 8; i++; }
       else {
-        if (i + 3 >= bytes.length) throw Error('Ucięty impuls TAP');
+        if (i + 3 >= bytes.length) throw Error('Truncated TAP pulse');
         const cycles = bytes[i+1] | (bytes[i+2] << 8) | (bytes[i+3] << 16);
-        if (!cycles) throw Error('Zerowy impuls TAP');
+        if (!cycles) throw Error('Zero-length TAP pulse');
         total += cycles; i += 4;
       }
       pulses++;
@@ -313,11 +351,11 @@ function showIndex(entries, warning = '') {
     select.append(option);
   }
   $('indexControls').hidden = entries.length === 0;
-  $('indexInfo').textContent = warning || entries.length + ' poprawnych pozycji';
+  $('indexInfo').textContent = warning || entries.length + ' valid positions';
 }
 
 function selectedFilesText() {
-  $('selectedFiles').textContent = (selectedFile?.name || 'Brak pliku') +
+  $('selectedFiles').textContent = (selectedFile?.name || 'No file') +
     (selectedIdx ? ' + ' + selectedIdx.name : '');
 }
 function updateFormatControls() {
@@ -352,9 +390,14 @@ function navigationTarget(direction) {
     const previous = entries.filter(entry => entry.prefixCycles < current);
     return previous[previous.length - 1] || entries[0];
   }
-  const target = Math.max(0, current + direction * (last?.clockHz || 985248) * 10);
+  const clockHz = last?.clockHz || 985248;
+  const currentCounter = tapeCounterAtSeconds(current / clockHz);
+  const targetCounter = Math.max(0, Math.floor(currentCounter / 10) * 10 +
+    (direction > 0 ? 10 : currentCounter % 10 === 0 ? -10 : 0));
+  const target = secondsAtTapeCounter(targetCounter) * clockHz;
   if (direction > 0)
-    return source.timeline.find(entry => entry.prefixCycles >= target) || null;
+    return source.timeline.find(entry => entry.prefixCycles >= target) ||
+      [...source.timeline].reverse().find(entry => entry.prefixCycles > current) || null;
   const previous = source.timeline.filter(entry => entry.prefixCycles <= target);
   return previous[previous.length - 1] || source.timeline[0];
 }
@@ -390,14 +433,14 @@ async function step() {
       source = null;
       showIndex([]);
     }
-    if ($('error').textContent.startsWith('Połączenie/transfer:'))
+    if ($('error').textContent.startsWith('Connection/transfer:'))
       $('error').textContent = '';
     render(state);
     $('transport').textContent = hadSource && recovery.ok ?
-      (recovery.changed ? 'Połączenie wznowione; offset uzgodniony z ESP.' : 'Połączono z ESP.') :
+      (recovery.changed ? 'Connection restored; offset reconciled with ESP.' : 'Connected to ESP.') :
       state.sessionId ? (recovery.reason === 'playback_error' ?
-        'Odtwarzanie przerwane; włożenie pliku trzeba rozpocząć ponownie.' :
-        'Brak pliku źródłowego tej sesji w karcie. Włóż plik ponownie.') : 'Połączono z ESP.';
+        'Playback stopped; insert the file again.' :
+        'This tab has no source file for the session. Insert the file again.') : 'Connected to ESP.';
     if (source && recovery.ok) {
       let credit = state.freeBytes;
       for (let requests = 0; requests < 4 && credit > 0 &&
@@ -419,24 +462,24 @@ async function step() {
       }
     }
   } catch (error) {
-    $('transport').textContent = 'Brak połączenia; plik pozostaje w tej karcie.';
-    $('error').textContent = 'Połączenie/transfer: ' + error.message;
+    $('transport').textContent = 'Connection lost; the file remains in this tab.';
+    $('error').textContent = 'Connection/transfer: ' + error.message;
   } finally { busy = false; }
 }
 
 $('load').onclick = async () => {
   const file = selectedFile || $('file').files[0];
-  if (!file) { $('error').textContent = 'Wybierz TAP lub PRG'; return; }
-  if (last?.motorOn) { $('error').textContent = 'Zatrzymaj MOTOR'; return; }
+  if (!file) { $('error').textContent = 'Select a TAP or PRG'; return; }
+  if (last?.motorOn) { $('error').textContent = 'Stop MOTOR'; return; }
   await acquire();
   try {
     const isPrg = /\.prg$/i.test(file.name);
-    if (!isPrg && !/\.tap$/i.test(file.name)) throw Error('Wybierz TAP lub PRG');
+    if (!isPrg && !/\.tap$/i.test(file.name)) throw Error('Select a TAP or PRG');
     const bytes = new Uint8Array(await file.slice(0, isPrg ? 2 : 20).arrayBuffer());
     const header = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
     let body, scan = null, validEntries = [], indexEntries = [];
     if (isPrg) {
-      if (file.size < 3) throw Error('PRG nie zawiera danych programu');
+      if (file.size < 3) throw Error('PRG contains no program data');
       body = new URLSearchParams({type:'prg', size:String(file.size), header,
         name:file.name, displayName:$('programName').value || file.name.replace(/\.prg$/i, ''),
         machine:$('machine').value, turbo:$('turbo').value});
@@ -451,11 +494,12 @@ $('load').onclick = async () => {
           phase:format.version === 2 ? scan.pulsePositions.get(entry.offset) % 2 : 0}))
         .sort((a, b) => a.offset - b.offset);
       if (indexEntries.length && !validEntries.length)
-        throw Error('IDX nie ma żadnej pozycji na granicy rekordu TAP');
+        throw Error('IDX has no entry at a TAP record boundary');
       body = new URLSearchParams({type:'tap', size:String(file.size), header,
         name:file.name, cycles:String(scan.total)});
     }
     const ack = await api('/session', {method:'POST', body});
+    counterOriginCycles = 0;
     source = {file, type:isPrg ? 'prg' : 'tap', id:ack.sessionId,
       offset:ack.nextOffset, logicalSize:ack.logicalSize || file.size,
       dataLength:isPrg ? file.size - 2 : 0,
@@ -469,12 +513,12 @@ $('load').onclick = async () => {
       const mismatch = selectedIdx && selectedIdx.name.replace(/\.idx$/i,'').toLowerCase() !==
         file.name.replace(/\.tap$/i,'').toLowerCase();
       showIndex(validEntries, (indexEntries.length - validEntries.length) +
-        ' wpisów pominiętych (poza TAP lub wewnątrz rekordu)' +
-        (mismatch ? ' · nazwy TAP/IDX różnią się' : ''));
+        ' entries skipped (outside TAP or inside a record)' +
+        (mismatch ? ' · TAP/IDX names differ' : ''));
     }
     $('error').textContent = '';
   } catch (error) {
-    $('error').textContent = 'Nie można włożyć pliku: ' + error.message;
+    $('error').textContent = 'Cannot insert file: ' + error.message;
   } finally { busy = false; }
 };
 
@@ -482,23 +526,24 @@ $('deckEject').onclick = async () => {
   await acquire();
   try {
     await api('/eject', {method:'POST'});
+    counterOriginCycles = 0;
     source = null; showIndex([]);
     $('error').textContent = '';
-    $('deckMessage').textContent = 'Kaseta wysunięta.';
+    $('deckMessage').textContent = 'Tape ejected.';
   }
   catch (error) { $('error').textContent = error.message; }
   finally { busy = false; }
 };
 $('demo').onclick = async () => {
   await acquire();
-  try { await api('/demo', {method:'POST'}); source = null; showIndex([]); $('error').textContent = ''; }
+  try { await api('/demo', {method:'POST'}); counterOriginCycles = 0; source = null; showIndex([]); $('error').textContent = ''; }
   catch (error) { $('error').textContent = error.message; }
   finally { busy = false; }
 };
 
 async function seekTo(entry) {
   if (!source || last?.motorOn) {
-    $('error').textContent = 'Wybierz TAP i zatrzymaj MOTOR';
+    $('error').textContent = 'Select a TAP and stop MOTOR';
     return;
   }
   await acquire();
@@ -512,19 +557,20 @@ async function seekTo(entry) {
     source.total = remaining;
     source.seekOffset = entry.offset;
     source.seekCycles = entry.prefixCycles;
+    counterOriginCycles = entry.prefixCycles;
     $('idxPositions').value = String(entry.offset);
     $('error').textContent = '';
     $('deckMessage').textContent = entry.offset === 20 ?
-      'Przewinięto na początek.' : 'Przeskoczono do 0x' + entry.offset.toString(16).toUpperCase() + '.';
+      'Rewound to start.' : 'Jumped to 0x' + entry.offset.toString(16).toUpperCase() + '.';
   } catch (error) {
-    $('error').textContent = 'Nie można przeskoczyć: ' + error.message;
+    $('error').textContent = 'Cannot seek: ' + error.message;
   } finally { busy = false; }
 }
 
 $('seek').onclick = async () => {
   const offset = Number($('idxPositions').value);
   const entry = source?.indexEntries.find(item => item.offset === offset);
-  if (!entry) { $('error').textContent = 'Niepoprawna pozycja IDX'; return; }
+  if (!entry) { $('error').textContent = 'Invalid IDX position'; return; }
   await seekTo(entry);
 };
 
@@ -534,10 +580,11 @@ $('rewind').onclick = async () => {
     await acquire();
     try {
       await api('/demo', {method:'POST'});
-      $('deckMessage').textContent = 'Kaseta demo przewinięta na początek.';
+      counterOriginCycles = 0;
+      $('deckMessage').textContent = 'Demo tape rewound to start.';
       $('error').textContent = '';
     } catch (error) {
-      $('error').textContent = 'Nie można przewinąć demo: ' + error.message;
+      $('error').textContent = 'Cannot rewind demo: ' + error.message;
     } finally { busy = false; }
     return;
   }
@@ -549,10 +596,11 @@ $('rewind').onclick = async () => {
     source.id = ack.sessionId;
     source.offset = ack.nextOffset;
     source.seekOffset = 2;
+    counterOriginCycles = 0;
     $('error').textContent = '';
-    $('deckMessage').textContent = 'Program przewinięty na początek.';
+    $('deckMessage').textContent = 'Program rewound to start.';
   } catch (error) {
-    $('error').textContent = 'Nie można przewinąć: ' + error.message;
+    $('error').textContent = 'Cannot rewind: ' + error.message;
   } finally { busy = false; }
 };
 
@@ -569,11 +617,11 @@ async function setSense(pressed) {
       body:new URLSearchParams({pressed:pressed ? '1' : '0'})});
     if (last) render({...last, sensePressed:ack.sensePressed});
     $('deckMessage').textContent = pressed ?
-      'PLAY wciśnięty. Komputer uruchamia MOTOR po LOAD lub SAVE.' :
-      'STOP zwolnił SENSE. Stan MOTOR nadal ustala komputer.';
+      'PLAY pressed. The computer starts MOTOR after LOAD or SAVE.' :
+      'STOP released SENSE. The computer still controls MOTOR.';
     $('error').textContent = '';
   } catch (error) {
-    $('error').textContent = 'Nie można zmienić PLAY: ' + error.message;
+    $('error').textContent = 'Cannot change PLAY: ' + error.message;
   } finally { busy = false; }
 }
 $('play').onclick = () => setSense(true);
@@ -587,12 +635,12 @@ $('autoPlay').onchange = async () => {
       body:new URLSearchParams({enabled:enabled ? '1' : '0'})});
     if (last) render({...last, autoPlay:ack.autoPlay});
     $('deckMessage').textContent = ack.autoPlay ?
-      'Autoplay: następna włożona kaseta wciśnie PLAY.' :
-      'Autoplay wyłączony: po włożeniu kasety wciśnij PLAY ręcznie.';
+      'Autoplay: inserting the next tape will press PLAY.' :
+      'Autoplay off: press PLAY after inserting a tape.';
     $('error').textContent = '';
   } catch (error) {
     $('autoPlay').checked = !enabled;
-    $('error').textContent = 'Nie można zapisać autoplay: ' + error.message;
+    $('error').textContent = 'Cannot save autoplay: ' + error.message;
   } finally { busy = false; }
 };
 
@@ -603,12 +651,12 @@ $('defaultMachine').onchange = async () => {
     const ack = await api('/default-machine', {method:'POST',
       body:new URLSearchParams({machine})});
     if (last) render({...last, defaultMachine:ack.defaultMachine});
-    $('deckMessage').textContent = 'Domyślny komputer PRG: ' +
+    $('deckMessage').textContent = 'Default PRG computer: ' +
       (ack.defaultMachine === 'c16' ? 'C16 / Plus/4' : 'C64') + '.';
     $('error').textContent = '';
   } catch (error) {
     $('defaultMachine').value = selectedDefaultMachine || 'c64';
-    $('error').textContent = 'Nie można zapisać domyślnego komputera: ' + error.message;
+    $('error').textContent = 'Cannot save default computer: ' + error.message;
   } finally { busy = false; }
 };
 
