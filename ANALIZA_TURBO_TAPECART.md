@@ -39,6 +39,21 @@ W [rutynie `getbyte` loadera](https://github.com/ikorb/tapecart/blob/master/src-
 
 **Warunek elektryczny pozostaje:** po stronie C64 WRITE najpierw jest wyjściem 5 V, potem wejściem; GPIO2 ESP-01 również zmienia kierunek. Potrzebny jest schemat translacji/separacji gwarantujący brak konfliktu obu wyjść podczas przełączeń, poprawny poziom wysoki na wejściu C64 i stan wysoki GPIO2 przy bootowaniu ESP. Dla BSS138 szczególnie ważne są rezystory podciągające, pojemność i czas narastania względem próbek co około 9 µs. Samo programowe `pinMode()` nie dowodzi bezpieczeństwa układu.
 
+### Sterowanie dwukierunkową linią WRITE
+
+**C64 nie używa open-drain podczas nadawania:** jego port 6510 wystawia na WRITE aktywne HIGH **i** LOW. Dopiero po `sta $00` w [`getbyte`](https://github.com/ikorb/tapecart/blob/master/src-c64/loader.asm) przełącza WRITE na wejście. Wtedy urządzenie może wysłać drugi bit każdej pary. BSS138 z `1551-rePico` służy jako wzorzec stopnia dwukierunkowego, ale tamtejszy [raport hardware](../../../../plus4/pico1551/1551-rePico/experimental/hardware1551/FABRICATION_CHECK_REPORT.md) wymaga po stronie mikrokontrolera sterowania open-drain (LOW albo high-Z). Tu dodatkowo musimy zsynchronizować się z aktywnym wyjściem 6510.
+
+| Faza | C64 na WRITE | ESP GPIO2 za translatorem BSS138 | Warunek |
+| --- | --- | --- | --- |
+| Zwykły `LOAD`/`SAVE` i sekwencja wyboru trybu | Aktywne HIGH/LOW | Wejście, high-Z; odczyt przez translator | ESP nie może wymuszać LOW, gdy C64 wystawia HIGH. |
+| Gotowość przed bajtem turbo | Nadal aktywne wyjście; C64 czeka na SENSE | Wejście, high-Z; bajt gotowy w RAM | ESP zgłasza gotowość na SENSE dopiero po przygotowaniu krytycznej pętli. |
+| Sygnał startu bajtu | C64 wystawia aktywne HIGH, następnie przełącza WRITE na wejście | Najpierw wejście, high-Z; odpytuje stan HIGH | Sam poziom HIGH **nie mówi**, czy C64 już przełączył kierunek. ESP nie może jeszcze wymusić LOW. |
+| Cztery próbki danych | Wejście, high-Z | LOW jako wyjście niskie; HIGH jako zwolnienie GPIO2 do wejścia/high-Z i podciągnięcie obu stron | Sterować rejestrem GPIO bezpośrednio. Czas włączenia pierwszego LOW i narastanie HIGH muszą zmieścić się przed odpowiednimi próbkami co ~9 µs. |
+| Koniec bajtu | C64 ponownie przełącza WRITE na wyjście, po czym wystawia LOW | Zwolnić GPIO2 do high-Z **przed** zmianą kierunku C64 | Nie dopuścić do zwarcia aktywnego HIGH z LOW; czekać na następny bajt. |
+| Reset/start ESP | C64 może nadal aktywnie trzymać WRITE LOW albo HIGH | GPIO2 musi pozostać HIGH przy bootowaniu ESP | Sam BSS138 przeniesie LOW z C64 i może zablokować boot; przewidzieć izolację/sterowanie włączaniem translatora podczas resetu. |
+
+Ta tabela opisuje **zamierzony automat**, nie potwierdzony schemat. Między aktywnym HIGH C64 a pierwszą próbką jest wąskie okno na przełączenie kierunku: nie wolno opierać go na założeniu, że zbocze WRITE oznacza już high-Z. Trzeba wyznaczyć zwłokę z cykli instrukcji 6510, a następnie zmierzyć ją oscyloskopem lub analizatorem stanów na rzeczywistym C64. W czasie prototypu sprawdzić osobno C64 aktywne HIGH + ESP high-Z, C64 aktywne LOW + ESP high-Z, ESP LOW + C64 high-Z oraz czas narastania ESP high-Z + C64 high-Z. Rozważyć translator z kontrolą kierunku/OE, jeśli BSS138 nie da wymaganych czasów lub izolacji przy resecie. [NXP AN10441](https://files.seeedstudio.com/wiki/Grove-I2C_High_Accuracy_Temperature_Sensor-MCP9808/res/AN10441.pdf) opisuje MOSFET dla obu stron typu open-drain, więc nie stanowi walidacji naszej kombinacji z aktywnym wyjściem 6510.
+
 ## Rozsądne ścieżki
 
 1. **Najpierw zwykły TAP i PRG → standardowa taśma.** Potwierdzić na C64 czas impulsów, MOTOR, Wi-Fi i rozmiar bufora. TAP z istniejącym komercyjnym turbo loaderem nadal odtwarzać dokładnie jak zapisany; nie konwertować go na Tapecart.
