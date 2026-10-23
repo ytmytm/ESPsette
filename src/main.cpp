@@ -56,7 +56,7 @@ volatile uint32_t writeLastEdgeUs = 0, writeCaptureOverflows = 0;
 volatile bool writeActive = false;
 uint32_t reportedWriteOverflows = 0;
 
-void ICACHE_RAM_ATTR onWriteEdge() {
+void IRAM_ATTR onWriteEdge() {
   if (!writeActive) return;
   const uint32_t now = micros();
   const uint32_t previous = writeLastEdgeUs;
@@ -165,7 +165,7 @@ uint32_t scheduledWords = 0; // Includes idle padding.
 uint32_t generatedTapBits = 0;
 uint32_t realBitRate = 0;
 
-void ICACHE_RAM_ATTR onDmaBufferDone() {
+void IRAM_ATTR onDmaBufferDone() {
   ++dmaCallbacks;
   lastDmaCallbackUs = micros();
   if (dmaCallbacks >= DMA_BUFFERS &&
@@ -174,7 +174,7 @@ void ICACHE_RAM_ATTR onDmaBufferDone() {
   }
 }
 
-void ICACHE_RAM_ATTR onMotorFalling() {
+void IRAM_ATTR onMotorFalling() {
   motorFallCallbacks = dmaCallbacks;
   motorFallElapsedUs = micros() - lastDmaCallbackUs;
   motorFell = true;
@@ -705,8 +705,11 @@ void loop() {
   const uint32_t loopElapsedUs = micros() - loopStartUs;
   if (loopElapsedUs > maxLoopUs) maxLoopUs = loopElapsedUs;
   const uint32_t elapsed = millis() - timeBeginLoop;
-  if (elapsed > 200) debugW("Loop took %lu ms", (unsigned long)elapsed);
-  else if (elapsed > 100) debugI("Loop took %lu ms", (unsigned long)elapsed);
+  if (elapsed > 200) {
+    debugW("Loop took %lu ms", (unsigned long)elapsed);
+  } else if (elapsed > 100) {
+    debugI("Loop took %lu ms", (unsigned long)elapsed);
+  }
 }
 
 //// web
