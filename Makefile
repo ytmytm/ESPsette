@@ -1,6 +1,13 @@
 PROFILE ?= 1m
 PORT ?=
 OTA_HOST ?=
+VERBOSE ?= 0
+
+ifeq ($(VERBOSE),1)
+PIO_VERBOSE := -v
+else
+PIO_VERBOSE :=
+endif
 
 ifeq ($(PROFILE),512k)
 SERIAL_ENV := esp01_512k_serial
@@ -20,11 +27,11 @@ setup:
 	./scripts/setup-tools.sh
 
 build:
-	./scripts/pio.sh run -e $(SERIAL_ENV)
+	./scripts/pio.sh run $(PIO_VERBOSE) -e $(SERIAL_ENV)
 
 flash:
 	@test -n "$(PORT)" || { echo 'Set PORT=/dev/cu.usbserial-...'; exit 1; }
-	./scripts/pio.sh run -e $(SERIAL_ENV) -t upload --upload-port "$(PORT)"
+	./scripts/pio.sh run $(PIO_VERBOSE) -e $(SERIAL_ENV) -t upload --upload-port "$(PORT)"
 
 ota:
 	@test -n "$(OTA_ENV)" || { echo 'OTA is not planned for 512 KB'; exit 1; }
