@@ -9,10 +9,14 @@ if [ ! -x "$uv_bin" ]; then
   curl -fsSL https://astral.sh/uv/install.sh -o "$project_dir/tools/install-uv.sh"
   UV_UNMANAGED_INSTALL="$project_dir/tools/bin" sh "$project_dir/tools/install-uv.sh"
 fi
-export UV_CACHE_DIR="$project_dir/tools/uv-cache"
-export UV_DATA_DIR="$project_dir/tools/uv-data"
-export UV_PYTHON_INSTALL_DIR="$project_dir/tools/python"
-export UV_PYTHON_BIN_DIR="$project_dir/tools/python-bin"
+# uv flock fails on NFS without locks (ENOLCK); keep lockable state on local disk
+uv_local="${XDG_CACHE_HOME:-$HOME/.cache}/espsette/uv"
+mkdir -p "$uv_local"
+export UV_CACHE_DIR="$uv_local/cache"
+export UV_DATA_DIR="$uv_local/data"
+export UV_PYTHON_INSTALL_DIR="$uv_local/python"
+export UV_PYTHON_BIN_DIR="$uv_local/python-bin"
+export UV_LINK_MODE=copy
 "$uv_bin" python install 3.12
 "$uv_bin" venv "$project_dir/tools/venv" --python 3.12
 "$uv_bin" pip install --python "$project_dir/tools/venv/bin/python" -r "$project_dir/requirements-tools.txt"
