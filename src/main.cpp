@@ -165,6 +165,20 @@ uint32_t scheduledWords = 0; // Includes idle padding.
 uint32_t generatedTapBits = 0;
 uint32_t realBitRate = 0;
 
+void handleRoot();
+void handlePlayer();
+void handleNotFound();
+void handleState();
+void handleSession();
+void handleSeek();
+void handleChunk();
+void handleChunkUpload();
+void handleEject();
+void handleSense();
+void handleAutoPlay();
+void handleDefaultMachine();
+void handleDemo();
+
 void IRAM_ATTR onDmaBufferDone() {
   ++dmaCallbacks;
   lastDmaCallbackUs = micros();
@@ -732,7 +746,7 @@ void handlePlayer() {
   HTTPServer.send_P(200, "text/html; charset=utf-8", PLAYER_PAGE);
 }
 
- void handleNotFound(){
+void handleNotFound() {
      if (networkConfig.apActive()) {
        HTTPServer.sendHeader("Location", "/wifi");
        HTTPServer.send(302, "text/plain", "");
