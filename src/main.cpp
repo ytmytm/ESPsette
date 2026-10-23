@@ -13,6 +13,8 @@
 
 #define HOST_NAME "espsette"
 
+#include <Arduino.h>
+
 #if __has_include("local_wifi.h")
 #include "local_wifi.h" // Local build-only credentials; ignored by Git.
 #endif
