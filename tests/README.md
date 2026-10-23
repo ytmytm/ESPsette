@@ -16,6 +16,6 @@ c++ -std=c++17 -Itests/support -Isrc tests/prg_vectors_test.cpp src/prg_encoder.
 /tmp/espsette-prg-test
 ```
 
-`prg_vectors_test.cpp` porównuje każdy impuls produkcyjnego generatora C16 i C64 z niezależną sekwencją bloków. Dla C16 dodatkowo porównuje czasy z impulsem testowym Pi1551 z tolerancją dla wartości cykli wybranych przez WAV-PRG; dla C64 używa tej samej struktury bitów oraz długości 384/536/680 cykli. `player_index.mjs` odtwarza przypadki IDX z Pi1551 i sprawdza, że offset wewnątrz czterobajtowego rekordu TAP v1 nie jest pozycją skoku.
+`prg_vectors_test.cpp` porównuje każdy impuls produkcyjnego generatora C16 i C64 z niezależną sekwencją bloków. Dla C16 dodatkowo porównuje czasy z impulsem testowym Pi1551 z tolerancją dla wartości cykli wybranych przez WAV-PRG; dla C64 używa tej samej struktury bitów oraz długości 384/536/680 cykli. `player_index.mjs` odtwarza przypadki IDX z Pi1551, sprawdza nagłówki C64 v1 i C16 v1/v2, granice rekordów i parzystość półokresu po skoku IDX. Nie testuje przebiegu I2S na pinie READ.
 
 Testy nie potwierdzają rzeczywistego tempa I2S, polaryzacji READ/WRITE, opóźnień DMA ani działania `LOAD` na komputerze. Pierwsza kompilacja firmware i test sprzętowy pozostają osobnym krokiem na Macu.

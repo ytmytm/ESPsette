@@ -2,7 +2,7 @@
 
 ## Stan projektu (gałąź `espsette/implementation`)
 
-- **W kodzie:** poprawiony odtwarzacz I2S, portal Wi-Fi AP/STA z konfiguracją LittleFS, krótkie żądania do strumieniowania TAP/PRG z przeglądarki, tekstowy IDX Ultimate 64, lokalny podgląd strony i standardowy generator PRG dla C64 PAL oraz C16/Plus/4 PAL. Dla C16 generator używa zegara 886 724 Hz i impulsów 448/896/1792 cykli; TAP pozostaje ograniczony do C64 PAL v1. [WAV-PRG — generator](https://github.com/fabzzap/wav-prg/blob/master/prg2wav_core/prg2wav_core.c), [VICE — zegary i TAP](https://vice-emu.sourceforge.io/vice_17.html).
+- **W kodzie:** poprawiony odtwarzacz I2S, portal Wi-Fi AP/STA z konfiguracją LittleFS, krótkie żądania do strumieniowania TAP/PRG z przeglądarki, tekstowy IDX Ultimate 64, lokalny podgląd strony i standardowy generator PRG dla C64 PAL oraz C16/Plus/4 PAL. Dla C16 generator używa zegara 886 724 Hz i impulsów 448/896/1792 cykli; odtwarzacz TAP obsługuje C64 PAL v1 i C16/Plus4 PAL v1/v2, z fazą półokresu v2 odtwarzaną również po skoku IDX. [WAV-PRG — generator](https://github.com/fabzzap/wav-prg/blob/master/prg2wav_core/prg2wav_core.c), [VICE — zegary i TAP](https://vice-emu.sourceforge.io/vice_17.html).
 - **WRITE w kodzie:** dekoder standardowego nagłówka `SAVE` C64 i C16/Plus4 automatycznie rozpoznaje maszynę po impulsach i sprawdza synchronizację, parzystość, XOR i zgodność dwóch kopii, a wynik publikuje w `/state` i na stronie. Nie wykonuje żadnej komendy. Fizyczny odbiór GPIO2 jest domyślnie wyłączony; osobne profile `1m-write` i `4m-write` są przeznaczone dopiero dla układu z zabezpieczonym wejściem i poprawnym stanem GPIO2 podczas startu.
 - **Bez potwierdzenia:** tej gałęzi nie kompilowano na WSL zgodnie z ustaleniem. Czas I2S, wznowienie po MOTOR, odbiór WRITE, budżet flash/RAM i skuteczność `LOAD` na C64/C16 wymagają kompilacji na Macu oraz testu fizycznego. Sąsiedni worktree `../espsette/` zachowuje wcześniejszy wariant do pierwszej próby z osadzonym TAP.
 - **Później:** turbo po pomiarach sprzętowych, fotorealistyczny deck, zabezpieczenie panelu, odporność na utratę Wi-Fi. Opcjonalny [film z Pixabay](https://pixabay.com/videos/tape-recorder-music-stale-nostalgic-118790/) pozostaje lokalnie w przeglądarce.
@@ -216,7 +216,7 @@ Liczby na mechanicznym liczniku datasette **nie są jednoznacznym adresem TAP**.
 
 ## Sugerowane źródło obrazów kaset
 
-[Ultimate Tape Archive](https://uta.pokefinder.org/) udostępnia do przeglądania i pobierania obrazy kaset oraz materiały skanowane dla **C64 i VIC-20**. To użyteczny odnośnik na stronie projektu przy wyborze TAP, zwłaszcza że część kaset ma sparowane pliki IDX. Odnośnik powinien otwierać archiwum w przeglądarce użytkownika; ESP-01 nie musi pobierać z niego plików. TAP nadal dotyczy C64, a standardowy PRG ma wariant C16/Plus4 PAL; obecność VIC-20 w archiwum nie oznacza obsługi tego komputera przez firmware.
+[Ultimate Tape Archive](https://uta.pokefinder.org/) udostępnia do przeglądania i pobierania obrazy kaset oraz materiały skanowane dla **C64 i VIC-20**. To użyteczny odnośnik na stronie projektu przy wyborze TAP, zwłaszcza że część kaset ma sparowane pliki IDX. Odnośnik powinien otwierać archiwum w przeglądarce użytkownika; ESP-01 nie musi pobierać z niego plików. TAP dotyczy C64 oraz C16/Plus4 PAL, a standardowy PRG również ma wariant C16/Plus4 PAL; obecność VIC-20 w archiwum nie oznacza obsługi tego komputera przez firmware.
 
 ## Przegląd modernizacji projektu i narzędzi
 

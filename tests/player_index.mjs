@@ -60,6 +60,24 @@ const scan = await vm.runInContext('scanTape(tape, [20,21,22,25])', scanContext)
 assert.equal(scan.total, 47 * 8 + 16 + 66 * 8);
 assert.deepEqual(Array.from(scan.positions.keys()), [20, 21, 25]);
 assert.equal(scan.positions.get(25), 47 * 8 + 16);
+assert.equal(scan.pulsePositions.get(20), 0);
+assert.equal(scan.pulsePositions.get(21), 1);
+assert.equal(scan.pulsePositions.get(25), 2);
+// A C16 v2 seek at 0x15 starts on the opposite halfwave level.
+assert.equal(scan.pulsePositions.get(21) % 2, 1);
+for (const [machine, version] of [['C64', 1], ['C16', 1], ['C16', 2]]) {
+  const header = new Uint8Array(20);
+  header.set(new TextEncoder().encode(machine + '-TAPE-RAW'));
+  header[12] = version;
+  header[13] = machine === 'C16' ? 2 : 0;
+  header[16] = 6;
+  context.testHeader = header;
+  const format = vm.runInContext('tapFormat(testHeader, 26)', context);
+  assert.equal(format.machine, machine.toLowerCase());
+  assert.equal(format.version, version);
+}
+context.testHeader[12] = 3;
+assert.throws(() => vm.runInContext('tapFormat(testHeader, 26)', context));
 const piBoundaryEntries = [20, 21, 22, 25].filter(offset => scan.positions.has(offset));
 assert.deepEqual(piBoundaryEntries, [20, 21, 25]); // 22 lies inside v1 extension.
 

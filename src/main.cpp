@@ -95,6 +95,7 @@ enum class State : uint8_t { WAITING, STREAMING, DRAINING, FINISHED, ERROR };
 static const uint32_t C64_CLOCK_HZ = 985248UL;
 static const uint32_t C16_CLOCK_HZ = 886724UL;
 uint32_t sourceClockHz = C64_CLOCK_HZ;
+bool tapHalfWaves = false; // C16 TAP v2 uses successive halfwaves.
 static const uint32_t CYCLES_PER_BIT = 16;
 static const uint8_t DMA_WORDS = 64; // ESP8266 core: 8 DMA descriptors, 64 words each.
 static const uint8_t DMA_BUFFERS = 8;
@@ -128,6 +129,7 @@ struct DecoderState {
   uint32_t pulseTicks;
   uint32_t pulseIndex;
   uint8_t cycleRemainder;
+  uint8_t halfWaveLevel; // Checkpointed across MOTOR pauses.
 };
 
 struct TapPlayer {
@@ -175,6 +177,7 @@ void resetPlayer(uint32_t offset) {
   player.decoder.pulseTicks = 0;
   player.decoder.pulseIndex = 0;
   player.decoder.cycleRemainder = 0;
+  player.decoder.halfWaveLevel = 0;
   player.pendingWord = 0;
   player.wordPending = false;
   player.drainWordsLeft = 0;
@@ -389,6 +392,8 @@ bool loadPulse() {
   player.decoder.pulseTicks = cycles / CYCLES_PER_BIT;
   player.decoder.cycleRemainder = cycles % CYCLES_PER_BIT;
   player.decoder.pulseIndex = 0;
+  if (tapHalfWaves && player.decoder.pulseTicks == 0)
+    player.decoder.halfWaveLevel ^= 1;
   return true;
 }
 
@@ -396,8 +401,13 @@ bool nextTapeBit(uint8_t &bit) {
   while (player.decoder.pulseIndex == player.decoder.pulseTicks) {
     if (!loadPulse()) return false;
   }
-  bit = player.decoder.pulseIndex >= player.decoder.pulseTicks / 2 ? 1 : 0;
+  // GPIO3=0 is READ=1 through the external transistor. TAP v2 begins
+  // after a 0->1 transition, so halfWaveLevel=0 is the first READ level.
+  bit = tapHalfWaves ? player.decoder.halfWaveLevel :
+      (player.decoder.pulseIndex >= player.decoder.pulseTicks / 2 ? 1 : 0);
   ++player.decoder.pulseIndex;
+  if (tapHalfWaves && player.decoder.pulseIndex == player.decoder.pulseTicks)
+    player.decoder.halfWaveLevel ^= 1;
   return true;
 }
 
@@ -561,6 +571,7 @@ void setup() {
   setupWebserver();
   sourceFormat = SourceFormat::TAP;
   sourceClockHz = C64_CLOCK_HZ;
+  tapHalfWaves = false;
   tapeSource.useEmbedded(draxcaught_tap, draxcaught_tap_len);
   resetPlayer(20);
   if (!validateTap()) {
@@ -737,9 +748,11 @@ static bool decodeHeader(const String& hex, uint8_t header[20]) {
 }
 
 static bool validStreamHeader(const uint8_t header[20], uint32_t size) {
-  static const char signature[] = "C64-TAPE-RAW";
-  if (size <= 20 || memcmp(header, signature, 12) != 0 ||
-      header[12] != 1 || header[13] != 0 || header[14] != 0) return false;
+  const bool c64 = memcmp(header, "C64-TAPE-RAW", 12) == 0 && header[13] == 0;
+  const bool c16 = memcmp(header, "C16-TAPE-RAW", 12) == 0 && header[13] == 2;
+  if (size <= 20 || header[14] != 0 ||
+      !((c64 && header[12] == 1) ||
+        (c16 && (header[12] == 1 || header[12] == 2)))) return false;
   const uint32_t dataSize = (uint32_t)header[16] |
                             ((uint32_t)header[17] << 8) |
                             ((uint32_t)header[18] << 16) |
@@ -862,19 +875,21 @@ void handleSession() {
     totalTapeCycles = prgEncoder.totalCycles();
     reportedTotalCycles = totalTapeCycles;
     sourceClockHz = prgEncoder.clockHz();
+    tapHalfWaves = false;
   } else {
     if (!decodeHeader(HTTPServer.arg("header"), prefix) ||
         !validStreamHeader(prefix, fileSize) ||
         (HTTPServer.hasArg("cycles") &&
          !parseDecimal64(HTTPServer.arg("cycles"), cycles))) {
-      HTTPServer.send(400, "text/plain", "Only C64 PAL TAP v1 is supported");
+      HTTPServer.send(400, "text/plain", "Supported: C64 PAL TAP v1, C16 PAL TAP v1/v2");
       return;
     }
     logicalSize = fileSize;
     firstOffset = 20;
     totalTapeCycles = 0;
     reportedTotalCycles = cycles; // Browser metadata is display-only.
-    sourceClockHz = C64_CLOCK_HZ;
+    sourceClockHz = prefix[13] == 2 ? C16_CLOCK_HZ : C64_CLOCK_HZ;
+    tapHalfWaves = prefix[12] == 2;
   }
   const uint32_t id = newSessionId(0);
   if (isPrg) {
@@ -904,7 +919,7 @@ void handleSession() {
 }
 
 void handleSeek() {
-  uint32_t id, offset;
+  uint32_t id, offset, phase;
   uint64_t remainingCycles;
   if (digitalRead(PIN_MOTOR) == HIGH ||
       state == State::STREAMING || state == State::DRAINING) {
@@ -914,6 +929,8 @@ void handleSeek() {
   if (sourceFormat != SourceFormat::TAP ||
       !parseDecimal(HTTPServer.arg("sid"), id) ||
       !parseDecimal(HTTPServer.arg("offset"), offset) ||
+      !parseDecimal(HTTPServer.arg("phase"), phase) || phase > 1 ||
+      (!tapHalfWaves && phase != 0) ||
       !parseDecimal64(HTTPServer.arg("cycles"), remainingCycles) ||
       remainingCycles == 0 || tapeSource.kind() != TapeSource::Kind::STREAMED ||
       id != tapeSource.sessionId() || offset < 20 || offset >= tapEnd) {
@@ -935,6 +952,7 @@ void handleSeek() {
   uploadSeen = false;
   state = State::WAITING;
   resetPlayer(offset);
+  player.decoder.halfWaveLevel = phase;
   StaticJsonDocument<128> reply;
   reply["sessionId"] = nextId;
   reply["nextOffset"] = offset;
@@ -1012,6 +1030,7 @@ void handleDemo() {
   }
   sourceFormat = SourceFormat::TAP;
   sourceClockHz = C64_CLOCK_HZ;
+  tapHalfWaves = false;
   tapeSource.useEmbedded(draxcaught_tap, draxcaught_tap_len);
   tapeName = "draxcaught (demo)";
   playedBaseCycles = 0;
