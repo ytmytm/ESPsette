@@ -8,3 +8,4 @@ __pycache__/
 .env.*
 !.env.example
 include/local_wifi.h
+include/local_ota.h

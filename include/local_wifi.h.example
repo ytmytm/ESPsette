@@ -1,9 +1,0 @@
-#pragma once
-
-// Copy this file to local_wifi.h and fill it on the development Mac.
-// local_wifi.h is ignored by Git. Do not commit real credentials.
-#define ESPSETTE_WIFI_SSID ""
-#define ESPSETTE_WIFI_PASS ""
-
-// Optional: enables ArduinoOTA after joining Wi-Fi.
-// #define ESPSETTE_OTA_PASSWORD ""

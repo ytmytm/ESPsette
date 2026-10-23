@@ -1,0 +1,6 @@
+#pragma once
+
+// Optional OTA secret, set only when the selected flash layout supports OTA.
+// Copy to local_ota.h and use the same value for ESPSETTE_OTA_PASSWORD
+// in the environment when running scripts/ota.sh.
+#define ESPSETTE_OTA_PASSWORD ""

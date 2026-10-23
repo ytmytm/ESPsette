@@ -11,17 +11,16 @@
 #define PIN_SENSE 1 // GPIO1 (TxD) -> SENSE (F,6) $01 bit 4 (with pullup to 3.3V, 10k) // 0 = pushed, 1 = released
 #define PIN_READ  3 // GPIO3 (RxD) -> READ  (D,4) CIA#1 /FLAG, I2S, pulled to 5V in C64, normal high (input pullup), impulse low
 
-#define HOST_NAME "espsette"
-
 #include <Arduino.h>
 
-#if __has_include("local_wifi.h")
-#include "local_wifi.h" // Local build-only credentials; ignored by Git.
+#if __has_include("local_ota.h")
+#include "local_ota.h" // Optional local OTA secret; ignored by Git.
 #endif
 
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <ArduinoOTA.h>
+#include "network_config.h"
 
 #include <core_esp8266_i2s.h>
 
@@ -31,6 +30,7 @@
 
 RemoteDebug Debug;
 ESP8266WebServer HTTPServer(80);
+NetworkConfig networkConfig(HTTPServer);
 
 enum class State : uint8_t { WAITING, STREAMING, DRAINING, FINISHED, ERROR };
 
@@ -370,28 +370,12 @@ void setupPins() {
   idleReadPin();
 }
 
-void connectWiFi() {
-  WiFi.persistent(false);
-  WiFi.mode(WIFI_OFF);
-#if defined(ESPSETTE_WIFI_SSID) && defined(ESPSETTE_WIFI_PASS)
-  if (ESPSETTE_WIFI_SSID[0] == '\0') return;
-  WiFi.mode(WIFI_STA);
-  WiFi.hostname(HOST_NAME);
-  WiFi.begin(ESPSETTE_WIFI_SSID, ESPSETTE_WIFI_PASS);
-  const uint32_t started = millis();
-  while (WiFi.status() != WL_CONNECTED && (uint32_t)(millis() - started) < 20000) {
-    delay(250);
-  }
-  networkReady = WiFi.status() == WL_CONNECTED;
-#endif
-}
-
 void setupNetwork() {
-  connectWiFi();
+  networkConfig.begin();
+  networkReady = networkConfig.staConnected();
 }
 
 void setupWebserver() {
-  if (!networkReady) return;
   HTTPServer.on("/", handleRoot);
   HTTPServer.onNotFound(handleNotFound);
   HTTPServer.begin();
@@ -419,7 +403,7 @@ void initializeOTA() {
     else if (error == OTA_RECEIVE_ERROR) debugE("Receive Failed");
     else if (error == OTA_END_ERROR) debugE("End Failed");
   });
-  ArduinoOTA.setHostname(HOST_NAME);
+  ArduinoOTA.setHostname(networkConfig.hostname().c_str());
   ArduinoOTA.setPassword(ESPSETTE_OTA_PASSWORD);
   // Begin
   ArduinoOTA.begin();
@@ -429,7 +413,7 @@ void initializeOTA() {
 
 void setupDebug() {
   if (!networkReady) return;
-  Debug.begin(HOST_NAME); // Initialize the WiFi server
+  Debug.begin(networkConfig.hostname().c_str()); // Initialize the WiFi server
   //Debug.setPassword("r3m0t0."); // Password on telnet connection ?
   Debug.setResetCmdEnabled(false); // Do not expose remote reset without authentication.
   Debug.showProfiler(true); // Profiler (Good to measure times, to optimize codes)
@@ -495,10 +479,9 @@ void loop() {
   }
 
   if (otaReady && state != State::STREAMING && state != State::DRAINING) ArduinoOTA.handle();
-  if (networkReady) {
-    HTTPServer.handleClient();
-    Debug.handle();
-  }
+  HTTPServer.handleClient();
+  networkConfig.handle(motor == HIGH);
+  if (networkReady) Debug.handle();
   yield();
   if ((uint32_t)(millis() - lastcall) >= 10000) {
     lastcall = millis();
@@ -515,6 +498,11 @@ void loop() {
 //// web
 
 void handleRoot() {
+     if (networkConfig.apActive()) {
+       HTTPServer.sendHeader("Location", "/wifi");
+       HTTPServer.send(302, "text/plain", "");
+       return;
+     }
      // Root web page
      debugV("* http root request");
 
@@ -526,7 +514,8 @@ void handleRoot() {
   g3 = digitalRead(3);
 
   doc = "GPIO=["+String(g0)+","+String(g1)+","+String(g2)+","+String(g3)+"]\n";
-  doc += "IP=" + WiFi.localIP().toString() + "\n";
+  doc += "IP=" + networkConfig.address() + "\n";
+  doc += "Wi-Fi config=/wifi\n";
   doc += "TAP bytes=" + String(tapEnd) + "\n";
   doc += "motor=" + String(g0) + "\n";
   doc += "player state=" + String(static_cast<uint8_t>(state)) + "\n";
@@ -538,19 +527,10 @@ void handleRoot() {
 }
 
 void handleNotFound() {
-     debugW("* page not found");
-     String message = "File Not Found\n\n";
-     message.concat("URI: ");
-     message.concat(HTTPServer.uri());
-     message.concat("\nMethod: ");
-     message.concat((HTTPServer.method() == HTTP_GET)?"GET":"POST");
-     message.concat("\nArguments: ");
-     message.concat(HTTPServer.args());
-     message.concat("\n");
-     for (uint8_t i=0; i<HTTPServer.args(); i++){
-         message.concat(" " + HTTPServer.argName(i) + ": " + HTTPServer.arg(i) + "\n");
+     if (networkConfig.apActive()) {
+       HTTPServer.sendHeader("Location", "/wifi");
+       HTTPServer.send(302, "text/plain", "");
+       return;
      }
-     debugW("* reply:[%s]", message.c_str());
-     HTTPServer.send(404, "text/plain", message);
- }
- 
+     HTTPServer.send(404, "text/plain", "File Not Found\n");
+}
