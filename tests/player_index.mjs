@@ -76,4 +76,28 @@ await assert.rejects(
     bad:{size:10, text:async()=> '0xGG Unsupported'}})),
   /Nieznany format IDX/
 );
-console.log('IDX parser and TAP boundary checks OK');
+
+// A PRG stays in one browser File. Logical offsets for the two ROM copies
+// must produce the same bytes without retaining a full copy on the ESP.
+context.testPrg = {
+  file: new Blob([Uint8Array.of(0x01, 0x08, 0xaa, 0xbb, 0xcc)]),
+  type: 'prg', dataLength: 3, logicalSize: 8
+};
+for (const [offset, limit, expected] of [
+  [2, 1024, [0xaa, 0xbb, 0xcc]],
+  [4, 1024, [0xcc]],
+  [5, 1024, [0xaa, 0xbb, 0xcc]],
+  [6, 1, [0xbb]]
+]) {
+  const chunk = vm.runInContext(`sourceChunk(testPrg, ${offset}, ${limit})`, context);
+  assert.deepEqual(Array.from(new Uint8Array(await chunk.arrayBuffer())), expected);
+}
+const prgSession = await vm.runInContext(
+  `mockApi('/session', {body:new URLSearchParams({type:'prg', size:'5',
+    header:'0108', machine:'c64', turbo:'0', name:'test.prg'})})`, context
+);
+assert.equal(prgSession.nextOffset, 2);
+assert.equal(prgSession.logicalSize, 8);
+assert.equal(vm.runInContext('prgTotalCycles(4) - prgTotalCycles(3)', context),
+  2 * (680 + 536 + 9 * (384 + 536)));
+console.log('IDX parser, TAP boundaries and PRG browser source OK');

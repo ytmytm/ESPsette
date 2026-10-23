@@ -11,6 +11,7 @@ class TapeSource {
 
   void useEmbedded(const uint8_t* data, uint32_t size);
   void useStream(const uint8_t header[20], uint32_t size, uint32_t id);
+  void usePrg(const uint8_t loadAddress[2], uint32_t logicalSize, uint32_t id);
   bool seek(uint32_t offset, uint32_t newId);
   void eject();
   bool read(uint32_t offset, uint8_t& value) const;
@@ -20,6 +21,7 @@ class TapeSource {
   uint32_t nextOffset() const { return nextOffset_; }
   uint32_t retainedFrom() const { return retainedFrom_; }
   uint32_t sessionId() const { return sessionId_; }
+  uint8_t prefixSize() const { return prefixSize_; }
   uint16_t freeBytes() const;
   uint16_t bufferedBytes() const;
   Kind kind() const { return kind_; }
@@ -28,6 +30,7 @@ class TapeSource {
   Kind kind_ = Kind::EMPTY;
   const uint8_t* embedded_ = nullptr;
   uint8_t header_[20] = {};
+  uint8_t prefixSize_ = 20;
   uint8_t buffer_[BUFFER_SIZE] = {};
   uint32_t size_ = 0;
   uint32_t retainedFrom_ = 20;

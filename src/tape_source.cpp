@@ -13,6 +13,7 @@ uint8_t flashByte(const uint8_t* address) {
 void TapeSource::useEmbedded(const uint8_t* data, uint32_t size) {
   kind_ = Kind::EMBEDDED;
   embedded_ = data;
+  prefixSize_ = 20;
   size_ = size;
   retainedFrom_ = 20;
   nextOffset_ = size;
@@ -22,6 +23,7 @@ void TapeSource::useEmbedded(const uint8_t* data, uint32_t size) {
 void TapeSource::useStream(const uint8_t header[20], uint32_t size, uint32_t id) {
   kind_ = Kind::STREAMED;
   embedded_ = nullptr;
+  prefixSize_ = 20;
   memcpy(header_, header, sizeof(header_));
   size_ = size;
   retainedFrom_ = 20;
@@ -29,8 +31,19 @@ void TapeSource::useStream(const uint8_t header[20], uint32_t size, uint32_t id)
   sessionId_ = id;
 }
 
+void TapeSource::usePrg(const uint8_t loadAddress[2], uint32_t logicalSize, uint32_t id) {
+  kind_ = Kind::STREAMED;
+  embedded_ = nullptr;
+  prefixSize_ = 2;
+  memcpy(header_, loadAddress, 2);
+  size_ = logicalSize;
+  retainedFrom_ = 2;
+  nextOffset_ = 2;
+  sessionId_ = id;
+}
+
 bool TapeSource::seek(uint32_t offset, uint32_t newId) {
-  if (kind_ != Kind::STREAMED || offset < 20 || offset >= size_ || newId == 0) return false;
+  if (kind_ != Kind::STREAMED || offset < prefixSize_ || offset >= size_ || newId == 0) return false;
   retainedFrom_ = offset;
   nextOffset_ = offset;
   sessionId_ = newId;
@@ -40,6 +53,7 @@ bool TapeSource::seek(uint32_t offset, uint32_t newId) {
 void TapeSource::eject() {
   kind_ = Kind::EMPTY;
   embedded_ = nullptr;
+  prefixSize_ = 20;
   size_ = 0;
   retainedFrom_ = 20;
   nextOffset_ = 20;
@@ -53,7 +67,7 @@ bool TapeSource::read(uint32_t offset, uint8_t& value) const {
     return true;
   }
   if (kind_ != Kind::STREAMED) return false;
-  if (offset < sizeof(header_)) {
+  if (offset < prefixSize_) {
     value = header_[offset];
     return true;
   }

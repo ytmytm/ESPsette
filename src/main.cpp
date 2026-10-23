@@ -22,6 +22,7 @@
 #include <ArduinoOTA.h>
 #include "network_config.h"
 #include "tape_source.h"
+#include "prg_encoder.h"
 #include "player_page.h"
 #include <ArduinoJson.h>
 #include <string.h>
@@ -36,6 +37,9 @@ RemoteDebug Debug;
 ESP8266WebServer HTTPServer(80);
 NetworkConfig networkConfig(HTTPServer, PIN_MOTOR);
 TapeSource tapeSource;
+PrgEncoder prgEncoder;
+enum class SourceFormat : uint8_t { TAP, PRG };
+SourceFormat sourceFormat = SourceFormat::TAP;
 
 enum class State : uint8_t { WAITING, STREAMING, DRAINING, FINISHED, ERROR };
 
@@ -70,7 +74,8 @@ static inline uint8_t readRomByte(const uint8_t* addr) {
 }
 
 struct DecoderState {
-  uint32_t offset;       // Next TAP record in the original image.
+  uint32_t offset;       // Next TAP record or PRG logical byte still needed.
+  uint32_t prgPulseIndex; // Next pulse in the generated PRG cassette stream.
   uint32_t pulseTicks;
   uint32_t pulseIndex;
   uint8_t cycleRemainder;
@@ -117,6 +122,7 @@ void ICACHE_RAM_ATTR onMotorFalling() {
 
 void resetPlayer(uint32_t offset) {
   player.decoder.offset = offset;
+  player.decoder.prgPulseIndex = 0;
   player.decoder.pulseTicks = 0;
   player.decoder.pulseIndex = 0;
   player.decoder.cycleRemainder = 0;
@@ -242,7 +248,7 @@ void pauseTape() {
 }
 
 void startTape() {
-  if (player.decoder.offset >= tapEnd &&
+  if (sourceFormat == SourceFormat::TAP && player.decoder.offset >= tapEnd &&
       player.decoder.pulseIndex == player.decoder.pulseTicks) resetPlayer(20);
   noInterrupts();
   dmaCallbacks = 0;
@@ -275,45 +281,61 @@ void startTape() {
 }
 
 bool loadPulse() {
-  if (player.decoder.offset >= tapEnd) return false;
-  const uint32_t recordOffset = player.decoder.offset;
   uint32_t cycles;
-  uint8_t value;
-  if (!tapeSource.read(player.decoder.offset, value)) {
-    state = State::ERROR;
-    playerError = "buffer_underrun";
-    debugE("TAP source exhausted at %lu", (unsigned long)recordOffset);
-    return false;
-  }
-  ++player.decoder.offset;
-  if (value != 0) {
-    cycles = (uint32_t)value * 8;
-  } else {
-    if (tapEnd - player.decoder.offset < 3) {
+  if (sourceFormat == SourceFormat::PRG) {
+    uint32_t sourceOffset;
+    const PrgEncoder::Result result = prgEncoder.pulseAt(
+        player.decoder.prgPulseIndex, tapeSource, cycles, sourceOffset);
+    if (result == PrgEncoder::Result::END) return false;
+    if (result == PrgEncoder::Result::MISSING_DATA) {
       state = State::ERROR;
-      playerError = "truncated_pulse";
-      debugE("Truncated TAP pulse at %lu", (unsigned long)recordOffset);
+      playerError = "buffer_underrun";
+      debugE("PRG source exhausted at logical offset %lu",
+             (unsigned long)sourceOffset);
       return false;
     }
-    uint8_t lo, mid, hi;
-    if (!tapeSource.read(player.decoder.offset, lo) ||
-        !tapeSource.read(player.decoder.offset + 1, mid) ||
-        !tapeSource.read(player.decoder.offset + 2, hi)) {
+    player.decoder.offset = sourceOffset;
+    ++player.decoder.prgPulseIndex;
+  } else {
+    if (player.decoder.offset >= tapEnd) return false;
+    const uint32_t recordOffset = player.decoder.offset;
+    uint8_t value;
+    if (!tapeSource.read(player.decoder.offset, value)) {
       state = State::ERROR;
       playerError = "buffer_underrun";
       debugE("TAP source exhausted at %lu", (unsigned long)recordOffset);
       return false;
     }
-    cycles = (uint32_t)lo | ((uint32_t)mid << 8) | ((uint32_t)hi << 16);
-    player.decoder.offset += 3;
+    ++player.decoder.offset;
+    if (value != 0) {
+      cycles = (uint32_t)value * 8;
+    } else {
+      if (tapEnd - player.decoder.offset < 3) {
+        state = State::ERROR;
+        playerError = "truncated_pulse";
+        debugE("Truncated TAP pulse at %lu", (unsigned long)recordOffset);
+        return false;
+      }
+      uint8_t lo, mid, hi;
+      if (!tapeSource.read(player.decoder.offset, lo) ||
+          !tapeSource.read(player.decoder.offset + 1, mid) ||
+          !tapeSource.read(player.decoder.offset + 2, hi)) {
+        state = State::ERROR;
+        playerError = "buffer_underrun";
+        debugE("TAP source exhausted at %lu", (unsigned long)recordOffset);
+        return false;
+      }
+      cycles = (uint32_t)lo | ((uint32_t)mid << 8) | ((uint32_t)hi << 16);
+      player.decoder.offset += 3;
+    }
+    if (cycles == 0) {
+      state = State::ERROR;
+      playerError = "zero_pulse";
+      debugE("Zero-length TAP pulse at %lu", (unsigned long)recordOffset);
+      return false;
+    }
   }
-  if (cycles == 0) {
-    state = State::ERROR;
-    playerError = "zero_pulse";
-    debugE("Zero-length TAP pulse at %lu", (unsigned long)recordOffset);
-    return false;
-  }
-  // The remainder keeps the average length exact, including TAP v1 long gaps.
+  // Keep the average timing exact across pulses, including PRG half cycles.
   cycles += player.decoder.cycleRemainder;
   player.decoder.pulseTicks = cycles / CYCLES_PER_BIT;
   player.decoder.cycleRemainder = cycles % CYCLES_PER_BIT;
@@ -488,6 +510,7 @@ void setup() {
   initializeOTA();
   setupDebug();
   setupWebserver();
+  sourceFormat = SourceFormat::TAP;
   tapeSource.useEmbedded(draxcaught_tap, draxcaught_tap_len);
   resetPlayer(20);
   if (!validateTap()) {
@@ -671,19 +694,25 @@ static uint32_t currentRunBits() {
 }
 
 void handleState() {
-  StaticJsonDocument<384> doc;
+  StaticJsonDocument<512> doc;
   const bool motorOn = digitalRead(PIN_MOTOR) == HIGH;
   doc["tapeState"] = tapeLoaded ? "loaded" : "ejected";
+  doc["sourceType"] = sourceFormat == SourceFormat::PRG ? "prg" : "tap";
   doc["fileName"] = tapeLoaded ? tapeName : "";
   doc["motorOn"] = motorOn;
   doc["sensePressed"] = digitalRead(PIN_SENSE) == LOW;
   doc["playing"] = motorOn && tapeLoaded &&
       (state == State::STREAMING || state == State::DRAINING);
   const char* phase = "idle";
-  if (state == State::STREAMING || state == State::DRAINING) phase = "data";
+  if (state == State::STREAMING || state == State::DRAINING)
+    phase = sourceFormat == SourceFormat::PRG &&
+            player.decoder.prgPulseIndex < prgEncoder.dataStartPulse() ? "header" : "data";
   else if (state == State::FINISHED) phase = "done";
   else if (state == State::ERROR) phase = "error";
-  else if (playedBaseCycles != 0 && !motorOn) phase = "paused";
+  else if (playedBaseCycles != 0 && !motorOn)
+    phase = sourceFormat == SourceFormat::PRG &&
+            player.decoder.prgPulseIndex >= prgEncoder.dataStartPulse() ?
+            "headerPause" : "paused";
   doc["phase"] = phase;
   uint64_t played = playedBaseCycles + (uint64_t)currentRunBits() * CYCLES_PER_BIT;
   if (totalTapeCycles && played > totalTapeCycles) played = totalTapeCycles;
@@ -703,37 +732,86 @@ void handleState() {
 }
 
 void handleSession() {
-  uint32_t size;
+  uint32_t fileSize;
   uint64_t cycles = 0;
-  uint8_t header[20];
+  uint8_t prefix[20] = {};
   if (digitalRead(PIN_MOTOR) == HIGH ||
       state == State::STREAMING || state == State::DRAINING) {
     HTTPServer.send(409, "text/plain", "Stop MOTOR before changing the tape");
     return;
   }
-  if (!parseDecimal(HTTPServer.arg("size"), size) ||
-      !decodeHeader(HTTPServer.arg("header"), header) ||
-      !validStreamHeader(header, size) ||
-      HTTPServer.arg("name").length() > 64 ||
-      (HTTPServer.hasArg("cycles") &&
-       !parseDecimal64(HTTPServer.arg("cycles"), cycles))) {
-    HTTPServer.send(400, "text/plain", "Only C64 PAL TAP v1 is supported");
+  const String type = HTTPServer.arg("type");
+  const bool isPrg = type == "prg";
+  if ((type.length() && type != "tap" && !isPrg) ||
+      !parseDecimal(HTTPServer.arg("size"), fileSize) ||
+      HTTPServer.arg("name").length() > 64) {
+    HTTPServer.send(400, "text/plain", "Invalid file type or size");
     return;
   }
+  uint32_t logicalSize;
+  uint32_t firstOffset;
+  if (isPrg) {
+    const String addressHex = HTTPServer.arg("header");
+    if (fileSize < 3 || addressHex.length() != 4 ||
+        HTTPServer.arg("machine") != "c64" || HTTPServer.arg("turbo") != "0") {
+      HTTPServer.send(400, "text/plain", "Only standard C64 PRG is supported");
+      return;
+    }
+    for (uint8_t i = 0; i < 2; ++i) {
+      const int8_t high = hexDigit(addressHex[i * 2]);
+      const int8_t low = hexDigit(addressHex[i * 2 + 1]);
+      if (high < 0 || low < 0) {
+        HTTPServer.send(400, "text/plain", "Invalid PRG load address");
+        return;
+      }
+      prefix[i] = (high << 4) | low;
+    }
+    const uint32_t dataLength = fileSize - 2;
+    const uint16_t loadAddress = prefix[0] | ((uint16_t)prefix[1] << 8);
+    const String displayName = HTTPServer.arg("displayName");
+    if (displayName.length() > 64 ||
+        !prgEncoder.begin(loadAddress, dataLength, displayName)) {
+      HTTPServer.send(400, "text/plain", "PRG address range is invalid");
+      return;
+    }
+    logicalSize = 2 + 2 * dataLength;
+    firstOffset = 2;
+    totalTapeCycles = prgEncoder.totalCycles();
+    reportedTotalCycles = totalTapeCycles;
+  } else {
+    if (!decodeHeader(HTTPServer.arg("header"), prefix) ||
+        !validStreamHeader(prefix, fileSize) ||
+        (HTTPServer.hasArg("cycles") &&
+         !parseDecimal64(HTTPServer.arg("cycles"), cycles))) {
+      HTTPServer.send(400, "text/plain", "Only C64 PAL TAP v1 is supported");
+      return;
+    }
+    logicalSize = fileSize;
+    firstOffset = 20;
+    totalTapeCycles = 0;
+    reportedTotalCycles = cycles; // Browser metadata is display-only.
+  }
   const uint32_t id = newSessionId(0);
-  tapeSource.useStream(header, size, id);
-  tapeName = HTTPServer.arg("name");
-  tapEnd = size;
+  if (isPrg) {
+    tapeSource.usePrg(prefix, logicalSize, id);
+    sourceFormat = SourceFormat::PRG;
+    tapeName = HTTPServer.arg("displayName");
+    if (!tapeName.length()) tapeName = HTTPServer.arg("name");
+  } else {
+    tapeSource.useStream(prefix, logicalSize, id);
+    sourceFormat = SourceFormat::TAP;
+    tapeName = HTTPServer.arg("name");
+  }
+  tapEnd = logicalSize;
   tapeLoaded = false;
-  totalTapeCycles = 0;
-  reportedTotalCycles = cycles; // Browser metadata is display-only.
   playedBaseCycles = 0;
   playerError = nullptr;
   state = State::WAITING;
-  resetPlayer(20);
-  StaticJsonDocument<128> reply;
+  resetPlayer(firstOffset);
+  StaticJsonDocument<160> reply;
   reply["sessionId"] = id;
-  reply["nextOffset"] = 20;
+  reply["nextOffset"] = firstOffset;
+  reply["logicalSize"] = logicalSize;
   reply["freeBytes"] = tapeSource.freeBytes();
   String response;
   serializeJson(reply, response);
@@ -748,7 +826,8 @@ void handleSeek() {
     HTTPServer.send(409, "text/plain", "Stop MOTOR before seeking");
     return;
   }
-  if (!parseDecimal(HTTPServer.arg("sid"), id) ||
+  if (sourceFormat != SourceFormat::TAP ||
+      !parseDecimal(HTTPServer.arg("sid"), id) ||
       !parseDecimal(HTTPServer.arg("offset"), offset) ||
       !parseDecimal64(HTTPServer.arg("cycles"), remainingCycles) ||
       remainingCycles == 0 || tapeSource.kind() != TapeSource::Kind::STREAMED ||
@@ -797,6 +876,9 @@ void handleChunkUpload() {
         !tapeSource.append(tapeSource.nextOffset(), upload.buf, upload.currentSize)) {
       uploadError = 2;
     } else {
+      if (sourceFormat == SourceFormat::PRG)
+        prgEncoder.observeFirstCopy(tapeSource.nextOffset() - upload.currentSize,
+                                    upload.buf, upload.currentSize);
       uploadBytes += upload.currentSize;
     }
   } else if (upload.status == UPLOAD_FILE_ABORTED) {
@@ -843,6 +925,7 @@ void handleDemo() {
     HTTPServer.send(409, "text/plain", "Stop MOTOR before inserting the demo");
     return;
   }
+  sourceFormat = SourceFormat::TAP;
   tapeSource.useEmbedded(draxcaught_tap, draxcaught_tap_len);
   tapeName = "draxcaught (demo)";
   playedBaseCycles = 0;

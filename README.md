@@ -5,9 +5,9 @@ Firmware ESP-01 do odtwarzania sygnału kasetowego przez port datasette C64. Pro
 ## Stan kodu
 
 - `src/main.ino` zawiera historyczny odtwarzacz TAP z nałożoną poprawką tempa I2S, obsługi MOTOR i kończenia transmisji.
-- `include/draxcaught.h` pozostaje demonstracyjnym TAP. Można też wskazać w przeglądarce duży plik TAP C64 PAL v1; strona podaje go porcjami do bufora 8 KB ESP.
+- `include/draxcaught.h` pozostaje demonstracyjnym TAP. Można też wskazać w przeglądarce duży plik TAP C64 PAL v1 albo zwykły PRG; strona podaje dane porcjami do bufora 8 KB ESP.
 - Dane Wi-Fi są wprowadzane przez portal AP i zapisywane do LittleFS. Nie są kompilowane do firmware. Ta gałąź implementuje konfigurację; wcześniejszy wariant do pierwszej próby pozostaje w sąsiednim worktree `../espsette/`.
-- Strumieniowanie TAP, tekstowy IDX w formacie Ultimate 64 i podstawowa strona decku są zaimplementowane w tej gałęzi. Generator PRG, WRITE i docelowa fotorealistyczna grafika pozostają kolejnymi etapami.
+- Strumieniowanie TAP, tekstowy IDX w formacie Ultimate 64 i podstawowa strona decku są zaimplementowane w tej gałęzi. Generator standardowej kasety z PRG dla C64 PAL jest zaimplementowany; WRITE, generator C16, turbo i docelowa fotorealistyczna grafika pozostają kolejnymi etapami.
 - Zmiany w tym worktree nie były kompilowane ani sprawdzane na ESP-01. Pierwszą próbę sprzętową z osadzonym TAP można wykonać z sąsiedniego worktree `../espsette/`; tę gałąź skompilować osobno później.
 
 ## Układ katalogów
@@ -18,6 +18,7 @@ Firmware ESP-01 do odtwarzania sygnału kasetowego przez port datasette C64. Pro
 | `include/` | nagłówki i tymczasowy obraz TAP |
 | `src/network_config.*` | portal AP, połączenie STA i konfiguracja LittleFS |
 | `src/tape_source.*` | ograniczony bufor kasety zasilany porcjami z przeglądarki |
+| `src/prg_encoder.*` | standardowe impulsy kasety C64 generowane z PRG |
 | `web/player.html` | źródło strony i samodzielny podgląd lokalny |
 | `scripts/embed-player.py` | generuje `src/player_page.h` z HTML przed budowaniem |
 | `include/local_ota.h.example` | opcjonalne hasło OTA, bez danych Wi-Fi |
@@ -60,7 +61,7 @@ Logowanie przez UART pozostaje wyłączone, bo te piny sterują SENSE i READ. Re
 
 ## Lokalny podgląd strony bez ESP-01
 
-Otwórz [web/player.html](web/player.html) bezpośrednio w przeglądarce albo użyj `make preview`. Przy adresie `file://` strona używa symulowanego stanu ESP: można wybrać TAP, włączyć/wyłączyć MOTOR, wysunąć kasetę i obserwować wskaźniki. To symulacja interfejsu i przepływu żądań, **nie test sygnału na GPIO ani wydajności Wi-Fi**. Ten sam HTML jest przed budowaniem wstawiany do firmware przez `make embed-web`, więc zmiany UI nie wymagają flashowania, dopóki nie są gotowe do próby na urządzeniu. `make preview` nie wymaga instalacji PlatformIO.
+Otwórz [web/player.html](web/player.html) bezpośrednio w przeglądarce albo użyj `make preview`. Przy adresie `file://` strona używa symulowanego stanu ESP: można wybrać TAP lub PRG, włączyć/wyłączyć MOTOR, wysunąć kasetę i obserwować wskaźniki. To symulacja interfejsu i przepływu żądań, **nie test sygnału na GPIO ani wydajności Wi-Fi**. Ten sam HTML jest przed budowaniem wstawiany do firmware przez `make embed-web`, więc zmiany UI nie wymagają flashowania, dopóki nie są gotowe do próby na urządzeniu. `make preview` nie wymaga instalacji PlatformIO.
 
 Opcjonalnie można pobrać [film magnetofonu z Pixabay](https://pixabay.com/videos/tape-recorder-music-stale-nostalgic-118790/) i wskazać go w polu „film w okienku”. Wideo pozostaje lokalnym plikiem przeglądarki; odtwarza się przy `motorOn` i zatrzymuje przy postoju. Nie jest dołączone do repozytorium ani obrazu ESP. Bez filmu strona używa tymczasowego rysunku CSS; docelowy fotorealistyczny deck nadal wymaga przygotowania zasobów. Strona źródłowa opisuje materiał jako MP4 1920×1080, 50 FPS, dostępny na licencji Pixabay Content License.
 
@@ -69,6 +70,12 @@ Opcjonalnie można pobrać [film magnetofonu z Pixabay](https://pixabay.com/vide
 Strona skanuje TAP lokalnie, tworzy sesję przez `POST /session`, a następnie wysyła maksymalnie 1024 bajty na żądanie `POST /chunk` z ID sesji i bezwzględnym offsetem. Można też wskazać towarzyszący `.idx` (lub upuścić TAP i IDX razem): parser przyjmuje wpisy dziesiętne, `0x` szesnastkowe i ósemkowe z zerem na początku; odrzuca pozycje spoza TAP oraz wewnątrz rekordu impulsu. `GET /state` zwraca wolne miejsce 8 KB bufora, MOTOR, `loaded/ejected`, postęp nadawania READ i błąd. Przy pełnym buforze przeglądarka nie utrzymuje otwartego uploadu; po pauzie MOTOR dosyła następne porcje. `POST /eject`, `POST /demo` i `POST /seek` działają tylko przy wyłączonym MOTOR. Przeskok IDX opróżnia bufor i zmienia ID sesji; przeglądarka dosyła TAP od wybranego absolutnego offsetu. Przy niezgodnym offsetcie odpowiedź podaje aktualną pozycję, żeby przeglądarka mogła ponowić transfer bez duplikowania danych. Sumę cykli z pliku wylicza przeglądarka; ESP używa jej tylko do prezentacji czasu, a nie do sterowania sygnałem.
 
 Ten transport obsługuje obecnie **C64 PAL TAP v1**. Plik pozostaje w otwartej karcie przeglądarki; jej uśpienie może opróżnić bufor i zakończyć LOAD błędem. 8 KB bufora i czas obsługi HTTP wymagają pomiaru na prawdziwym ESP-01/C64, szczególnie dla szybkich loaderów. Endpointy nie mają jeszcze uwierzytelniania. ESP sprawdza zakres offsetu przeskoku, a granicę rekordu sprawdza przeglądarka podczas skanowania TAP; bez pełnej kopii kasety ESP nie może niezależnie potwierdzić granicy dla dowolnego offsetu. Format Manosoft Princess nie jest obsługiwany. Na modułach 512 KB lub 1 MB może zabraknąć miejsca na połączenie demonstracyjnego TAP, strony, LittleFS i OTA; rozmiar obrazu trzeba zmierzyć podczas kompilacji na Macu.
+
+## Standardowy PRG C64
+
+Wybór `.prg` uruchamia osobną sesję. Dwa pierwsze bajty pliku określają adres ładowania; w polu „Nazwa na kasecie” można ustawić nazwę widoczną na C64. Firmware tworzy nagłówek typu 1, pilot, synchronizację, parzystość, sumy XOR, obie kopie nagłówka i obie kopie danych. Impulsy powstają na bieżąco, bez zapisywania pliku TAP. Przeglądarka czyta dwa razy te same bajty PRG przez `Blob.slice()`; ESP widzi je jako kolejne offsety logiczne, więc nie musi pamiętać całego programu. Po nagłówku C64 może zatrzymać MOTOR, a odtwarzacz zachowuje pozycję do wznowienia.
+
+Obsługiwany jest standardowy `LOAD` na C64 PAL bez turbo. PRG musi zawierać co najmniej jeden bajt danych, a adres końcowy mieścić się do `$FFFF`. Opcje C16/Plus4 i loader turbo są widoczne, ale wyłączone. PRG nie ma pozycji IDX. Implementację przebiegu porównano z [kodem WAV-PRG](https://github.com/fabzzap/wav-prg/blob/master/prg2wav_core/prg2wav_core.c); nadal wymaga kompilacji na Macu i sprawdzenia impulsów oraz ładowania na C64.
 
 ## OTA po uruchomieniu sieci
 
