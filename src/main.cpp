@@ -106,6 +106,7 @@ static const uint32_t DRAIN_GUARD_US = 40000;
 State state = State::WAITING;
 uint32_t tapEnd = 0;
 bool tapeLoaded = false;
+bool playbackComplete = false;
 String tapeName = "draxcaught (demo)";
 uint64_t totalTapeCycles = 0;
 uint64_t reportedTotalCycles = 0;
@@ -261,6 +262,7 @@ void pauseTape() {
       tapEnd = 0;
     }
     resetPlayer(20);
+    playbackComplete = true;
     state = State::WAITING;
     debugI("TAP completed at MOTOR stop");
     return;
@@ -306,6 +308,10 @@ void pauseTape() {
 }
 
 void startTape() {
+  if (playbackComplete) {
+    playedBaseCycles = 0;
+    playbackComplete = false;
+  }
   if (sourceFormat == SourceFormat::TAP && player.decoder.offset >= tapEnd &&
       player.decoder.pulseIndex == player.decoder.pulseTicks) resetPlayer(20);
   noInterrupts();
@@ -498,6 +504,7 @@ void pumpTape() {
   if ((uint32_t)(micros() - player.emptySince) >= DRAIN_GUARD_US) {
     stopI2S();
     state = State::FINISHED;
+    playbackComplete = true;
     if (totalTapeCycles) playedBaseCycles = totalTapeCycles;
     else playedBaseCycles += (uint64_t)generatedTapBits * CYCLES_PER_BIT;
     debugI("TAP completed");
@@ -637,7 +644,6 @@ void loop() {
         tapEnd = 0;
       }
       resetPlayer(20);
-      playedBaseCycles = 0;
       state = State::WAITING;
     }
   } else if (state == State::ERROR && motor == LOW &&
@@ -805,7 +811,7 @@ void handleState() {
   if (state == State::STREAMING || state == State::DRAINING)
     phase = sourceFormat == SourceFormat::PRG &&
             player.decoder.prgPulseIndex < prgEncoder.dataStartPulse() ? "header" : "data";
-  else if (state == State::FINISHED) phase = "done";
+  else if (state == State::FINISHED || playbackComplete) phase = "done";
   else if (state == State::ERROR) phase = "error";
   else if (playedBaseCycles != 0 && !motorOn)
     phase = sourceFormat == SourceFormat::PRG &&
@@ -842,6 +848,10 @@ void handleState() {
   doc["writeHeaders"] = writeDecoder.receivedCount();
   doc["writeErrors"] = writeDecoder.errorCount();
   doc["writeOverflows"] = writeDecoder.overflowCount();
+  if (doc.overflowed()) {
+    HTTPServer.send(500, "application/json", "{\"error\":\"state_overflow\"}");
+    return;
+  }
   String response;
   serializeJson(doc, response);
   HTTPServer.sendHeader("Cache-Control", "no-store");
@@ -929,6 +939,7 @@ void handleSession() {
   tapEnd = logicalSize;
   tapeLoaded = false;
   playedBaseCycles = 0;
+  playbackComplete = false;
   playerError = nullptr;
   state = State::WAITING;
   resetPlayer(firstOffset);
@@ -972,6 +983,7 @@ void handleSeek() {
   totalTapeCycles = 0;
   reportedTotalCycles = remainingCycles; // Display metadata, not timing control.
   playedBaseCycles = 0;
+  playbackComplete = false;
   playerError = nullptr;
   uploadSeen = false;
   state = State::WAITING;
@@ -1044,6 +1056,7 @@ void handleEject() {
   totalTapeCycles = 0;
   reportedTotalCycles = 0;
   playedBaseCycles = 0;
+  playbackComplete = false;
   playerError = nullptr;
   state = State::WAITING;
   resetPlayer(20);
@@ -1061,6 +1074,7 @@ void handleDemo() {
   tapeSource.useEmbedded(draxcaught_tap, draxcaught_tap_len);
   tapeName = "draxcaught (demo)";
   playedBaseCycles = 0;
+  playbackComplete = false;
   playerError = nullptr;
   resetPlayer(20);
   tapeLoaded = validateTap();
