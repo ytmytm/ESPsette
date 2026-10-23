@@ -82,7 +82,10 @@ uint32_t scheduledWords = 0; // Includes idle padding.
 uint32_t generatedTapBits = 0;
 uint32_t realBitRate = 0;
 
-void ICACHE_RAM_ATTR onDmaBufferDone() {
+void handleRoot();
+void handleNotFound();
+
+void IRAM_ATTR onDmaBufferDone() {
   ++dmaCallbacks;
   lastDmaCallbackUs = micros();
   if (dmaCallbacks >= DMA_BUFFERS &&
@@ -91,7 +94,7 @@ void ICACHE_RAM_ATTR onDmaBufferDone() {
   }
 }
 
-void ICACHE_RAM_ATTR onMotorFalling() {
+void IRAM_ATTR onMotorFalling() {
   motorFallCallbacks = dmaCallbacks;
   motorFallElapsedUs = micros() - lastDmaCallbackUs;
   motorFell = true;
@@ -500,13 +503,16 @@ void loop() {
     debugGPIOs();
   }
   const uint32_t elapsed = millis() - timeBeginLoop;
-  if (elapsed > 200) debugW("Loop took %lu ms", (unsigned long)elapsed);
-  else if (elapsed > 100) debugI("Loop took %lu ms", (unsigned long)elapsed);
+  if (elapsed > 200) {
+    debugW("Loop took %lu ms", (unsigned long)elapsed);
+  } else if (elapsed > 100) {
+    debugI("Loop took %lu ms", (unsigned long)elapsed);
+  }
 }
 
 //// web
 
- void handleRoot() {
+void handleRoot() {
      // Root web page
      debugV("* http root request");
 
@@ -529,7 +535,7 @@ void loop() {
 
 }
 
- void handleNotFound(){
+void handleNotFound() {
      debugW("* page not found");
      String message = "File Not Found\n\n";
      message.concat("URI: ");
