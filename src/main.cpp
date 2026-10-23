@@ -108,6 +108,7 @@ State state = State::WAITING;
 uint32_t tapEnd = 0;
 bool tapeLoaded = false;
 bool autoPlay = true;
+bool defaultC16 = false;
 bool playbackComplete = false;
 String tapeName = "draxcaught (demo)";
 uint64_t totalTapeCycles = 0;
@@ -537,6 +538,7 @@ void setupWebserver() {
   HTTPServer.on("/eject", HTTP_POST, handleEject);
   HTTPServer.on("/sense", HTTP_POST, handleSense);
   HTTPServer.on("/autoplay", HTTP_POST, handleAutoPlay);
+  HTTPServer.on("/default-machine", HTTP_POST, handleDefaultMachine);
   HTTPServer.on("/demo", HTTP_POST, handleDemo);
   HTTPServer.onNotFound(handleNotFound);
   HTTPServer.begin();
@@ -591,6 +593,15 @@ void setup() {
   if (autoPlayFile) {
     autoPlay = autoPlayFile.read() != '0';
     autoPlayFile.close();
+  }
+  File machineFile = LittleFS.open("/machine.cfg", "r");
+  if (machineFile) {
+    if (machineFile.size() == 3) {
+      char machine[4] = {};
+      if (machineFile.readBytes(machine, 3) == 3)
+        defaultC16 = strcmp(machine, "c16") == 0;
+    }
+    machineFile.close();
   }
   initializeOTA();
   setupDebug();
@@ -815,6 +826,7 @@ void handleState() {
   doc["motorOn"] = motorOn;
   doc["sensePressed"] = digitalRead(PIN_SENSE) == LOW;
   doc["autoPlay"] = autoPlay;
+  doc["defaultMachine"] = defaultC16 ? "c16" : "c64";
   doc["playing"] = motorOn && tapeLoaded &&
       (state == State::STREAMING || state == State::DRAINING);
   const char* phase = "idle";
@@ -1091,6 +1103,28 @@ void handleAutoPlay() {
   autoPlay = enabled == "1";
   HTTPServer.send(200, "application/json", autoPlay ?
       "{\"autoPlay\":true}" : "{\"autoPlay\":false}");
+}
+
+void handleDefaultMachine() {
+  const String machine = HTTPServer.arg("machine");
+  if (machine != "c64" && machine != "c16") {
+    HTTPServer.send(400, "application/json", "{\"error\":\"invalid_machine\"}");
+    return;
+  }
+  File file = LittleFS.open("/machine.cfg", "w");
+  if (!file) {
+    HTTPServer.send(500, "application/json", "{\"error\":\"machine_save_failed\"}");
+    return;
+  }
+  const bool saved = file.print(machine) == machine.length();
+  file.close();
+  if (!saved) {
+    HTTPServer.send(500, "application/json", "{\"error\":\"machine_save_failed\"}");
+    return;
+  }
+  defaultC16 = machine == "c16";
+  HTTPServer.send(200, "application/json", defaultC16 ?
+      "{\"defaultMachine\":\"c16\"}" : "{\"defaultMachine\":\"c64\"}");
 }
 
 void handleEject() {

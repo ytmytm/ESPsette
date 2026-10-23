@@ -23,16 +23,18 @@ label{display:block;margin:12px 0}input[type=file],select{display:block;width:10
 <main><h1>espsette</h1><p>Kaseta przez Wi-Fi · C64 / C16 PAL</p>
 <div id="deck" class="deck"><div class="deck-top"><span>DATASETTE</span><output id="counter" class="counter" aria-label="Wirtualny licznik taśmy">0000</output></div><div class="window"><video id="windowVideo" muted loop playsinline></video><div class="cassette"><div class="reel"></div><div class="reel"></div></div></div><div class="keys" role="group" aria-label="Klawisze magnetofonu"><button id="rewind" class="key" type="button" aria-label="Poprzednia pozycja taśmy">◀◀<br>REW</button><button id="stop" class="key" type="button" aria-label="Zwolnij PLAY na linii SENSE">■<br>STOP</button><button id="play" class="key pressed" type="button" aria-label="Wciśnij PLAY na linii SENSE">▶<br>PLAY</button><button id="fastForward" class="key" type="button" aria-label="Następna pozycja taśmy">▶▶<br>FF</button><button id="deckEject" class="key" type="button" aria-label="Wysuń kasetę">⏏<br>EJECT</button></div><p id="deckMessage" role="status" aria-live="polite"></p><label class="autoplay"><input id="autoPlay" type="checkbox" checked> Autoplay przy włożeniu kasety</label></div>
 <section class="card"><div class="stats"><div><small>Kaseta</small><b id="loaded">—</b></div><div><small>Motor</small><b id="motor">—</b></div><div><small>Odtworzone</small><b id="played">—</b></div><div><small>Bufor ESP</small><b id="buffer">—</b></div><div><small>Pozostało sygnału</small><b id="remaining">—</b></div><div><small>WRITE / SAVE</small><b id="writeStatus">—</b></div></div><p id="writeDetail"></p><p id="phase">Łączenie…</p><p id="transport"></p><p id="error"></p><details id="debugPanel" class="debug"><summary>Debug / stan ESP</summary><p id="diagnostics"></p><pre id="debugJson"></pre></details></section>
+<section class="card"><label>Domyślny komputer dla PRG<select id="defaultMachine"><option value="c64">C64</option><option value="c16">C16 / Plus/4 PAL</option></select></label><p>Plik TAP sam określa komputer w nagłówku; kaseta demo jest przeznaczona dla C64.</p></section>
 <section class="card"><div id="dropzone" class="drop">Upuść TAP lub PRG; opcjonalnie także IDX dla TAP</div><p id="selectedFiles"></p><label>Kaseta TAP C64 / C16 v1–v2 PAL lub program PRG<input id="file" type="file" accept=".tap,.prg"></label><div id="indexPicker"><label>Indeks IDX (opcjonalny dla TAP)<input id="indexFile" type="file" accept=".idx,text/plain"></label><button id="clearIndex" class="secondary">Usuń wybór IDX</button></div><div id="prgOptions" hidden><label>Komputer<select id="machine"><option value="c64">C64</option><option value="c16">C16 / Plus/4 PAL</option></select></label><label>Dołącz loader turbo<select id="turbo"><option value="0">Nie — standardowy LOAD</option><option value="1" disabled>Tak — w przygotowaniu</option></select></label><label>Nazwa na kasecie<input id="programName" maxlength="16" placeholder="PROGRAM"></label></div><button id="load">Włóż kasetę</button><button id="demo" class="secondary">Kaseta demo</button><div id="indexControls" hidden><label>Pozycja z IDX<select id="idxPositions"></select></label><button id="seek" class="secondary">Przeskocz do pozycji</button><p id="indexInfo"></p></div><p>Plik pozostaje w tej karcie. Zostaw przeglądarkę otwartą podczas LOAD; przy braku miejsca kolejna porcja zaczeka bez otwartego żądania HTTP.</p><label>Opcjonalny film w okienku<input id="previewVideoFile" type="file" accept="video/mp4,video/webm"></label><p>Możesz użyć lokalnie pobranego <a href="https://pixabay.com/videos/tape-recorder-music-stale-nostalgic-118790/" target="_blank" rel="noopener">filmu magnetofonu z Pixabay</a>. Film pozostaje w przeglądarce i zatrzymuje się razem z MOTOR.</p><a id="wifiLink" href="/wifi">Konfiguracja Wi-Fi</a></section><section id="previewPanel" class="card" hidden><h2>Podgląd lokalny</h2><p>Symulacja bez ESP-01. Wybierz TAP lub PRG i przełącz MOTOR, aby sprawdzić animację, bufor i układ strony.</p><button id="motorToggle" class="secondary">MOTOR on/off</button><button id="saveMock" class="secondary">Symuluj SAVE</button></section></main>
 <script>
 const $ = id => document.getElementById(id);
 const preview = location.protocol === 'file:' || new URLSearchParams(location.search).has('preview');
 let source = null, busy = false, last = null, videoUrl = null;
 let selectedFile = null, selectedIdx = null;
+let selectedDefaultMachine = null;
 let mockBytes = 0, mockSize = 0, mockDemo = true, mockTick = Date.now();
 let mockType = 'tap';
 const mock = {tapeState:'loaded', sourceType:'tap', machine:'c64', clockHz:985248, fileName:'draxcaught (demo)', motorOn:false,
-  sensePressed:true, autoPlay:true, playing:false, phase:'idle', playedCycles:0,
+  sensePressed:true, autoPlay:true, defaultMachine:'c64', playing:false, phase:'idle', playedCycles:0,
   totalCycles:117000000, bufferedMillis:null, fileOffsetReceived:0,
   freeBytes:8192, sessionId:0, logicalSize:0, error:null, writeEnabled:false,
   freeHeap:32000, maxFreeBlock:24000, maxLoopUs:0, maxHttpUs:0,
@@ -72,6 +74,12 @@ async function mockApi(path, options = {}) {
     if (mock.motorOn) throw new Error('Zatrzymaj MOTOR');
     mock.autoPlay = options.body?.get('enabled') === '1';
     return {autoPlay:mock.autoPlay};
+  }
+  if (path === '/default-machine') {
+    const machine = options.body?.get('machine');
+    if (machine !== 'c64' && machine !== 'c16') throw new Error('Niepoprawny komputer');
+    mock.defaultMachine = machine;
+    return {defaultMachine:machine};
   }
   if (path === '/session') {
     const args = options.body;
@@ -178,6 +186,13 @@ function render(s) {
   $('loaded').textContent = s.tapeState === 'loaded' ? (s.fileName || 'Załadowana') : 'Wysunięta';
   $('motor').textContent = s.motorOn ? 'Włączony' : 'Wyłączony';
   $('autoPlay').checked = !!s.autoPlay;
+  if (s.defaultMachine === 'c64' || s.defaultMachine === 'c16') {
+    $('defaultMachine').value = s.defaultMachine;
+    if (selectedDefaultMachine !== s.defaultMachine) {
+      selectedDefaultMachine = s.defaultMachine;
+      $('machine').value = s.defaultMachine;
+    }
+  }
   const absoluteCycles = (source?.type === 'tap' && source.id === s.sessionId ?
     source.seekCycles || 0 : 0) + (s.playedCycles || 0);
   $('counter').textContent = String(Math.floor(absoluteCycles / s.clockHz)).padStart(4, '0');
@@ -581,7 +596,23 @@ $('autoPlay').onchange = async () => {
   } finally { busy = false; }
 };
 
-$('file').onchange = event => { selectedFile = event.target.files[0] || null; selectedFilesText(); updateFormatControls(); };
+$('defaultMachine').onchange = async () => {
+  const machine = $('defaultMachine').value;
+  await acquire();
+  try {
+    const ack = await api('/default-machine', {method:'POST',
+      body:new URLSearchParams({machine})});
+    if (last) render({...last, defaultMachine:ack.defaultMachine});
+    $('deckMessage').textContent = 'Domyślny komputer PRG: ' +
+      (ack.defaultMachine === 'c16' ? 'C16 / Plus/4' : 'C64') + '.';
+    $('error').textContent = '';
+  } catch (error) {
+    $('defaultMachine').value = selectedDefaultMachine || 'c64';
+    $('error').textContent = 'Nie można zapisać domyślnego komputera: ' + error.message;
+  } finally { busy = false; }
+};
+
+$('file').onchange = event => { selectedFile = event.target.files[0] || null; selectedFilesText(); updateFormatControls(); $('machine').value = selectedDefaultMachine || 'c64'; };
 $('indexFile').onchange = event => { selectedIdx = event.target.files[0] || null; selectedFilesText(); };
 $('clearIndex').onclick = () => { selectedIdx = null; $('indexFile').value = ''; selectedFilesText(); };
 const dropzone = $('dropzone');
@@ -594,6 +625,7 @@ dropzone.ondrop = event => {
     else if (/\.idx$/i.test(file.name)) selectedIdx = file;
   }
   selectedFilesText(); updateFormatControls();
+  $('machine').value = selectedDefaultMachine || 'c64';
 };
 selectedFilesText(); updateFormatControls();
 

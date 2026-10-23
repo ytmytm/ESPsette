@@ -23,7 +23,7 @@ Dalsze sekcje zachowują analizę archiwalnego `esptapuino` i decyzje podjęte p
 3. `/state` podaje heap, największy wolny blok, maksymalny czas pętli/HTTP oraz liczniki niedoborów i błędów uploadu. Ich wartości wymagają pomiaru na urządzeniu; rozmiar JSON i wpływ diagnostyki na pamięć także sprawdzić przy kompilacji.
 4. W `kicad/PLAN_POLACZEN.md` jest wyłącznie tekstowy szkic torów i punktów pomiarowych. Rysunek KiCad, dobór elementów i PCB są odłożone razem z turboloaderem.
 
-Strona ma teraz mały obraz kasety, przyciski decku, autoplay i zwijaną diagnostykę. Zgodnie z decyzją użytkownika panel jest przeznaczony wyłącznie do LAN i nie planujemy uwierzytelniania. Pozostaje sprawdzenie czytelności na telefonie oraz kosztu RAM/flash podczas pierwszej kompilacji.
+Strona ma teraz mały obraz kasety, przyciski decku, autoplay, wybór domyślnego komputera PRG i zwijaną diagnostykę. Domyślny komputer C64/C16 zapisuje się w LittleFS niezależnie od konfiguracji sieci, więc działa także przed podaniem SSID. TAP zawsze wybiera komputer według własnego nagłówka, a osadzone demo pozostaje C64. Zgodnie z decyzją użytkownika panel jest przeznaczony wyłącznie do LAN i nie planujemy uwierzytelniania. Pozostaje sprawdzenie czytelności na telefonie oraz kosztu RAM/flash podczas pierwszej kompilacji.
 
 Loader turbo odkładamy do chwili potwierdzenia standardowego `LOAD`, przerwy MOTOR i stabilności impulsów na realnym C64/C16.
 

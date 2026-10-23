@@ -216,6 +216,13 @@ await vm.runInContext("document.getElementById('stop').onclick()", context);
 assert.equal(vm.runInContext('mock.sensePressed', context), false);
 await vm.runInContext("document.getElementById('autoPlay').checked = true; document.getElementById('autoPlay').onchange()", context);
 assert.equal(vm.runInContext('mock.autoPlay', context), true);
+vm.runInContext("document.getElementById('defaultMachine').value = 'c16'", context);
+await vm.runInContext("document.getElementById('defaultMachine').onchange()", context);
+assert.equal(vm.runInContext('mock.defaultMachine', context), 'c16');
+assert.equal(elements.get('machine').value, 'c16');
+vm.runInContext("document.getElementById('machine').value = 'c64'; render({...mock})", context);
+assert.equal(elements.get('machine').value, 'c64'); // A PRG may override the default.
+await assert.rejects(vm.runInContext("mockApi('/default-machine', {body:new URLSearchParams({machine:'vic20'})})", context));
 const resume = await vm.runInContext(
   `mockApi('/session', {body:new URLSearchParams({type:'tap', size:'26',
     name:'resume.tap', cycles:'920'})})`, context
@@ -254,4 +261,4 @@ vm.runInContext("document.getElementById('saveMock').onclick()", context);
 assert.match(elements.get('writeDetail').textContent, /ESP:TEST/);
 vm.runInContext("mock.writeMachine = 'c16'; render({...mock})", context);
 assert.match(elements.get('writeDetail').textContent, /C16\/Plus4/);
-console.log('IDX/TAP errors, session recovery, C64/C16 PRG and WRITE preview OK');
+console.log('IDX/TAP, navigation, default machine, session recovery and WRITE preview OK');
