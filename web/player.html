@@ -189,10 +189,11 @@ async function parseIdx(file) {
     const token = match[1];
     const radix = /^0[xX]/.test(token) ? 16 : /^0[0-7]+$/.test(token) ? 8 : 10;
     const offset = parseInt(token, radix);
-    if (!Number.isSafeInteger(offset) || !match[2].trim())
+    if (!Number.isSafeInteger(offset) || offset < 20 || offset > 0xffffffff ||
+        !match[2].trim())
       throw Error('Błędny offset lub opis IDX w wierszu ' + (i + 1));
     entries.push({offset, label:match[2].trim().slice(0, 120)});
-    if (entries.length > 256) throw Error('IDX ma za dużo pozycji');
+    if (entries.length > 512) throw Error('IDX ma za dużo pozycji');
   }
   if (!entries.length) throw Error('IDX nie zawiera pozycji');
   return entries;

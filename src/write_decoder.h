@@ -33,6 +33,7 @@ class WriteDecoder {
   static constexpr uint16_t HEADER_BYTES = 192;
   Pulse firstPulse_ = Pulse::INVALID;
   bool byteBits_ = false;
+  bool ambiguousEnd_ = false;
   uint8_t bitIndex_ = 0;
   uint8_t byte_ = 0;
   uint8_t parity_ = 1;

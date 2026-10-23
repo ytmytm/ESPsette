@@ -23,6 +23,7 @@ void WriteDecoder::resetFrame() {
   headerIndex_ = 0;
   checksum_ = 0;
   byteBits_ = false;
+  ambiguousEnd_ = false;
   firstPulse_ = Pulse::INVALID;
 }
 
@@ -111,9 +112,19 @@ void WriteDecoder::onByte(uint8_t value) {
       break;
     case Stage::SECOND_CHECKSUM:
       if (value != checksum_) fail("checksum_error");
+      else if (machine_ == Machine::C16) finishHeader();
       else stage_ = Stage::SECOND_END;
       break;
     case Stage::FIRST_END:
+      // Plus/4 recordings may go straight from the first block checksum to
+      // the repeat pilot and 9..1 sync, without a separate terminator pulse.
+      if (machine_ == Machine::C16 && value == 9) {
+        stage_ = Stage::SECOND_SYNC;
+        expectedSync_ = 8;
+        break;
+      }
+      fail("missing_terminator");
+      break;
     case Stage::SECOND_END:
       fail("missing_terminator");
       break;
@@ -141,6 +152,19 @@ void WriteDecoder::feedMicros(uint16_t duration) {
     else return; // Ignore the pilot until a byte marker is seen.
   }
   const Pulse pulse = classify(duration);
+  if (ambiguousEnd_) {
+    ambiguousEnd_ = false;
+    if (pulse == Pulse::MEDIUM) {
+      // Sync byte 9 starts with a one bit: its first pulse is medium.
+      byteBits_ = true;
+      bitIndex_ = byte_ = 0;
+      parity_ = 1;
+      firstPulse_ = pulse;
+      return;
+    }
+    onTerminator();
+    if (pulse == Pulse::INVALID || pulse == Pulse::SHORT) return;
+  }
   if (pulse == Pulse::INVALID) {
     if (byteBits_) { fail("pulse_error"); return; }
     firstPulse_ = Pulse::INVALID;
@@ -151,8 +175,8 @@ void WriteDecoder::feedMicros(uint16_t duration) {
       firstPulse_ = Pulse::INVALID;
       if (pulse == Pulse::MEDIUM) {
         if (machine_ == Machine::C16 &&
-            (stage_ == Stage::FIRST_END || stage_ == Stage::SECOND_END))
-          onTerminator();
+            stage_ == Stage::FIRST_END)
+          ambiguousEnd_ = true;
         else {
           byteBits_ = true;
           bitIndex_ = byte_ = 0;

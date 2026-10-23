@@ -35,6 +35,22 @@ const entries = await vm.runInContext('parseIdx(index)', vm.createContext({...co
 assert.deepEqual(Array.from(entries, entry => entry.offset), [20, 21, 25, 22]);
 assert.equal(entries[0].label, 'First file');
 
+// Pi1551's Ultimate IDX fixture: comments, CRLF, hex, decimal, octal and
+// offsets counted from the first byte of the 20-byte TAP header.
+context.piIndex = {size: 160, text: async () =>
+  ";comment\n# note\n' note\n0x00000015 1A. SHEEP IN SPACE\r\n" +
+  '0x0003B5B9 1B. CAMELS\n20 DECIMAL ENTRY\n024 OCTAL ENTRY\n'};
+const piEntries = await vm.runInContext('parseIdx(piIndex)', context);
+assert.deepEqual(Array.from(piEntries, entry => entry.offset), [21, 0x3b5b9, 20, 20]);
+assert.equal(piEntries[0].label, '1A. SHEEP IN SPACE');
+for (const invalid of [
+  '0x100000000 TOO LARGE', '0x00000010 HEADER',
+  '0x14 VALID\n0x18', '029 INVALID OCTAL'
+]) {
+  context.badIdx = {size: invalid.length, text: async () => invalid};
+  await assert.rejects(vm.runInContext('parseIdx(badIdx)', context));
+}
+
 // One short pulse at 0x14, a four-byte long pulse at 0x15, then short at 0x19.
 const bytes = new Uint8Array(20 + 1 + 4 + 1);
 bytes.set([0x2f, 0, 0x10, 0, 0, 0x42], 20);
@@ -44,6 +60,8 @@ const scan = await vm.runInContext('scanTape(tape, [20,21,22,25])', scanContext)
 assert.equal(scan.total, 47 * 8 + 16 + 66 * 8);
 assert.deepEqual(Array.from(scan.positions.keys()), [20, 21, 25]);
 assert.equal(scan.positions.get(25), 47 * 8 + 16);
+const piBoundaryEntries = [20, 21, 22, 25].filter(offset => scan.positions.has(offset));
+assert.deepEqual(piBoundaryEntries, [20, 21, 25]); // 22 lies inside v1 extension.
 
 // The three extension bytes may straddle the browser's 64 KiB read boundary.
 const crossing = new Uint8Array(20 + 65535 + 4 + 1);

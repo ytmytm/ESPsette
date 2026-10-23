@@ -10,10 +10,11 @@ static void pulse(WriteDecoder& decoder, uint16_t duration) {
   decoder.feedMicros(duration);
 }
 
-static void byte(WriteDecoder& decoder, uint8_t value, bool c16 = false) {
-  const uint16_t shortPulse = c16 ? 505 : 390;
-  const uint16_t mediumPulse = c16 ? 1010 : 544;
-  const uint16_t longPulse = c16 ? 2021 : 690;
+static void byte(WriteDecoder& decoder, uint8_t value, bool c16 = false,
+                 bool pi1551Timings = false) {
+  const uint16_t shortPulse = c16 ? (pi1551Timings ? 480 : 505) : 390;
+  const uint16_t mediumPulse = c16 ? (pi1551Timings ? 960 : 1010) : 544;
+  const uint16_t longPulse = c16 ? (pi1551Timings ? 1920 : 2021) : 690;
   pulse(decoder, longPulse);
   pulse(decoder, mediumPulse);
   uint8_t parity = 1;
@@ -28,18 +29,21 @@ static void byte(WriteDecoder& decoder, uint8_t value, bool c16 = false) {
 }
 
 static void block(WriteDecoder& decoder, const uint8_t* header,
-                  bool first, bool c16 = false, bool corruptCopy = false) {
+                  bool first, bool c16 = false, bool corruptCopy = false,
+                  bool terminator = true, bool pi1551Timings = false) {
   for (int value = first ? 137 : 9; value >= (first ? 129 : 1); --value)
-    byte(decoder, value, c16);
+    byte(decoder, value, c16, pi1551Timings);
   uint8_t checksum = 0;
   for (int i = 0; i < 192; ++i) {
     const uint8_t value = corruptCopy && i == 10 ? header[i] ^ 1 : header[i];
-    byte(decoder, value, c16);
+    byte(decoder, value, c16, pi1551Timings);
     checksum ^= value;
   }
-  byte(decoder, checksum, c16);
-  pulse(decoder, c16 ? 2021 : 690);
-  pulse(decoder, c16 ? 1010 : 390);
+  byte(decoder, checksum, c16, pi1551Timings);
+  if (terminator) {
+    pulse(decoder, c16 ? (pi1551Timings ? 1920 : 2021) : 690);
+    pulse(decoder, c16 ? (pi1551Timings ? 960 : 1010) : 390);
+  }
 }
 
 int main() {
@@ -81,4 +85,14 @@ int main() {
   assert(plus4.receivedCount() == 1);
   assert(plus4.errorCount() == 0);
   assert(plus4.machineName()[1] == '1'); // c16 / Plus4
+
+  // Pi1551's native C16 SAVE fixture places the two copies consecutively.
+  WriteDecoder plus4WithoutTerminator;
+  plus4WithoutTerminator.motorStart();
+  block(plus4WithoutTerminator, header, true, true, false, false, true);
+  for (int i = 0; i < 64; ++i) pulse(plus4WithoutTerminator, 480);
+  block(plus4WithoutTerminator, header, false, true, false, false, true);
+  plus4WithoutTerminator.motorStop();
+  assert(plus4WithoutTerminator.receivedCount() == 1);
+  assert(plus4WithoutTerminator.errorCount() == 0);
 }
