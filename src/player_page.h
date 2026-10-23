@@ -23,7 +23,7 @@ label{display:block;margin:12px 0}input[type=file],select{display:block;width:10
 </style>
 <main><h1>espsette</h1><p>Kaseta przez Wi-Fi · C64 / C16 PAL</p>
 <div id="deck" class="deck"><div class="window"><video id="windowVideo" muted loop playsinline></video><div class="cassette"><div class="reel"></div><div class="reel"></div></div></div><div class="keys"><span id="play" class="key pressed">PLAY</span><span class="key">STOP</span><span class="key">REW</span></div></div>
-<section class="card"><div class="stats"><div><small>Kaseta</small><b id="loaded">—</b></div><div><small>Motor</small><b id="motor">—</b></div><div><small>Odtworzone</small><b id="played">—</b></div><div><small>Bufor ESP</small><b id="buffer">—</b></div><div><small>Pozostało sygnału</small><b id="remaining">—</b></div><div><small>WRITE / SAVE</small><b id="writeStatus">—</b></div></div><p id="writeDetail"></p><p id="phase">Łączenie…</p><p id="error"></p></section>
+<section class="card"><div class="stats"><div><small>Kaseta</small><b id="loaded">—</b></div><div><small>Motor</small><b id="motor">—</b></div><div><small>Odtworzone</small><b id="played">—</b></div><div><small>Bufor ESP</small><b id="buffer">—</b></div><div><small>Pozostało sygnału</small><b id="remaining">—</b></div><div><small>WRITE / SAVE</small><b id="writeStatus">—</b></div></div><p id="writeDetail"></p><p id="phase">Łączenie…</p><p id="transport"></p><p id="diagnostics"></p><p id="error"></p></section>
 <section class="card"><div id="dropzone" class="drop">Upuść TAP lub PRG; opcjonalnie także IDX dla TAP</div><p id="selectedFiles"></p><label>Kaseta TAP C64 / C16 v1–v2 PAL lub program PRG<input id="file" type="file" accept=".tap,.prg"></label><div id="indexPicker"><label>Indeks IDX (opcjonalny dla TAP)<input id="indexFile" type="file" accept=".idx,text/plain"></label><button id="clearIndex" class="secondary">Usuń wybór IDX</button></div><div id="prgOptions" hidden><label>Komputer<select id="machine"><option value="c64">C64</option><option value="c16">C16 / Plus/4 PAL</option></select></label><label>Dołącz loader turbo<select id="turbo"><option value="0">Nie — standardowy LOAD</option><option value="1" disabled>Tak — w przygotowaniu</option></select></label><label>Nazwa na kasecie<input id="programName" maxlength="16" placeholder="PROGRAM"></label></div><button id="load">Włóż kasetę</button><button id="demo" class="secondary">Kaseta demo</button><button id="eject" class="secondary">Wysuń</button><div id="indexControls" hidden><label>Pozycja z IDX<select id="idxPositions"></select></label><button id="seek" class="secondary">Przeskocz do pozycji</button><p id="indexInfo"></p></div><p>Plik pozostaje w tej karcie. Zostaw przeglądarkę otwartą podczas LOAD; przy braku miejsca kolejna porcja zaczeka bez otwartego żądania HTTP.</p><label>Opcjonalny film w okienku<input id="previewVideoFile" type="file" accept="video/mp4,video/webm"></label><p>Możesz użyć lokalnie pobranego <a href="https://pixabay.com/videos/tape-recorder-music-stale-nostalgic-118790/" target="_blank" rel="noopener">filmu magnetofonu z Pixabay</a>. Film pozostaje w przeglądarce i zatrzymuje się razem z MOTOR.</p><a id="wifiLink" href="/wifi">Konfiguracja Wi-Fi</a></section><section id="previewPanel" class="card" hidden><h2>Podgląd lokalny</h2><p>Symulacja bez ESP-01. Wybierz TAP lub PRG i przełącz MOTOR, aby sprawdzić animację, bufor i układ strony.</p><button id="motorToggle" class="secondary">MOTOR on/off</button><button id="saveMock" class="secondary">Symuluj SAVE</button></section></main>
 <script>
 const $ = id => document.getElementById(id);
@@ -35,7 +35,9 @@ let mockType = 'tap';
 const mock = {tapeState:'loaded', sourceType:'tap', machine:'c64', clockHz:985248, fileName:'draxcaught (demo)', motorOn:false,
   sensePressed:true, playing:false, phase:'idle', playedCycles:0,
   totalCycles:117000000, bufferedMillis:null, fileOffsetReceived:0,
-  freeBytes:8192, sessionId:0, error:null, writeEnabled:false,
+  freeBytes:8192, sessionId:0, logicalSize:0, error:null, writeEnabled:false,
+  freeHeap:32000, maxFreeBlock:24000, maxLoopUs:0, maxHttpUs:0,
+  i2sUnderruns:0, sourceUnderruns:0, uploadErrors:0,
   writeStatus:'idle', writeMachine:'unknown', writeName:'', writeType:0, writeStart:0, writeEnd:0,
   writeHeaders:0, writeErrors:0, writeOverflows:0};
 
@@ -66,6 +68,7 @@ async function mockApi(path, options = {}) {
     mockType = args.get('type') === 'prg' ? 'prg' : 'tap';
     const fileSize = Number(args.get('size'));
     mockSize = mockType === 'prg' ? 2 + 2 * (fileSize - 2) : fileSize;
+    mock.logicalSize = mockSize;
     mockBytes = 0; mockDemo = false;
     mock.sessionId++; mock.fileOffsetReceived = mockType === 'prg' ? 2 : 20;
     mock.sourceType = mockType;
@@ -106,7 +109,8 @@ async function mockApi(path, options = {}) {
   if (path === '/eject') {
     if (mock.motorOn) throw new Error('Zatrzymaj MOTOR');
     mock.tapeState = 'ejected'; mockBytes = 0; mock.phase = 'idle';
-    mock.totalCycles = 0; mock.playedCycles = 0; source = null;
+    mock.totalCycles = 0; mock.playedCycles = 0; mock.logicalSize = 0;
+    mock.sessionId = 0; mock.fileOffsetReceived = 0; source = null;
     return {tapeState:'ejected'};
   }
   if (path === '/demo') {
@@ -114,7 +118,8 @@ async function mockApi(path, options = {}) {
     mock.tapeState = 'loaded'; mock.fileName = 'draxcaught (demo)';
     mockDemo = true; mockType = 'tap'; mock.sourceType = 'tap';
     mock.machine = 'c64'; mock.clockHz = 985248;
-    mock.sessionId = 0; mock.playedCycles = 0;
+    mock.sessionId = 0; mock.logicalSize = 0; mock.fileOffsetReceived = 0;
+    mock.playedCycles = 0;
     mock.totalCycles = 117000000; mock.phase = 'idle'; mock.error = null;
     return {tapeState:'loaded'};
   }
@@ -157,6 +162,11 @@ function render(s) {
   $('remaining').textContent = total ? time(Math.max(0, total - s.playedCycles), s.clockHz) : '—';
   $('buffer').textContent = s.fileOffsetReceived ? (8192 - s.freeBytes) + ' B' : '—';
   $('phase').textContent = 'Faza: ' + s.phase + ' · odebrano ' + s.fileOffsetReceived + ' B';
+  $('diagnostics').textContent = s.freeHeap == null ? '' :
+    'ESP: heap ' + s.freeHeap + ' B (blok ' + s.maxFreeBlock + ' B)' +
+    ' · max pętla/HTTP ' + s.maxLoopUs + '/' + s.maxHttpUs + ' µs' +
+    ' · underrun I2S/źródło ' + s.i2sUnderruns + '/' + s.sourceUnderruns +
+    ' · błędy uploadu ' + s.uploadErrors;
   const writeLabels = {idle:'Czeka', listening:'Nasłuch', receiving_header:'Odbiera nagłówek',
     header_verified_no_action:'Nagłówek zweryfikowany', incomplete:'Niepełny nagłówek',
     capture_overflow:'Przepełniony bufor', checksum_error:'Błąd sumy',
@@ -287,13 +297,41 @@ async function acquire() {
   busy = true;
 }
 
+function reconcileSource(item, state) {
+  if (!item) return {ok:false, reason:'no_file'};
+  if (state.sessionId !== item.id || state.sourceType !== item.type ||
+      state.logicalSize !== item.logicalSize)
+    return {ok:false, reason:'session_changed'};
+  if (state.phase === 'error') return {ok:false, reason:'playback_error'};
+  const offset = state.fileOffsetReceived;
+  if (!Number.isSafeInteger(offset) || offset < (item.type === 'prg' ? 2 : 20) ||
+      offset > item.logicalSize)
+    return {ok:false, reason:'invalid_offset'};
+  const changed = item.offset !== offset;
+  item.offset = offset; // ESP is authoritative after an uncertain HTTP result.
+  return {ok:true, changed};
+}
+
 async function step() {
   if (busy) return;
   busy = true;
   try {
     const state = await api('/state');
+    const hadSource = !!source;
+    const recovery = reconcileSource(source, state);
+    if (hadSource && !recovery.ok) {
+      source = null;
+      showIndex([]);
+    }
+    if ($('error').textContent.startsWith('Połączenie/transfer:'))
+      $('error').textContent = '';
     render(state);
-    if (source && state.phase !== 'error' && state.sessionId === source.id) {
+    $('transport').textContent = hadSource && recovery.ok ?
+      (recovery.changed ? 'Połączenie wznowione; offset uzgodniony z ESP.' : 'Połączono z ESP.') :
+      state.sessionId ? (recovery.reason === 'playback_error' ?
+        'Odtwarzanie przerwane; włożenie pliku trzeba rozpocząć ponownie.' :
+        'Brak pliku źródłowego tej sesji w karcie. Włóż plik ponownie.') : 'Połączono z ESP.';
+    if (source && recovery.ok) {
       let credit = state.freeBytes;
       for (let requests = 0; requests < 4 && credit > 0 &&
            source.offset < source.logicalSize; requests++) {
@@ -306,14 +344,15 @@ async function step() {
           source.offset = ack.nextOffset;
           credit = ack.freeBytes;
         } catch (error) {
-          if (error.data && Number.isInteger(error.data.nextOffset)) {
-            source.offset = error.data.nextOffset;
-            credit = error.data.freeBytes || 0;
-          } else throw error;
+          // A 409 may mean stale offset, stale session, or a full ring. The
+          // next GET /state decides which; never trust this reply alone.
+          if (error.data && Number.isInteger(error.data.nextOffset)) break;
+          throw error;
         }
       }
     }
   } catch (error) {
+    $('transport').textContent = 'Brak połączenia; plik pozostaje w tej karcie.';
     $('error').textContent = 'Połączenie/transfer: ' + error.message;
   } finally { busy = false; }
 }

@@ -11,7 +11,7 @@ static void pulse(WriteDecoder& decoder, uint16_t duration) {
 }
 
 static void byte(WriteDecoder& decoder, uint8_t value, bool c16 = false,
-                 bool pi1551Timings = false) {
+                 bool pi1551Timings = false, bool badParity = false) {
   const uint16_t shortPulse = c16 ? (pi1551Timings ? 480 : 505) : 390;
   const uint16_t mediumPulse = c16 ? (pi1551Timings ? 960 : 1010) : 544;
   const uint16_t longPulse = c16 ? (pi1551Timings ? 1920 : 2021) : 690;
@@ -24,22 +24,24 @@ static void byte(WriteDecoder& decoder, uint8_t value, bool c16 = false,
     pulse(decoder, one ? shortPulse : mediumPulse);
     parity ^= one;
   }
-  pulse(decoder, parity ? mediumPulse : shortPulse);
-  pulse(decoder, parity ? shortPulse : mediumPulse);
+  const bool parityBit = bool(parity) ^ badParity;
+  pulse(decoder, parityBit ? mediumPulse : shortPulse);
+  pulse(decoder, parityBit ? shortPulse : mediumPulse);
 }
 
 static void block(WriteDecoder& decoder, const uint8_t* header,
                   bool first, bool c16 = false, bool corruptCopy = false,
-                  bool terminator = true, bool pi1551Timings = false) {
+                  bool terminator = true, bool pi1551Timings = false,
+                  bool badChecksum = false, bool badParity = false) {
   for (int value = first ? 137 : 9; value >= (first ? 129 : 1); --value)
     byte(decoder, value, c16, pi1551Timings);
   uint8_t checksum = 0;
   for (int i = 0; i < 192; ++i) {
     const uint8_t value = corruptCopy && i == 10 ? header[i] ^ 1 : header[i];
-    byte(decoder, value, c16, pi1551Timings);
+    byte(decoder, value, c16, pi1551Timings, badParity && i == 10);
     checksum ^= value;
   }
-  byte(decoder, checksum, c16, pi1551Timings);
+  byte(decoder, checksum ^ (badChecksum ? 1 : 0), c16, pi1551Timings);
   if (terminator) {
     pulse(decoder, c16 ? (pi1551Timings ? 1920 : 2021) : 690);
     pulse(decoder, c16 ? (pi1551Timings ? 960 : 1010) : 390);
@@ -95,4 +97,21 @@ int main() {
   plus4WithoutTerminator.motorStop();
   assert(plus4WithoutTerminator.receivedCount() == 1);
   assert(plus4WithoutTerminator.errorCount() == 0);
+
+  for (int machine = 0; machine < 2; ++machine) {
+    const bool c16 = machine == 1;
+    WriteDecoder badParity;
+    badParity.motorStart();
+    block(badParity, header, true, c16, false, true, false, false, true);
+    badParity.motorStop();
+    assert(badParity.receivedCount() == 0);
+    assert(badParity.errorCount() > 0);
+
+    WriteDecoder badChecksum;
+    badChecksum.motorStart();
+    block(badChecksum, header, true, c16, false, true, false, true);
+    badChecksum.motorStop();
+    assert(badChecksum.receivedCount() == 0);
+    assert(badChecksum.errorCount() > 0);
+  }
 }

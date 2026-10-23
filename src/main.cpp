@@ -117,6 +117,11 @@ bool uploadSeen = false;
 static const uint16_t MAX_HTTP_CHUNK = 1024;
 bool networkReady = false;
 bool otaReady = false;
+uint32_t i2sUnderrunCount = 0;
+uint32_t sourceUnderrunCount = 0;
+uint32_t uploadErrorCount = 0;
+uint32_t maxLoopUs = 0;
+uint32_t maxHttpUs = 0;
 
 static inline uint8_t readRomByte(const uint8_t* addr) {
   uint32_t bytes = *(const uint32_t*)((uintptr_t)addr & ~3U);
@@ -263,6 +268,7 @@ void pauseTape() {
   if (playedBits > generatedTapBits) {
     state = State::ERROR; // DMA ran ahead of the source; LOAD is invalid.
     playerError = "i2s_underrun";
+    ++i2sUnderrunCount;
     debugE("I2S underrun before MOTOR stop");
     return;
   }
@@ -342,6 +348,7 @@ bool loadPulse() {
     if (result == PrgEncoder::Result::MISSING_DATA) {
       state = State::ERROR;
       playerError = "buffer_underrun";
+      ++sourceUnderrunCount;
       debugE("PRG source exhausted at logical offset %lu",
              (unsigned long)sourceOffset);
       return false;
@@ -355,6 +362,7 @@ bool loadPulse() {
     if (!tapeSource.read(player.decoder.offset, value)) {
       state = State::ERROR;
       playerError = "buffer_underrun";
+      ++sourceUnderrunCount;
       debugE("TAP source exhausted at %lu", (unsigned long)recordOffset);
       return false;
     }
@@ -374,6 +382,7 @@ bool loadPulse() {
           !tapeSource.read(player.decoder.offset + 2, hi)) {
         state = State::ERROR;
         playerError = "buffer_underrun";
+        ++sourceUnderrunCount;
         debugE("TAP source exhausted at %lu", (unsigned long)recordOffset);
         return false;
       }
@@ -417,6 +426,7 @@ void pumpTape() {
     stopI2S();
     state = State::ERROR;
     playerError = "i2s_underrun";
+    ++i2sUnderrunCount;
     debugE("I2S underrun during TAP");
     return;
   }
@@ -601,6 +611,7 @@ void debugGPIOs() {
 }
 
 void loop() {
+  const uint32_t loopStartUs = micros();
   const uint32_t timeBeginLoop = millis();
   const uint8_t motor = digitalRead(PIN_MOTOR);
   if (motor != lastMotor) {
@@ -651,7 +662,10 @@ void loop() {
   }
 
   if (otaReady && state != State::STREAMING && state != State::DRAINING) ArduinoOTA.handle();
+  const uint32_t httpStartUs = micros();
   HTTPServer.handleClient();
+  const uint32_t httpElapsedUs = micros() - httpStartUs;
+  if (httpElapsedUs > maxHttpUs) maxHttpUs = httpElapsedUs;
 #if ESPSETTE_WRITE_CAPTURE
   drainWriteCapture();
 #endif
@@ -662,6 +676,8 @@ void loop() {
     lastcall = millis();
     debugGPIOs();
   }
+  const uint32_t loopElapsedUs = micros() - loopStartUs;
+  if (loopElapsedUs > maxLoopUs) maxLoopUs = loopElapsedUs;
   const uint32_t elapsed = millis() - timeBeginLoop;
   if (elapsed > 200) debugW("Loop took %lu ms", (unsigned long)elapsed);
   else if (elapsed > 100) debugI("Loop took %lu ms", (unsigned long)elapsed);
@@ -774,7 +790,7 @@ static uint32_t currentRunBits() {
 }
 
 void handleState() {
-  StaticJsonDocument<768> doc;
+  StaticJsonDocument<1024> doc;
   const bool motorOn = digitalRead(PIN_MOTOR) == HIGH;
   doc["tapeState"] = tapeLoaded ? "loaded" : "ejected";
   doc["sourceType"] = sourceFormat == SourceFormat::PRG ? "prg" : "tap";
@@ -806,6 +822,15 @@ void handleState() {
       tapeSource.nextOffset() : 0;
   doc["freeBytes"] = tapeSource.freeBytes();
   doc["sessionId"] = tapeSource.sessionId();
+  doc["logicalSize"] = tapeSource.kind() == TapeSource::Kind::STREAMED ?
+      tapeSource.size() : 0;
+  doc["freeHeap"] = ESP.getFreeHeap();
+  doc["maxFreeBlock"] = ESP.getMaxFreeBlockSize();
+  doc["maxLoopUs"] = maxLoopUs;
+  doc["maxHttpUs"] = maxHttpUs;
+  doc["i2sUnderruns"] = i2sUnderrunCount;
+  doc["sourceUnderruns"] = sourceUnderrunCount;
+  doc["uploadErrors"] = uploadErrorCount;
   doc["error"] = playerError;
   doc["writeEnabled"] = bool(ESPSETTE_WRITE_CAPTURE);
   doc["writeStatus"] = writeDecoder.status();
@@ -998,7 +1023,10 @@ void handleChunk() {
   reply["nextOffset"] = tapeSource.nextOffset();
   reply["freeBytes"] = tapeSource.freeBytes();
   reply["loaded"] = tapeLoaded;
-  if (uploadError) reply["error"] = uploadError;
+  if (uploadError) {
+    ++uploadErrorCount;
+    reply["error"] = uploadError;
+  }
   String response;
   serializeJson(reply, response);
   HTTPServer.send(uploadError ? 409 : 200, "application/json", response);

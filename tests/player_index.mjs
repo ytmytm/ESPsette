@@ -93,6 +93,39 @@ const crossingResult = await vm.runInContext(
 assert.equal(crossingResult.total, 65535 * 47 * 8 + 16 + 66 * 8);
 assert.deepEqual(Array.from(crossingResult.positions.keys()), [65555, 65559]);
 
+for (const payload of [[0, 0x10, 0], [0, 0, 0, 0]]) {
+  context.badTape = new Blob([new Uint8Array(20), Uint8Array.from(payload)]);
+  await assert.rejects(vm.runInContext('scanTape(badTape)', context),
+    /Ucięty impuls TAP|Zerowy impuls TAP/);
+}
+context.badTape = new Blob([new Uint8Array(20), Uint8Array.of(0x2f)]);
+context.badHeader = new Uint8Array(20);
+context.badHeader.set(new TextEncoder().encode('C64-TAPE-RAW'));
+context.badHeader[12] = 1;
+context.badHeader[16] = 2; // Declares two data bytes, Blob has one.
+assert.throws(() => vm.runInContext('tapFormat(badHeader, badTape.size)', context),
+  /Długość danych TAP/);
+
+context.recoveryFile = {type:'tap', id:41, offset:20, logicalSize:128};
+context.recoveryState = {sourceType:'tap', sessionId:41, logicalSize:128,
+  fileOffsetReceived:45, phase:'idle'};
+let recovery = vm.runInContext('reconcileSource(recoveryFile, recoveryState)', context);
+assert.equal(recovery.ok, true);
+assert.equal(recovery.changed, true);
+assert.equal(context.recoveryFile.offset, 45); // Lost POST acknowledgement, ESP accepted bytes.
+context.recoveryState.sessionId = 42;
+recovery = vm.runInContext('reconcileSource(recoveryFile, recoveryState)', context);
+assert.equal(recovery.reason, 'session_changed');
+assert.equal(context.recoveryFile.offset, 45); // Never send old file into another session.
+context.recoveryState.sessionId = 41;
+context.recoveryState.phase = 'error';
+assert.equal(vm.runInContext('reconcileSource(recoveryFile, recoveryState)', context).reason,
+  'playback_error');
+context.recoveryState.phase = 'idle';
+context.recoveryState.fileOffsetReceived = 129;
+assert.equal(vm.runInContext('reconcileSource(recoveryFile, recoveryState)', context).reason,
+  'invalid_offset');
+
 const created = await vm.runInContext(
   `mockApi('/session', {body:new URLSearchParams({size:'26', name:'sample.tap', cycles:'920'})})`,
   context
@@ -103,6 +136,12 @@ const jumped = await vm.runInContext(
 );
 assert.equal(jumped.nextOffset, 25);
 assert.notEqual(jumped.sessionId, created.sessionId);
+for (const offset of [19, 26]) {
+  await assert.rejects(vm.runInContext(
+    `mockApi('/seek', {body:new URLSearchParams({sid:'${jumped.sessionId}',
+      offset:'${offset}', cycles:'100', phase:'0'})})`, context), /Błędny offset TAP/);
+  assert.equal(vm.runInContext('mock.sessionId', context), jumped.sessionId);
+}
 await assert.rejects(vm.runInContext(
   `mockApi('/chunk?sid=${created.sessionId}&offset=25', {body:new FormData()})`, context
 ), /offset/);
@@ -144,8 +183,28 @@ const c16Session = await vm.runInContext(
 );
 assert.equal(c16Session.logicalSize, 8);
 assert.equal(vm.runInContext('mock.clockHz', context), 886724);
+const resume = await vm.runInContext(
+  `mockApi('/session', {body:new URLSearchParams({type:'tap', size:'26',
+    name:'resume.tap', cycles:'920'})})`, context
+);
+context.resumeTape = tape;
+vm.runInContext(`source = {file:resumeTape, type:'tap', id:${resume.sessionId},
+  offset:20, logicalSize:26, total:920, indexEntries:[]};
+  originalApi = api; api = async () => { throw Error('offline'); };`, context);
+await vm.runInContext('step()', context);
+assert.equal(vm.runInContext('source.offset', context), 20);
+assert.match(elements.get('transport').textContent, /Brak połączenia/);
+vm.runInContext('api = originalApi; mock.fileOffsetReceived = 21; mockBytes = 1;', context);
+await vm.runInContext('step()', context);
+assert.equal(vm.runInContext('source.offset', context), 26);
+assert.equal(vm.runInContext('mock.fileOffsetReceived', context), 26);
+assert.match(elements.get('transport').textContent, /Połączenie wznowione/);
+vm.runInContext('mock.sessionId++', context);
+await vm.runInContext('step()', context);
+assert.equal(vm.runInContext('source', context), null);
+assert.match(elements.get('transport').textContent, /Brak pliku źródłowego/);
 vm.runInContext("document.getElementById('saveMock').onclick()", context);
 assert.match(elements.get('writeDetail').textContent, /ESP:TEST/);
 vm.runInContext("mock.writeMachine = 'c16'; render({...mock})", context);
 assert.match(elements.get('writeDetail').textContent, /C16\/Plus4/);
-console.log('IDX parser, TAP boundaries, C64/C16 PRG and WRITE preview OK');
+console.log('IDX/TAP errors, session recovery, C64/C16 PRG and WRITE preview OK');
