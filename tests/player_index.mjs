@@ -100,4 +100,14 @@ assert.equal(prgSession.nextOffset, 2);
 assert.equal(prgSession.logicalSize, 8);
 assert.equal(vm.runInContext('prgTotalCycles(4) - prgTotalCycles(3)', context),
   2 * (680 + 536 + 9 * (384 + 536)));
-console.log('IDX parser, TAP boundaries and PRG browser source OK');
+assert.equal(vm.runInContext("prgTotalCycles(4, 'c16') - prgTotalCycles(3, 'c16')", context),
+  2 * (1792 + 896 + 9 * (448 + 896)));
+const c16Session = await vm.runInContext(
+  `mockApi('/session', {body:new URLSearchParams({type:'prg', size:'5',
+    header:'0110', machine:'c16', turbo:'0', name:'test-c16.prg'})})`, context
+);
+assert.equal(c16Session.logicalSize, 8);
+assert.equal(vm.runInContext('mock.clockHz', context), 886724);
+vm.runInContext("document.getElementById('saveMock').onclick()", context);
+assert.match(elements.get('writeDetail').textContent, /ESP:TEST/);
+console.log('IDX parser, TAP boundaries, C64/C16 PRG and WRITE preview OK');

@@ -3,27 +3,24 @@
 #include <string.h>
 
 namespace {
-constexpr uint32_t SHORT_CYCLES = 384;
-constexpr uint32_t MEDIUM_CYCLES = 536;
-constexpr uint32_t LONG_CYCLES = 680;
 constexpr uint32_t FIRST_HEADER_PILOT = 20000;
 constexpr uint32_t FIRST_DATA_PILOT = 5000;
 constexpr uint32_t SECOND_PILOT = 79;
 constexpr uint32_t HEADER_DATA_GAP = 200000;
-constexpr uint32_t BYTE_CYCLES = LONG_CYCLES + MEDIUM_CYCLES +
-                                 9 * (SHORT_CYCLES + MEDIUM_CYCLES);
 }  // namespace
 
 uint32_t PrgEncoder::blockPulses(uint32_t pilotPulses, uint32_t bodyBytes) {
   return pilotPulses + (9 + bodyBytes + 1) * BYTE_PULSES + 2;
 }
 
-bool PrgEncoder::begin(uint16_t loadAddress, uint32_t dataLength, const String& name) {
+bool PrgEncoder::begin(uint16_t loadAddress, uint32_t dataLength,
+                       const String& name, Machine machine) {
   if (!dataLength || (uint32_t)loadAddress + dataLength > 65535) return false;
+  machine_ = machine;
   dataLength_ = dataLength;
   dataChecksum_ = 0;
   memset(header_, 0x20, sizeof(header_));
-  header_[0] = 1; // Relocatable C64 file header.
+  header_[0] = 1; // Standard relocatable ROM tape header.
   header_[1] = loadAddress & 0xff;
   header_[2] = loadAddress >> 8;
   const uint16_t endAddress = loadAddress + dataLength;
@@ -47,11 +44,14 @@ bool PrgEncoder::begin(uint16_t loadAddress, uint32_t dataLength, const String& 
   const uint32_t data2 = blockPulses(SECOND_PILOT, dataLength_);
   dataStartPulse_ = header1 + header2 + 1; // The gap is one long pulse.
   totalPulses_ = dataStartPulse_ + data1 + data2;
+  const uint32_t byteCycles = longCycles() + mediumCycles() +
+                              9 * (shortCycles() + mediumCycles());
   totalCycles_ = (uint64_t)(FIRST_HEADER_PILOT + SECOND_PILOT +
-                            FIRST_DATA_PILOT + SECOND_PILOT) * SHORT_CYCLES +
+                            FIRST_DATA_PILOT + SECOND_PILOT) * shortCycles() +
                  (uint64_t)(2 * (9 + HEADER_BYTES + 1) +
-                            2 * (9 + dataLength_ + 1)) * BYTE_CYCLES +
-                 4 * (LONG_CYCLES + SHORT_CYCLES) + HEADER_DATA_GAP;
+                            2 * (9 + dataLength_ + 1)) * byteCycles +
+                 4 * (longCycles() + (machine_ == Machine::C16 ?
+                                     mediumCycles() : shortCycles())) + HEADER_DATA_GAP;
   return true;
 }
 
@@ -62,9 +62,9 @@ void PrgEncoder::observeFirstCopy(uint32_t offset, const uint8_t* bytes, size_t 
   }
 }
 
-uint32_t PrgEncoder::bytePulse(uint8_t value, uint8_t position) {
-  if (position == 0) return LONG_CYCLES;
-  if (position == 1) return MEDIUM_CYCLES;
+uint32_t PrgEncoder::bytePulse(uint8_t value, uint8_t position) const {
+  if (position == 0) return longCycles();
+  if (position == 1) return mediumCycles();
   uint8_t bit;
   if (position < 18) bit = (value >> ((position - 2) / 2)) & 1;
   else {
@@ -72,8 +72,8 @@ uint32_t PrgEncoder::bytePulse(uint8_t value, uint8_t position) {
     for (uint8_t i = 0; i < 8; ++i) bit ^= (value >> i) & 1;
   }
   const bool firstHalf = (position & 1) == 0;
-  return firstHalf ? (bit ? MEDIUM_CYCLES : SHORT_CYCLES)
-                   : (bit ? SHORT_CYCLES : MEDIUM_CYCLES);
+  return firstHalf ? (bit ? mediumCycles() : shortCycles())
+                   : (bit ? shortCycles() : mediumCycles());
 }
 
 PrgEncoder::Result PrgEncoder::blockPulse(uint32_t index, uint32_t pilotPulses,
@@ -84,7 +84,7 @@ PrgEncoder::Result PrgEncoder::blockPulse(uint32_t index, uint32_t pilotPulses,
   const uint32_t bodyBytes = headerBlock ? HEADER_BYTES : dataLength_;
   const uint32_t dataBase = 2 + (uint32_t)dataCopy * dataLength_;
   sourceOffset = headerBlock ? 2 : dataBase;
-  if (index < pilotPulses) { cycles = SHORT_CYCLES; return Result::PULSE; }
+  if (index < pilotPulses) { cycles = shortCycles(); return Result::PULSE; }
   index -= pilotPulses;
   if (index < 9 * BYTE_PULSES) {
     const uint8_t sequence = firstCopy ? 137 - index / BYTE_PULSES
@@ -110,7 +110,8 @@ PrgEncoder::Result PrgEncoder::blockPulse(uint32_t index, uint32_t pilotPulses,
   }
   index -= (bodyBytes + 1) * BYTE_PULSES;
   sourceOffset = headerBlock ? 2 : dataBase + bodyBytes;
-  cycles = index == 0 ? LONG_CYCLES : SHORT_CYCLES;
+  cycles = index == 0 ? longCycles() :
+           (machine_ == Machine::C16 ? mediumCycles() : shortCycles());
   return Result::PULSE;
 }
 

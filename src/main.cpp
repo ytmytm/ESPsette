@@ -9,6 +9,7 @@
 // revised on 27.4, 1.5
 #define PIN_MOTOR 0 // GPIO0       <- MOTOR (C,3) $01 bit 5 (through optocoupler with gnd pulldown 10k) // 0 = motor off, 1 = motor on
 #define PIN_SENSE 1 // GPIO1 (TxD) -> SENSE (F,6) $01 bit 4 (with pullup to 3.3V, 10k) // 0 = pushed, 1 = released
+#define PIN_WRITE 2 // GPIO2 <- buffered C64 WRITE; optional diagnostic input only
 #define PIN_READ  3 // GPIO3 (RxD) -> READ  (D,4) CIA#1 /FLAG, I2S, pulled to 5V in C64, normal high (input pullup), impulse low
 
 #include <Arduino.h>
@@ -23,6 +24,7 @@
 #include "network_config.h"
 #include "tape_source.h"
 #include "prg_encoder.h"
+#include "write_decoder.h"
 #include "player_page.h"
 #include <ArduinoJson.h>
 #include <string.h>
@@ -38,15 +40,62 @@ ESP8266WebServer HTTPServer(80);
 NetworkConfig networkConfig(HTTPServer, PIN_MOTOR);
 TapeSource tapeSource;
 PrgEncoder prgEncoder;
+WriteDecoder writeDecoder;
+#ifndef ESPSETTE_WRITE_CAPTURE
+#define ESPSETTE_WRITE_CAPTURE 0
+#endif
+#if ESPSETTE_WRITE_CAPTURE && !defined(I2S_HAS_BEGIN_RXTX_DRIVE_CLOCKS)
+#error "WRITE capture requires I2S without GPIO2 clock output"
+#endif
+#if ESPSETTE_WRITE_CAPTURE
+static constexpr uint16_t WRITE_RING_SIZE = 512;
+volatile uint16_t writeRing[WRITE_RING_SIZE];
+volatile uint16_t writeHead = 0, writeTail = 0;
+volatile uint32_t writeLastEdgeUs = 0, writeCaptureOverflows = 0;
+volatile bool writeActive = false;
+uint32_t reportedWriteOverflows = 0;
+
+void ICACHE_RAM_ATTR onWriteEdge() {
+  if (!writeActive) return;
+  const uint32_t now = micros();
+  const uint32_t previous = writeLastEdgeUs;
+  writeLastEdgeUs = now;
+  if (!previous) return;
+  const uint16_t next = (writeHead + 1) % WRITE_RING_SIZE;
+  if (next == writeTail) { ++writeCaptureOverflows; return; }
+  const uint32_t duration = now - previous;
+  writeRing[writeHead] = duration > UINT16_MAX ? UINT16_MAX : duration;
+  writeHead = next;
+}
+
+void drainWriteCapture() {
+  uint32_t overflows;
+  noInterrupts(); overflows = writeCaptureOverflows; interrupts();
+  if (overflows != reportedWriteOverflows) {
+    reportedWriteOverflows = overflows;
+    noInterrupts(); writeTail = writeHead; interrupts();
+    writeDecoder.overflow();
+  }
+  for (uint16_t count = 0; count < WRITE_RING_SIZE; ++count) {
+    noInterrupts();
+    if (writeTail == writeHead) { interrupts(); break; }
+    const uint16_t duration = writeRing[writeTail];
+    writeTail = (writeTail + 1) % WRITE_RING_SIZE;
+    interrupts();
+    writeDecoder.feedMicros(duration);
+  }
+}
+#endif
 enum class SourceFormat : uint8_t { TAP, PRG };
 SourceFormat sourceFormat = SourceFormat::TAP;
 
 enum class State : uint8_t { WAITING, STREAMING, DRAINING, FINISHED, ERROR };
 
 // One I2S sample contains 32 serial output bits. One bit represents 16 PAL cycles.
-static const uint32_t TAP_CLOCK_HZ = 985248UL;
+static const uint32_t C64_CLOCK_HZ = 985248UL;
+static const uint32_t C16_CLOCK_HZ = 886724UL;
+uint32_t sourceClockHz = C64_CLOCK_HZ;
 static const uint32_t CYCLES_PER_BIT = 16;
-static const uint32_t I2S_WORD_RATE = TAP_CLOCK_HZ / CYCLES_PER_BIT / 32;
 static const uint8_t DMA_WORDS = 64; // ESP8266 core: 8 DMA descriptors, 64 words each.
 static const uint8_t DMA_BUFFERS = 8;
 static const uint8_t CHECKPOINT_SLOTS = 16; // Keep played and queued buffers separate.
@@ -262,7 +311,7 @@ void startTape() {
   runStartDecoder = player.decoder;
   // This rate is remembered by the core and applied during i2s_begin(),
   // before the first (otherwise fast) DMA descriptor can finish.
-  i2s_set_rate(I2S_WORD_RATE);
+  i2s_set_rate(sourceClockHz / CYCLES_PER_BIT / 32);
 #ifdef I2S_HAS_BEGIN_RXTX_DRIVE_CLOCKS
   if (!i2s_rxtxdrive_begin(false, true, false, false)) {
     state = State::ERROR;
@@ -276,7 +325,7 @@ void startTape() {
   i2s_set_callback(onDmaBufferDone);
   realBitRate = (uint32_t)(i2s_get_real_rate() * 32.0f + 0.5f);
   state = State::STREAMING;
-  debugI("Start TAP at %lu; I2S %lu bits/s",
+  debugI("Start tape at %lu; I2S %lu bits/s",
          (unsigned long)player.decoder.offset, (unsigned long)realBitRate);
 }
 
@@ -437,7 +486,7 @@ void pumpTape() {
 
 void setupPins() {
   pinMode(PIN_MOTOR, INPUT);
-  pinMode(2, INPUT_PULLUP); // GPIO2 must stay high at boot; WRITE is not connected.
+  pinMode(PIN_WRITE, INPUT_PULLUP); // GPIO2 must stay high at boot.
   pinMode(PIN_SENSE, FUNCTION_3); // Release UART TX for GPIO1.
   digitalWrite(PIN_SENSE, HIGH); // Release PLAY until the embedded TAP is ready.
   pinMode(PIN_SENSE, OUTPUT);
@@ -511,6 +560,7 @@ void setup() {
   setupDebug();
   setupWebserver();
   sourceFormat = SourceFormat::TAP;
+  sourceClockHz = C64_CLOCK_HZ;
   tapeSource.useEmbedded(draxcaught_tap, draxcaught_tap_len);
   resetPlayer(20);
   if (!validateTap()) {
@@ -525,6 +575,11 @@ void setup() {
   digitalWrite(PIN_SENSE, LOW); // PLAY stays pressed even with an empty deck.
   lastMotor = digitalRead(PIN_MOTOR);
   attachInterrupt(digitalPinToInterrupt(PIN_MOTOR), onMotorFalling, FALLING);
+#if ESPSETTE_WRITE_CAPTURE
+  writeActive = lastMotor == HIGH;
+  if (writeActive) writeDecoder.motorStart();
+  attachInterrupt(digitalPinToInterrupt(PIN_WRITE), onWriteEdge, RISING);
+#endif
   lastcall = millis();
   debugI("setup completed; TAP bytes=%lu", (unsigned long)tapEnd);
 }
@@ -540,6 +595,16 @@ void loop() {
   if (motor != lastMotor) {
     lastMotor = motor;
     debugI("Motor state changed to %u", motor);
+#if ESPSETTE_WRITE_CAPTURE
+    if (motor == HIGH) {
+      noInterrupts(); writeLastEdgeUs = 0; writeActive = true; interrupts();
+      writeDecoder.motorStart();
+    } else {
+      writeActive = false;
+      drainWriteCapture();
+      writeDecoder.motorStop();
+    }
+#endif
   }
 
   if (state == State::FINISHED) {
@@ -576,6 +641,9 @@ void loop() {
 
   if (otaReady && state != State::STREAMING && state != State::DRAINING) ArduinoOTA.handle();
   HTTPServer.handleClient();
+#if ESPSETTE_WRITE_CAPTURE
+  drainWriteCapture();
+#endif
   networkConfig.handle(motor == HIGH);
   if (networkReady) Debug.handle();
   yield();
@@ -694,10 +762,12 @@ static uint32_t currentRunBits() {
 }
 
 void handleState() {
-  StaticJsonDocument<512> doc;
+  StaticJsonDocument<768> doc;
   const bool motorOn = digitalRead(PIN_MOTOR) == HIGH;
   doc["tapeState"] = tapeLoaded ? "loaded" : "ejected";
   doc["sourceType"] = sourceFormat == SourceFormat::PRG ? "prg" : "tap";
+  doc["machine"] = sourceClockHz == C16_CLOCK_HZ ? "c16" : "c64";
+  doc["clockHz"] = sourceClockHz;
   doc["fileName"] = tapeLoaded ? tapeName : "";
   doc["motorOn"] = motorOn;
   doc["sensePressed"] = digitalRead(PIN_SENSE) == LOW;
@@ -725,6 +795,15 @@ void handleState() {
   doc["freeBytes"] = tapeSource.freeBytes();
   doc["sessionId"] = tapeSource.sessionId();
   doc["error"] = playerError;
+  doc["writeEnabled"] = bool(ESPSETTE_WRITE_CAPTURE);
+  doc["writeStatus"] = writeDecoder.status();
+  doc["writeName"] = writeDecoder.name();
+  doc["writeType"] = writeDecoder.fileType();
+  doc["writeStart"] = writeDecoder.startAddress();
+  doc["writeEnd"] = writeDecoder.endAddress();
+  doc["writeHeaders"] = writeDecoder.receivedCount();
+  doc["writeErrors"] = writeDecoder.errorCount();
+  doc["writeOverflows"] = writeDecoder.overflowCount();
   String response;
   serializeJson(doc, response);
   HTTPServer.sendHeader("Cache-Control", "no-store");
@@ -753,8 +832,9 @@ void handleSession() {
   if (isPrg) {
     const String addressHex = HTTPServer.arg("header");
     if (fileSize < 3 || addressHex.length() != 4 ||
-        HTTPServer.arg("machine") != "c64" || HTTPServer.arg("turbo") != "0") {
-      HTTPServer.send(400, "text/plain", "Only standard C64 PRG is supported");
+        (HTTPServer.arg("machine") != "c64" && HTTPServer.arg("machine") != "c16") ||
+        HTTPServer.arg("turbo") != "0") {
+      HTTPServer.send(400, "text/plain", "Only standard C64/C16 PRG is supported");
       return;
     }
     for (uint8_t i = 0; i < 2; ++i) {
@@ -769,8 +849,10 @@ void handleSession() {
     const uint32_t dataLength = fileSize - 2;
     const uint16_t loadAddress = prefix[0] | ((uint16_t)prefix[1] << 8);
     const String displayName = HTTPServer.arg("displayName");
+    const PrgEncoder::Machine machine = HTTPServer.arg("machine") == "c16" ?
+        PrgEncoder::Machine::C16 : PrgEncoder::Machine::C64;
     if (displayName.length() > 64 ||
-        !prgEncoder.begin(loadAddress, dataLength, displayName)) {
+        !prgEncoder.begin(loadAddress, dataLength, displayName, machine)) {
       HTTPServer.send(400, "text/plain", "PRG address range is invalid");
       return;
     }
@@ -778,6 +860,7 @@ void handleSession() {
     firstOffset = 2;
     totalTapeCycles = prgEncoder.totalCycles();
     reportedTotalCycles = totalTapeCycles;
+    sourceClockHz = prgEncoder.clockHz();
   } else {
     if (!decodeHeader(HTTPServer.arg("header"), prefix) ||
         !validStreamHeader(prefix, fileSize) ||
@@ -790,6 +873,7 @@ void handleSession() {
     firstOffset = 20;
     totalTapeCycles = 0;
     reportedTotalCycles = cycles; // Browser metadata is display-only.
+    sourceClockHz = C64_CLOCK_HZ;
   }
   const uint32_t id = newSessionId(0);
   if (isPrg) {
@@ -926,6 +1010,7 @@ void handleDemo() {
     return;
   }
   sourceFormat = SourceFormat::TAP;
+  sourceClockHz = C64_CLOCK_HZ;
   tapeSource.useEmbedded(draxcaught_tap, draxcaught_tap_len);
   tapeName = "draxcaught (demo)";
   playedBaseCycles = 0;

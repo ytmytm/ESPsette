@@ -1,13 +1,13 @@
 # espsette
 
-Firmware ESP-01 do odtwarzania sygnału kasetowego przez port datasette C64. Projekt jest w trakcie migracji ze starego szkicu Arduino; [analiza i plan](ANALIZA_PROJEKTU.md) opisują kolejne etapy.
+Firmware ESP-01 do odtwarzania sygnału kasetowego przez port datasette C64 lub C16/Plus4 PAL. Projekt jest w trakcie migracji ze starego szkicu Arduino; [analiza i plan](ANALIZA_PROJEKTU.md) opisują kolejne etapy.
 
 ## Stan kodu
 
 - `src/main.ino` zawiera historyczny odtwarzacz TAP z nałożoną poprawką tempa I2S, obsługi MOTOR i kończenia transmisji.
 - `include/draxcaught.h` pozostaje demonstracyjnym TAP. Można też wskazać w przeglądarce duży plik TAP C64 PAL v1 albo zwykły PRG; strona podaje dane porcjami do bufora 8 KB ESP.
 - Dane Wi-Fi są wprowadzane przez portal AP i zapisywane do LittleFS. Nie są kompilowane do firmware. Ta gałąź implementuje konfigurację; wcześniejszy wariant do pierwszej próby pozostaje w sąsiednim worktree `../espsette/`.
-- Strumieniowanie TAP, tekstowy IDX w formacie Ultimate 64 i podstawowa strona decku są zaimplementowane w tej gałęzi. Generator standardowej kasety z PRG dla C64 PAL jest zaimplementowany; WRITE, generator C16, turbo i docelowa fotorealistyczna grafika pozostają kolejnymi etapami.
+- Strumieniowanie TAP, tekstowy IDX w formacie Ultimate 64 i podstawowa strona decku są zaimplementowane w tej gałęzi. Generator standardowej kasety z PRG dla C64 i C16/Plus4 PAL jest zaimplementowany. Dekoder nagłówka SAVE z WRITE jest gotowy w osobnym profilu sprzętowym; turbo i docelowa fotorealistyczna grafika pozostają kolejnymi etapami.
 - Zmiany w tym worktree nie były kompilowane ani sprawdzane na ESP-01. Pierwszą próbę sprzętową z osadzonym TAP można wykonać z sąsiedniego worktree `../espsette/`; tę gałąź skompilować osobno później.
 
 ## Układ katalogów
@@ -18,7 +18,8 @@ Firmware ESP-01 do odtwarzania sygnału kasetowego przez port datasette C64. Pro
 | `include/` | nagłówki i tymczasowy obraz TAP |
 | `src/network_config.*` | portal AP, połączenie STA i konfiguracja LittleFS |
 | `src/tape_source.*` | ograniczony bufor kasety zasilany porcjami z przeglądarki |
-| `src/prg_encoder.*` | standardowe impulsy kasety C64 generowane z PRG |
+| `src/prg_encoder.*` | standardowe impulsy kasety C64/C16 generowane z PRG |
+| `src/write_decoder.*` | weryfikacja podwójnego nagłówka `SAVE` C64 bez wykonywania komend |
 | `web/player.html` | źródło strony i samodzielny podgląd lokalny |
 | `scripts/embed-player.py` | generuje `src/player_page.h` z HTML przed budowaniem |
 | `include/local_ota.h.example` | opcjonalne hasło OTA, bez danych Wi-Fi |
@@ -71,11 +72,17 @@ Strona skanuje TAP lokalnie, tworzy sesję przez `POST /session`, a następnie w
 
 Ten transport obsługuje obecnie **C64 PAL TAP v1**. Plik pozostaje w otwartej karcie przeglądarki; jej uśpienie może opróżnić bufor i zakończyć LOAD błędem. 8 KB bufora i czas obsługi HTTP wymagają pomiaru na prawdziwym ESP-01/C64, szczególnie dla szybkich loaderów. Endpointy nie mają jeszcze uwierzytelniania. ESP sprawdza zakres offsetu przeskoku, a granicę rekordu sprawdza przeglądarka podczas skanowania TAP; bez pełnej kopii kasety ESP nie może niezależnie potwierdzić granicy dla dowolnego offsetu. Format Manosoft Princess nie jest obsługiwany. Na modułach 512 KB lub 1 MB może zabraknąć miejsca na połączenie demonstracyjnego TAP, strony, LittleFS i OTA; rozmiar obrazu trzeba zmierzyć podczas kompilacji na Macu.
 
-## Standardowy PRG C64
+## Standardowy PRG C64 i C16/Plus4 PAL
 
 Wybór `.prg` uruchamia osobną sesję. Dwa pierwsze bajty pliku określają adres ładowania; w polu „Nazwa na kasecie” można ustawić nazwę widoczną na C64. Firmware tworzy nagłówek typu 1, pilot, synchronizację, parzystość, sumy XOR, obie kopie nagłówka i obie kopie danych. Impulsy powstają na bieżąco, bez zapisywania pliku TAP. Przeglądarka czyta dwa razy te same bajty PRG przez `Blob.slice()`; ESP widzi je jako kolejne offsety logiczne, więc nie musi pamiętać całego programu. Po nagłówku C64 może zatrzymać MOTOR, a odtwarzacz zachowuje pozycję do wznowienia.
 
-Obsługiwany jest standardowy `LOAD` na C64 PAL bez turbo. PRG musi zawierać co najmniej jeden bajt danych, a adres końcowy mieścić się do `$FFFF`. Opcje C16/Plus4 i loader turbo są widoczne, ale wyłączone. PRG nie ma pozycji IDX. Implementację przebiegu porównano z [kodem WAV-PRG](https://github.com/fabzzap/wav-prg/blob/master/prg2wav_core/prg2wav_core.c); nadal wymaga kompilacji na Macu i sprawdzenia impulsów oraz ładowania na C64.
+Obsługiwany jest standardowy `LOAD` na C64 PAL oraz C16/Plus4 PAL bez turbo. PRG musi zawierać co najmniej jeden bajt danych, a adres końcowy mieścić się do `$FFFF`. Wybór C16/Plus4 jest aktywny; opcja loadera turbo pozostaje wyłączona. PRG nie ma pozycji IDX. Implementację przebiegu porównano z [kodem WAV-PRG](https://github.com/fabzzap/wav-prg/blob/master/prg2wav_core/prg2wav_core.c); nadal wymaga kompilacji na Macu i sprawdzenia impulsów oraz ładowania na C64 i C16/Plus4. C16 wymaga odpowiedniego adaptera do portu 1531; to nie jest ten sam fizyczny wtyk co C64.
+
+## Diagnostyczny odbiór WRITE
+
+`src/write_decoder.*` rozpoznaje standardowy nagłówek `SAVE` C64: sekwencję synchronizacji, parzystość bajtów, sumę XOR, znacznik końca i zgodność drugiej kopii. Po poprawnym odbiorze `/state` oraz strona pokazują nazwę, typ, adresy i informację „brak przypisanej akcji”. Dane programu po nagłówku są ignorowane. Firmware nie interpretuje nazwy jako komendy i niczego przez WRITE nie nadaje.
+
+Domyślny profil **nie podłącza przerwania GPIO2**. `PROFILE=1m-write` lub `4m-write` włącza nasłuch dopiero dla płytki, która chroni GPIO2 przed 5 V, gwarantuje wysoki stan przy starcie ESP i odłącza C64 podczas flashowania. Profil wymaga API I2S bez zegara na GPIO2; przy jego braku kompilacja kończy się błędem. Do czasu sprawdzenia schematu i pomiaru nie należy łączyć WRITE C64 bezpośrednio z ESP-01. Strona w zwykłym profilu wyraźnie pokazuje, że nasłuch jest nieaktywny; w lokalnym podglądzie można kliknąć „Symuluj SAVE”, aby obejrzeć prezentację wyniku. Test dekodera dla komputera hosta jest w `tests/write_decoder_test.cpp` i czeka na uruchomienie na Macu.
 
 ## OTA po uruchomieniu sieci
 
