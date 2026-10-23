@@ -95,7 +95,7 @@ enum class State : uint8_t { WAITING, STREAMING, DRAINING, FINISHED, ERROR };
 static const uint32_t C64_CLOCK_HZ = 985248UL;
 static const uint32_t C16_CLOCK_HZ = 886724UL;
 uint32_t sourceClockHz = C64_CLOCK_HZ;
-bool tapHalfWaves = false; // C16 TAP v2 uses successive halfwaves.
+bool tapHalfWaves = false; // TAP v2 uses successive halfwaves.
 static const uint32_t CYCLES_PER_BIT = 16;
 static const uint8_t DMA_WORDS = 64; // ESP8266 core: 8 DMA descriptors, 64 words each.
 static const uint8_t DMA_BUFFERS = 8;
@@ -751,8 +751,7 @@ static bool validStreamHeader(const uint8_t header[20], uint32_t size) {
   const bool c64 = memcmp(header, "C64-TAPE-RAW", 12) == 0 && header[13] == 0;
   const bool c16 = memcmp(header, "C16-TAPE-RAW", 12) == 0 && header[13] == 2;
   if (size <= 20 || header[14] != 0 ||
-      !((c64 && header[12] == 1) ||
-        (c16 && (header[12] == 1 || header[12] == 2)))) return false;
+      !((c64 || c16) && (header[12] == 1 || header[12] == 2))) return false;
   const uint32_t dataSize = (uint32_t)header[16] |
                             ((uint32_t)header[17] << 8) |
                             ((uint32_t)header[18] << 16) |
@@ -881,7 +880,7 @@ void handleSession() {
         !validStreamHeader(prefix, fileSize) ||
         (HTTPServer.hasArg("cycles") &&
          !parseDecimal64(HTTPServer.arg("cycles"), cycles))) {
-      HTTPServer.send(400, "text/plain", "Supported: C64 PAL TAP v1, C16 PAL TAP v1/v2");
+      HTTPServer.send(400, "text/plain", "Supported: C64/C16 PAL TAP v1/v2");
       return;
     }
     logicalSize = fileSize;

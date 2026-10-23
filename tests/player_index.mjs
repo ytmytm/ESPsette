@@ -65,7 +65,7 @@ assert.equal(scan.pulsePositions.get(21), 1);
 assert.equal(scan.pulsePositions.get(25), 2);
 // A C16 v2 seek at 0x15 starts on the opposite halfwave level.
 assert.equal(scan.pulsePositions.get(21) % 2, 1);
-for (const [machine, version] of [['C64', 1], ['C16', 1], ['C16', 2]]) {
+for (const [machine, version] of [['C64', 1], ['C64', 2], ['C16', 1], ['C16', 2]]) {
   const header = new Uint8Array(20);
   header.set(new TextEncoder().encode(machine + '-TAPE-RAW'));
   header[12] = version;
