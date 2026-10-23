@@ -144,7 +144,7 @@ Przełączenie STA↔AP podczas aktywnego odtwarzania zerwałoby przeglądarce �
 
 **Tak, model „krótki rozruch w standardowym formacie, reszta szybkim protokołem” istnieje na obu rodzinach.** Dla naszego urządzenia oznaczałby wybór PRG w przeglądarce, wygenerowanie przez ESP standardowej części rozruchowej dla wskazanego komputera, następnie wygenerowanie szybkich impulsów danych. Nie ma jednego uniwersalnego kodowania turbo: loader w RAM komputera i generator na ESP muszą używać tego samego protokołu. Obraz TAP odtwarzamy natomiast zgodnie z zapisanymi w nim impulsami, bez dodawania własnego nagłówka czy loadera.
 
-Osobna [analiza dwubitowego protokołu Tapecart i ograniczeń ESP-01](ANALIZA_TURBO_TAPECART.md) rozróżnia go od Tapuino, sprawdza czas próbkowania C64 oraz wymagane kierunki linii SENSE/WRITE. Wniosek dla pierwszej wersji: własny szybki loader PRG oparty na READ ma lepsze dopasowanie do obecnego układu niż próba bezpośredniego przeniesienia Tapecart.
+Osobna [analiza dwubitowego protokołu Tapecart i ograniczeń ESP-01](ANALIZA_TURBO_TAPECART.md) rozróżnia go od Tapuino, sprawdza czas próbkowania C64 oraz wymagane kierunki linii SENSE/WRITE. Po rozważeniu wyłączenia Wi-Fi na czas transferu bezpośrednie przeniesienie protokołu jest warte prototypu z lokalnie dostępnym PRG i bezpiecznym dwukierunkowym WRITE; alternatywny loader na READ lepiej pasuje do obecnego schematu i strumieniowania z przeglądarki.
 
 | Komputer | Sprawdzony przykład | Co potwierdza |
 | --- | --- | --- |
