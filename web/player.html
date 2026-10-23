@@ -5,21 +5,25 @@
 :root{color-scheme:dark;font:16px system-ui}*{box-sizing:border-box}body{margin:0;background:#11151b;color:#edf0f2}
 main{max-width:760px;margin:auto;padding:18px}h1{font-size:1.6rem;margin:0 0 4px}p{line-height:1.45;color:#abb7c3}
 .deck{background:linear-gradient(135deg,#373d44,#1d232b 58%,#353d42);border:3px solid #60666b;border-radius:20px;padding:20px;box-shadow:0 22px 45px #0008,inset 0 2px 4px #ffffff33}
-.window{height:205px;border:12px solid #141a20;border-radius:10px;background:linear-gradient(145deg,#090c10,#20252c);box-shadow:inset 0 5px 15px #000;display:flex;align-items:center;justify-content:center;overflow:hidden}
-.cassette{width:min(93%,440px);height:150px;border-radius:12px;background:linear-gradient(160deg,#afaaa0,#e0d9ca 40%,#aea89b);border:5px solid #3b3730;box-shadow:0 5px 12px #0008;position:relative;display:flex;align-items:center;justify-content:space-around}
-.cassette:before{content:'espsette';position:absolute;top:8px;left:35%;font-weight:700;letter-spacing:.15em;color:#3c3b38}
-.reel{width:72px;height:72px;border-radius:50%;border:8px solid #d5d2c6;background:repeating-conic-gradient(#373737 0 18deg,#e9e8e2 18deg 31deg,#777 31deg 60deg);box-shadow:0 0 0 15px #715e4d,inset 0 0 0 9px #c9c6bb}
-.playing .reel{animation:spin 1.6s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
-.has-video .cassette,.ejected .cassette{display:none}.window video{width:100%;height:100%;object-fit:cover}.window video:not([src]),.ejected .window video{display:none}.ejected .window:after{content:'PUSTY DECK';color:#56616e;letter-spacing:.2em}
-.keys{display:flex;gap:7px;justify-content:center;margin-top:15px}.key{background:linear-gradient(#24272b,#0c1015);border:2px solid #535a62;border-radius:4px 4px 10px 10px;padding:9px 14px;box-shadow:0 5px 2px #080a0d;color:#b9c4cb}.key.pressed{transform:translateY(4px);box-shadow:0 1px 2px #080a0d;color:#fff}
+.deck-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;color:#b9c2c7;font-size:.75rem;font-weight:700;letter-spacing:.18em}.counter{font:700 1.15rem ui-monospace,monospace;letter-spacing:.18em;color:#b9f0a5;background:#101913;border:2px solid #4e5b4b;border-radius:4px;padding:2px 8px;text-shadow:0 0 7px #6adf55}
+.window{height:clamp(190px,34vw,275px);border:10px solid #141a20;border-radius:12px;background:linear-gradient(145deg,#090c10,#20252c);box-shadow:inset 0 5px 15px #000;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+.cassette{width:min(100%,570px);aspect-ratio:720/314;background:url('assets/cassette.webp') center/contain no-repeat;position:relative;filter:drop-shadow(0 5px 8px #0009)}
+.reel{position:absolute;top:48.5%;width:9%;aspect-ratio:1;border-radius:50%;background:repeating-conic-gradient(#cabfa8 0 12deg,#443d37 12deg 38deg,#e7dcc6 38deg 55deg,#292522 55deg 60deg);box-shadow:inset 0 0 0 6px #292522,0 0 3px #000;transform:translate(-50%,-50%)}
+.reel:first-child{left:30%}.reel:last-child{left:72%}
+.playing .reel{animation:spin 1.6s linear infinite}@keyframes spin{from{transform:translate(-50%,-50%) rotate(0)}to{transform:translate(-50%,-50%) rotate(360deg)}}
+.has-video .cassette,.ejected .cassette{display:none}.window video{width:100%;height:100%;object-fit:cover}.window video:not([src]),.ejected .window video{display:none}.ejected .window:after{content:'PUSTY DECK';color:#9aa6b2;letter-spacing:.2em}
+.keys{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:15px}.key{margin:0;font:700 clamp(.66rem,2vw,.9rem) system-ui;background:linear-gradient(#34393d,#0c1015);border:2px solid #535a62;border-radius:5px 5px 10px 10px;min-height:52px;padding:8px 3px;box-shadow:0 5px 2px #080a0d;color:#d2dce3;cursor:pointer}.key.pressed{transform:translateY(4px);box-shadow:0 1px 2px #080a0d;color:#fff}.key:disabled{cursor:not-allowed;opacity:.45}.key:active{transform:translateY(4px);box-shadow:0 1px 2px #080a0d}.autoplay{margin:10px 0 0;color:#dce5e9;font-size:.9rem}.autoplay input{accent-color:#e1b54c;width:1.1rem;height:1.1rem;vertical-align:middle}#deckMessage{margin:12px 0 0;min-height:1.5em;text-align:center;font-size:.9rem}.key:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid #f4c354;outline-offset:2px}
+.debug{margin-top:12px;border-top:1px solid #42505d;padding-top:10px}.debug summary{cursor:pointer;color:#d7e0e8}.debug pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px ui-monospace,monospace;color:#b8c9d8;background:#10171e;border-radius:8px;padding:12px;max-height:330px;overflow:auto}
+@media(max-width:480px){main{padding:12px}.deck{padding:11px}.keys{gap:3px}.key{min-height:46px;padding:5px 2px}}
+@media(prefers-reduced-motion:reduce){.playing .reel{animation-duration:5s}}
 .card{background:#202832;border:1px solid #36414b;border-radius:12px;padding:16px;margin-top:18px}
 label{display:block;margin:12px 0}input[type=file],select{display:block;width:100%;margin-top:8px}select{font:inherit;padding:10px;background:#111923;color:#fff;border:1px solid #566472;border-radius:8px}.drop{border:2px dashed #687786;border-radius:10px;padding:18px;text-align:center;color:#b9c7d3}.drop.over{border-color:#e2b94d;background:#39414a}button{font:inherit;border:0;border-radius:8px;background:#d5a43a;color:#17191a;padding:10px 15px;margin:4px 5px 4px 0;font-weight:700}button.secondary{background:#414e5b;color:#fff}button:disabled{opacity:.45}a{color:#9fcfff}
 .stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.stats div{background:#131a22;border-radius:7px;padding:12px}.stats b{display:block;font-size:1.2rem;overflow-wrap:anywhere}small{color:#a4b3bf}#error{color:#ffaaa6;min-height:1.3em}
 </style>
 <main><h1>espsette</h1><p>Kaseta przez Wi-Fi · C64 / C16 PAL</p>
-<div id="deck" class="deck"><div class="window"><video id="windowVideo" muted loop playsinline></video><div class="cassette"><div class="reel"></div><div class="reel"></div></div></div><div class="keys"><span id="play" class="key pressed">PLAY</span><span class="key">STOP</span><span class="key">REW</span></div></div>
-<section class="card"><div class="stats"><div><small>Kaseta</small><b id="loaded">—</b></div><div><small>Motor</small><b id="motor">—</b></div><div><small>Odtworzone</small><b id="played">—</b></div><div><small>Bufor ESP</small><b id="buffer">—</b></div><div><small>Pozostało sygnału</small><b id="remaining">—</b></div><div><small>WRITE / SAVE</small><b id="writeStatus">—</b></div></div><p id="writeDetail"></p><p id="phase">Łączenie…</p><p id="transport"></p><p id="diagnostics"></p><p id="error"></p></section>
-<section class="card"><div id="dropzone" class="drop">Upuść TAP lub PRG; opcjonalnie także IDX dla TAP</div><p id="selectedFiles"></p><label>Kaseta TAP C64 / C16 v1–v2 PAL lub program PRG<input id="file" type="file" accept=".tap,.prg"></label><div id="indexPicker"><label>Indeks IDX (opcjonalny dla TAP)<input id="indexFile" type="file" accept=".idx,text/plain"></label><button id="clearIndex" class="secondary">Usuń wybór IDX</button></div><div id="prgOptions" hidden><label>Komputer<select id="machine"><option value="c64">C64</option><option value="c16">C16 / Plus/4 PAL</option></select></label><label>Dołącz loader turbo<select id="turbo"><option value="0">Nie — standardowy LOAD</option><option value="1" disabled>Tak — w przygotowaniu</option></select></label><label>Nazwa na kasecie<input id="programName" maxlength="16" placeholder="PROGRAM"></label></div><button id="load">Włóż kasetę</button><button id="demo" class="secondary">Kaseta demo</button><button id="eject" class="secondary">Wysuń</button><div id="indexControls" hidden><label>Pozycja z IDX<select id="idxPositions"></select></label><button id="seek" class="secondary">Przeskocz do pozycji</button><p id="indexInfo"></p></div><p>Plik pozostaje w tej karcie. Zostaw przeglądarkę otwartą podczas LOAD; przy braku miejsca kolejna porcja zaczeka bez otwartego żądania HTTP.</p><label>Opcjonalny film w okienku<input id="previewVideoFile" type="file" accept="video/mp4,video/webm"></label><p>Możesz użyć lokalnie pobranego <a href="https://pixabay.com/videos/tape-recorder-music-stale-nostalgic-118790/" target="_blank" rel="noopener">filmu magnetofonu z Pixabay</a>. Film pozostaje w przeglądarce i zatrzymuje się razem z MOTOR.</p><a id="wifiLink" href="/wifi">Konfiguracja Wi-Fi</a></section><section id="previewPanel" class="card" hidden><h2>Podgląd lokalny</h2><p>Symulacja bez ESP-01. Wybierz TAP lub PRG i przełącz MOTOR, aby sprawdzić animację, bufor i układ strony.</p><button id="motorToggle" class="secondary">MOTOR on/off</button><button id="saveMock" class="secondary">Symuluj SAVE</button></section></main>
+<div id="deck" class="deck"><div class="deck-top"><span>DATASETTE</span><output id="counter" class="counter" aria-label="Wirtualny licznik taśmy">0000</output></div><div class="window"><video id="windowVideo" muted loop playsinline></video><div class="cassette"><div class="reel"></div><div class="reel"></div></div></div><div class="keys" role="group" aria-label="Klawisze magnetofonu"><button id="rewind" class="key" type="button" aria-label="Poprzednia pozycja taśmy">◀◀<br>REW</button><button id="stop" class="key" type="button" aria-label="Zwolnij PLAY na linii SENSE">■<br>STOP</button><button id="play" class="key pressed" type="button" aria-label="Wciśnij PLAY na linii SENSE">▶<br>PLAY</button><button id="fastForward" class="key" type="button" aria-label="Następna pozycja taśmy">▶▶<br>FF</button><button id="deckEject" class="key" type="button" aria-label="Wysuń kasetę">⏏<br>EJECT</button></div><p id="deckMessage" role="status" aria-live="polite"></p><label class="autoplay"><input id="autoPlay" type="checkbox" checked> Autoplay przy włożeniu kasety</label></div>
+<section class="card"><div class="stats"><div><small>Kaseta</small><b id="loaded">—</b></div><div><small>Motor</small><b id="motor">—</b></div><div><small>Odtworzone</small><b id="played">—</b></div><div><small>Bufor ESP</small><b id="buffer">—</b></div><div><small>Pozostało sygnału</small><b id="remaining">—</b></div><div><small>WRITE / SAVE</small><b id="writeStatus">—</b></div></div><p id="writeDetail"></p><p id="phase">Łączenie…</p><p id="transport"></p><p id="error"></p><details id="debugPanel" class="debug"><summary>Debug / stan ESP</summary><p id="diagnostics"></p><pre id="debugJson"></pre></details></section>
+<section class="card"><div id="dropzone" class="drop">Upuść TAP lub PRG; opcjonalnie także IDX dla TAP</div><p id="selectedFiles"></p><label>Kaseta TAP C64 / C16 v1–v2 PAL lub program PRG<input id="file" type="file" accept=".tap,.prg"></label><div id="indexPicker"><label>Indeks IDX (opcjonalny dla TAP)<input id="indexFile" type="file" accept=".idx,text/plain"></label><button id="clearIndex" class="secondary">Usuń wybór IDX</button></div><div id="prgOptions" hidden><label>Komputer<select id="machine"><option value="c64">C64</option><option value="c16">C16 / Plus/4 PAL</option></select></label><label>Dołącz loader turbo<select id="turbo"><option value="0">Nie — standardowy LOAD</option><option value="1" disabled>Tak — w przygotowaniu</option></select></label><label>Nazwa na kasecie<input id="programName" maxlength="16" placeholder="PROGRAM"></label></div><button id="load">Włóż kasetę</button><button id="demo" class="secondary">Kaseta demo</button><div id="indexControls" hidden><label>Pozycja z IDX<select id="idxPositions"></select></label><button id="seek" class="secondary">Przeskocz do pozycji</button><p id="indexInfo"></p></div><p>Plik pozostaje w tej karcie. Zostaw przeglądarkę otwartą podczas LOAD; przy braku miejsca kolejna porcja zaczeka bez otwartego żądania HTTP.</p><label>Opcjonalny film w okienku<input id="previewVideoFile" type="file" accept="video/mp4,video/webm"></label><p>Możesz użyć lokalnie pobranego <a href="https://pixabay.com/videos/tape-recorder-music-stale-nostalgic-118790/" target="_blank" rel="noopener">filmu magnetofonu z Pixabay</a>. Film pozostaje w przeglądarce i zatrzymuje się razem z MOTOR.</p><a id="wifiLink" href="/wifi">Konfiguracja Wi-Fi</a></section><section id="previewPanel" class="card" hidden><h2>Podgląd lokalny</h2><p>Symulacja bez ESP-01. Wybierz TAP lub PRG i przełącz MOTOR, aby sprawdzić animację, bufor i układ strony.</p><button id="motorToggle" class="secondary">MOTOR on/off</button><button id="saveMock" class="secondary">Symuluj SAVE</button></section></main>
 <script>
 const $ = id => document.getElementById(id);
 const preview = location.protocol === 'file:' || new URLSearchParams(location.search).has('preview');
@@ -28,7 +32,7 @@ let selectedFile = null, selectedIdx = null;
 let mockBytes = 0, mockSize = 0, mockDemo = true, mockTick = Date.now();
 let mockType = 'tap';
 const mock = {tapeState:'loaded', sourceType:'tap', machine:'c64', clockHz:985248, fileName:'draxcaught (demo)', motorOn:false,
-  sensePressed:true, playing:false, phase:'idle', playedCycles:0,
+  sensePressed:true, autoPlay:true, playing:false, phase:'idle', playedCycles:0,
   totalCycles:117000000, bufferedMillis:null, fileOffsetReceived:0,
   freeBytes:8192, sessionId:0, logicalSize:0, error:null, writeEnabled:false,
   freeHeap:32000, maxFreeBlock:24000, maxLoopUs:0, maxHttpUs:0,
@@ -58,6 +62,17 @@ function updateMock() {
 async function mockApi(path, options = {}) {
   updateMock();
   if (path === '/state') return {...mock};
+  if (path === '/sense') {
+    const pressed = options.body?.get('pressed');
+    if (pressed !== '0' && pressed !== '1') throw new Error('Niepoprawny stan PLAY');
+    mock.sensePressed = pressed === '1';
+    return {sensePressed:mock.sensePressed};
+  }
+  if (path === '/autoplay') {
+    if (mock.motorOn) throw new Error('Zatrzymaj MOTOR');
+    mock.autoPlay = options.body?.get('enabled') === '1';
+    return {autoPlay:mock.autoPlay};
+  }
   if (path === '/session') {
     const args = options.body;
     mockType = args.get('type') === 'prg' ? 'prg' : 'tap';
@@ -74,6 +89,7 @@ async function mockApi(path, options = {}) {
     mock.totalCycles = mockType === 'prg' ? prgTotalCycles(fileSize - 2, mock.machine) :
       Number(args.get('cycles'));
     mock.playedCycles = 0; mock.tapeState = 'ejected'; mock.phase = 'idle'; mock.error = null;
+    mock.sensePressed = mock.autoPlay;
     return {sessionId:mock.sessionId, nextOffset:mock.fileOffsetReceived,
       logicalSize:mockSize, freeBytes:8192};
   }
@@ -105,7 +121,7 @@ async function mockApi(path, options = {}) {
     if (mock.motorOn) throw new Error('Zatrzymaj MOTOR');
     mock.tapeState = 'ejected'; mockBytes = 0; mock.phase = 'idle';
     mock.totalCycles = 0; mock.playedCycles = 0; mock.logicalSize = 0;
-    mock.sessionId = 0; mock.fileOffsetReceived = 0; source = null;
+    mock.sessionId = 0; mock.fileOffsetReceived = 0; mock.sensePressed = false; source = null;
     return {tapeState:'ejected'};
   }
   if (path === '/demo') {
@@ -114,7 +130,7 @@ async function mockApi(path, options = {}) {
     mockDemo = true; mockType = 'tap'; mock.sourceType = 'tap';
     mock.machine = 'c64'; mock.clockHz = 985248;
     mock.sessionId = 0; mock.logicalSize = 0; mock.fileOffsetReceived = 0;
-    mock.playedCycles = 0;
+    mock.playedCycles = 0; mock.sensePressed = mock.autoPlay;
     mock.totalCycles = 117000000; mock.phase = 'idle'; mock.error = null;
     return {tapeState:'loaded'};
   }
@@ -149,14 +165,29 @@ function render(s) {
   $('deck').classList.toggle('playing', playing);
   $('deck').classList.toggle('ejected', s.tapeState === 'ejected');
   $('play').classList.toggle('pressed', !!s.sensePressed);
+  $('stop').classList.toggle('pressed', !s.sensePressed);
+  $('play').setAttribute('aria-pressed', String(!!s.sensePressed));
+  $('stop').setAttribute('aria-pressed', String(!s.sensePressed));
+  $('rewind').disabled = !!s.motorOn || !source &&
+    (s.tapeState !== 'loaded' || s.sessionId !== 0);
+  $('fastForward').disabled = !!s.motorOn || !navigationTarget(1);
+  $('deckEject').disabled = !!s.motorOn || s.tapeState === 'ejected' && !s.sessionId;
+  if (!$('deckMessage').textContent)
+    $('deckMessage').textContent = s.sensePressed ?
+      'PLAY wciśnięty. MOTOR uruchamia komputer.' : 'STOP zwolnił SENSE.';
   $('loaded').textContent = s.tapeState === 'loaded' ? (s.fileName || 'Załadowana') : 'Wysunięta';
   $('motor').textContent = s.motorOn ? 'Włączony' : 'Wyłączony';
+  $('autoPlay').checked = !!s.autoPlay;
+  const absoluteCycles = (source?.type === 'tap' && source.id === s.sessionId ?
+    source.seekCycles || 0 : 0) + (s.playedCycles || 0);
+  $('counter').textContent = String(Math.floor(absoluteCycles / s.clockHz)).padStart(4, '0');
   const total = s.totalCycles || (source && source.id === s.sessionId ? source.total : null);
   $('played').textContent = time(s.playedCycles, s.clockHz) +
     (total ? ' / ' + time(total, s.clockHz) : '');
   $('remaining').textContent = total ? time(Math.max(0, total - s.playedCycles), s.clockHz) : '—';
   $('buffer').textContent = s.fileOffsetReceived ? (8192 - s.freeBytes) + ' B' : '—';
   $('phase').textContent = 'Faza: ' + s.phase + ' · odebrano ' + s.fileOffsetReceived + ' B';
+  if ($('debugPanel').open) $('debugJson').textContent = JSON.stringify(s, null, 2);
   $('diagnostics').textContent = s.freeHeap == null ? '' :
     'ESP: heap ' + s.freeHeap + ' B (blok ' + s.maxFreeBlock + ' B)' +
     ' · max pętla/HTTP ' + s.maxLoopUs + '/' + s.maxHttpUs + ' µs' +
@@ -224,9 +255,10 @@ function tapFormat(bytes, size) {
   return {machine:c16 ? 'c16' : 'c64', version:bytes[12]};
 }
 
-async function scanTape(file, indexedOffsets = []) {
+async function scanTape(file, indexedOffsets = [], clockHz = 985248) {
   const wanted = new Set(indexedOffsets), positions = new Map(), pulsePositions = new Map();
-  let position = 20, total = 0, pulses = 0;
+  const timeline = [{offset:20, prefixCycles:0, phase:0}];
+  let position = 20, total = 0, pulses = 0, nextMark = clockHz * 10;
   while (position < file.size) {
     const bytes = new Uint8Array(await file.slice(position,
       Math.min(file.size, position + 65539)).arrayBuffer());
@@ -234,6 +266,10 @@ async function scanTape(file, indexedOffsets = []) {
     let i = 0;
     while (i < limit) {
       const absolute = position + i;
+      if (total >= nextMark) {
+        timeline.push({offset:absolute, prefixCycles:total, phase:pulses % 2});
+        while (total >= nextMark) nextMark += clockHz * 10;
+      }
       if (wanted.has(absolute)) {
         positions.set(absolute, total);
         pulsePositions.set(absolute, pulses);
@@ -249,7 +285,7 @@ async function scanTape(file, indexedOffsets = []) {
     }
     position += i;
   }
-  return {total, positions, pulsePositions};
+  return {total, positions, pulsePositions, timeline};
 }
 
 function showIndex(entries, warning = '') {
@@ -285,6 +321,27 @@ function sourceChunk(item, offset, limit) {
     return item.file.slice(start, start + length);
   }
   return item.file.slice(offset, offset + length);
+}
+
+function currentTapeCycles() {
+  return (source?.seekCycles || 0) +
+    (source && last?.sessionId === source.id ? last.playedCycles || 0 : 0);
+}
+
+function navigationTarget(direction) {
+  if (!source || source.type !== 'tap') return null;
+  const current = currentTapeCycles();
+  if (source.indexEntries.length) {
+    const entries = [{offset:20, prefixCycles:0, phase:0}, ...source.indexEntries];
+    if (direction > 0) return entries.find(entry => entry.prefixCycles > current) || null;
+    const previous = entries.filter(entry => entry.prefixCycles < current);
+    return previous[previous.length - 1] || entries[0];
+  }
+  const target = Math.max(0, current + direction * (last?.clockHz || 985248) * 10);
+  if (direction > 0)
+    return source.timeline.find(entry => entry.prefixCycles >= target) || null;
+  const previous = source.timeline.filter(entry => entry.prefixCycles <= target);
+  return previous[previous.length - 1] || source.timeline[0];
 }
 
 async function acquire() {
@@ -371,11 +428,13 @@ $('load').onclick = async () => {
     } else {
       const format = tapFormat(bytes, file.size);
       indexEntries = await parseIdx(selectedIdx);
-      scan = await scanTape(file, indexEntries.map(entry => entry.offset));
+      scan = await scanTape(file, indexEntries.map(entry => entry.offset),
+        format.machine === 'c16' ? 886724 : 985248);
       validEntries = indexEntries.filter(entry =>
         entry.offset >= 20 && entry.offset < file.size && scan.positions.has(entry.offset))
         .map(entry => ({...entry, prefixCycles:scan.positions.get(entry.offset),
-          phase:format.version === 2 ? scan.pulsePositions.get(entry.offset) % 2 : 0}));
+          phase:format.version === 2 ? scan.pulsePositions.get(entry.offset) % 2 : 0}))
+        .sort((a, b) => a.offset - b.offset);
       if (indexEntries.length && !validEntries.length)
         throw Error('IDX nie ma żadnej pozycji na granicy rekordu TAP');
       body = new URLSearchParams({type:'tap', size:String(file.size), header,
@@ -386,7 +445,10 @@ $('load').onclick = async () => {
       offset:ack.nextOffset, logicalSize:ack.logicalSize || file.size,
       dataLength:isPrg ? file.size - 2 : 0,
       total:isPrg ? null : scan.total, fullTotal:isPrg ? null : scan.total,
-      indexEntries:validEntries};
+      indexEntries:validEntries, timeline:isPrg ? [] : scan.timeline.map(entry =>
+        ({...entry, phase:bytes[12] === 2 ? entry.phase : 0})),
+      seekOffset:20, seekCycles:0,
+      sessionBody:isPrg ? new URLSearchParams(body) : null};
     if (isPrg) showIndex([]);
     else {
       const mismatch = selectedIdx && selectedIdx.name.replace(/\.idx$/i,'').toLowerCase() !==
@@ -401,9 +463,14 @@ $('load').onclick = async () => {
   } finally { busy = false; }
 };
 
-$('eject').onclick = async () => {
+$('deckEject').onclick = async () => {
   await acquire();
-  try { await api('/eject', {method:'POST'}); source = null; showIndex([]); $('error').textContent = ''; }
+  try {
+    await api('/eject', {method:'POST'});
+    source = null; showIndex([]);
+    $('error').textContent = '';
+    $('deckMessage').textContent = 'Kaseta wysunięta.';
+  }
   catch (error) { $('error').textContent = error.message; }
   finally { busy = false; }
 };
@@ -414,14 +481,11 @@ $('demo').onclick = async () => {
   finally { busy = false; }
 };
 
-$('seek').onclick = async () => {
+async function seekTo(entry) {
   if (!source || last?.motorOn) {
     $('error').textContent = 'Wybierz TAP i zatrzymaj MOTOR';
     return;
   }
-  const offset = Number($('idxPositions').value);
-  const entry = source.indexEntries.find(item => item.offset === offset);
-  if (!entry) { $('error').textContent = 'Niepoprawna pozycja IDX'; return; }
   await acquire();
   try {
     const remaining = source.fullTotal - entry.prefixCycles;
@@ -431,9 +495,89 @@ $('seek').onclick = async () => {
     source.id = ack.sessionId;
     source.offset = ack.nextOffset;
     source.total = remaining;
+    source.seekOffset = entry.offset;
+    source.seekCycles = entry.prefixCycles;
+    $('idxPositions').value = String(entry.offset);
     $('error').textContent = '';
+    $('deckMessage').textContent = entry.offset === 20 ?
+      'Przewinięto na początek.' : 'Przeskoczono do 0x' + entry.offset.toString(16).toUpperCase() + '.';
   } catch (error) {
     $('error').textContent = 'Nie można przeskoczyć: ' + error.message;
+  } finally { busy = false; }
+}
+
+$('seek').onclick = async () => {
+  const offset = Number($('idxPositions').value);
+  const entry = source?.indexEntries.find(item => item.offset === offset);
+  if (!entry) { $('error').textContent = 'Niepoprawna pozycja IDX'; return; }
+  await seekTo(entry);
+};
+
+$('rewind').onclick = async () => {
+  if (last?.motorOn) return;
+  if (!source && last?.tapeState === 'loaded' && last.sessionId === 0) {
+    await acquire();
+    try {
+      await api('/demo', {method:'POST'});
+      $('deckMessage').textContent = 'Kaseta demo przewinięta na początek.';
+      $('error').textContent = '';
+    } catch (error) {
+      $('error').textContent = 'Nie można przewinąć demo: ' + error.message;
+    } finally { busy = false; }
+    return;
+  }
+  if (!source) return;
+  if (source.type === 'tap') return seekTo(navigationTarget(-1));
+  await acquire();
+  try {
+    const ack = await api('/session', {method:'POST', body:source.sessionBody});
+    source.id = ack.sessionId;
+    source.offset = ack.nextOffset;
+    source.seekOffset = 2;
+    $('error').textContent = '';
+    $('deckMessage').textContent = 'Program przewinięty na początek.';
+  } catch (error) {
+    $('error').textContent = 'Nie można przewinąć: ' + error.message;
+  } finally { busy = false; }
+};
+
+$('fastForward').onclick = async () => {
+  if (!source || source.type !== 'tap' || last?.motorOn) return;
+  const next = navigationTarget(1);
+  if (next) await seekTo(next);
+};
+
+async function setSense(pressed) {
+  await acquire();
+  try {
+    const ack = await api('/sense', {method:'POST',
+      body:new URLSearchParams({pressed:pressed ? '1' : '0'})});
+    if (last) render({...last, sensePressed:ack.sensePressed});
+    $('deckMessage').textContent = pressed ?
+      'PLAY wciśnięty. Komputer uruchamia MOTOR po LOAD lub SAVE.' :
+      'STOP zwolnił SENSE. Stan MOTOR nadal ustala komputer.';
+    $('error').textContent = '';
+  } catch (error) {
+    $('error').textContent = 'Nie można zmienić PLAY: ' + error.message;
+  } finally { busy = false; }
+}
+$('play').onclick = () => setSense(true);
+$('stop').onclick = () => setSense(false);
+
+$('autoPlay').onchange = async () => {
+  const enabled = $('autoPlay').checked;
+  await acquire();
+  try {
+    const ack = await api('/autoplay', {method:'POST',
+      body:new URLSearchParams({enabled:enabled ? '1' : '0'})});
+    if (last) render({...last, autoPlay:ack.autoPlay});
+    $('deckMessage').textContent = ack.autoPlay ?
+      'Autoplay: następna włożona kaseta wciśnie PLAY.' :
+      'Autoplay wyłączony: po włożeniu kasety wciśnij PLAY ręcznie.';
+    $('error').textContent = '';
+  } catch (error) {
+    $('autoPlay').checked = !enabled;
+    $('error').textContent = 'Nie można zapisać autoplay: ' + error.message;
   } finally { busy = false; }
 };
 

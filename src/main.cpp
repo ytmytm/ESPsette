@@ -27,6 +27,7 @@
 #include "write_decoder.h"
 #include "player_page.h"
 #include <ArduinoJson.h>
+#include <LittleFS.h>
 #include <string.h>
 
 #include <core_esp8266_i2s.h>
@@ -106,6 +107,7 @@ static const uint32_t DRAIN_GUARD_US = 40000;
 State state = State::WAITING;
 uint32_t tapEnd = 0;
 bool tapeLoaded = false;
+bool autoPlay = true;
 bool playbackComplete = false;
 String tapeName = "draxcaught (demo)";
 uint64_t totalTapeCycles = 0;
@@ -533,6 +535,8 @@ void setupWebserver() {
   HTTPServer.on("/seek", HTTP_POST, handleSeek);
   HTTPServer.on("/chunk", HTTP_POST, handleChunk, handleChunkUpload);
   HTTPServer.on("/eject", HTTP_POST, handleEject);
+  HTTPServer.on("/sense", HTTP_POST, handleSense);
+  HTTPServer.on("/autoplay", HTTP_POST, handleAutoPlay);
   HTTPServer.on("/demo", HTTP_POST, handleDemo);
   HTTPServer.onNotFound(handleNotFound);
   HTTPServer.begin();
@@ -583,6 +587,11 @@ uint8_t lastMotor = 0;
 void setup() {
   setupPins();
   setupNetwork();
+  File autoPlayFile = LittleFS.open("/autoplay.cfg", "r");
+  if (autoPlayFile) {
+    autoPlay = autoPlayFile.read() != '0';
+    autoPlayFile.close();
+  }
   initializeOTA();
   setupDebug();
   setupWebserver();
@@ -600,7 +609,7 @@ void setup() {
     state = State::WAITING;
     tapeLoaded = true;
   }
-  digitalWrite(PIN_SENSE, LOW); // PLAY stays pressed even with an empty deck.
+  digitalWrite(PIN_SENSE, autoPlay && tapeLoaded ? LOW : HIGH); // Embedded demo inserted at boot.
   lastMotor = digitalRead(PIN_MOTOR);
   attachInterrupt(digitalPinToInterrupt(PIN_MOTOR), onMotorFalling, FALLING);
 #if ESPSETTE_WRITE_CAPTURE
@@ -805,6 +814,7 @@ void handleState() {
   doc["fileName"] = tapeLoaded ? tapeName : "";
   doc["motorOn"] = motorOn;
   doc["sensePressed"] = digitalRead(PIN_SENSE) == LOW;
+  doc["autoPlay"] = autoPlay;
   doc["playing"] = motorOn && tapeLoaded &&
       (state == State::STREAMING || state == State::DRAINING);
   const char* phase = "idle";
@@ -943,6 +953,7 @@ void handleSession() {
   playerError = nullptr;
   state = State::WAITING;
   resetPlayer(firstOffset);
+  digitalWrite(PIN_SENSE, autoPlay ? LOW : HIGH);
   StaticJsonDocument<160> reply;
   reply["sessionId"] = id;
   reply["nextOffset"] = firstOffset;
@@ -1045,6 +1056,43 @@ void handleChunk() {
   uploadSeen = false;
 }
 
+void handleSense() {
+  const String pressed = HTTPServer.arg("pressed");
+  if (pressed != "0" && pressed != "1") {
+    HTTPServer.send(400, "application/json", "{\"error\":\"invalid_sense\"}");
+    return;
+  }
+  digitalWrite(PIN_SENSE, pressed == "1" ? LOW : HIGH);
+  HTTPServer.send(200, "application/json", pressed == "1" ?
+      "{\"sensePressed\":true}" : "{\"sensePressed\":false}");
+}
+
+void handleAutoPlay() {
+  if (digitalRead(PIN_MOTOR) == HIGH) {
+    HTTPServer.send(409, "application/json", "{\"error\":\"motor_on\"}");
+    return;
+  }
+  const String enabled = HTTPServer.arg("enabled");
+  if (enabled != "0" && enabled != "1") {
+    HTTPServer.send(400, "application/json", "{\"error\":\"invalid_autoplay\"}");
+    return;
+  }
+  File file = LittleFS.open("/autoplay.cfg", "w");
+  if (!file) {
+    HTTPServer.send(500, "application/json", "{\"error\":\"autoplay_save_failed\"}");
+    return;
+  }
+  const bool saved = file.write(enabled[0]) == 1;
+  file.close();
+  if (!saved) {
+    HTTPServer.send(500, "application/json", "{\"error\":\"autoplay_save_failed\"}");
+    return;
+  }
+  autoPlay = enabled == "1";
+  HTTPServer.send(200, "application/json", autoPlay ?
+      "{\"autoPlay\":true}" : "{\"autoPlay\":false}");
+}
+
 void handleEject() {
   if (digitalRead(PIN_MOTOR) == HIGH) {
     HTTPServer.send(409, "text/plain", "Stop MOTOR before ejecting");
@@ -1052,6 +1100,7 @@ void handleEject() {
   }
   tapeSource.eject();
   tapeLoaded = false;
+  digitalWrite(PIN_SENSE, HIGH);
   tapEnd = 0;
   totalTapeCycles = 0;
   reportedTotalCycles = 0;
@@ -1078,6 +1127,7 @@ void handleDemo() {
   playerError = nullptr;
   resetPlayer(20);
   tapeLoaded = validateTap();
+  digitalWrite(PIN_SENSE, autoPlay && tapeLoaded ? LOW : HIGH);
   state = tapeLoaded ? State::WAITING : State::ERROR;
   HTTPServer.send(tapeLoaded ? 200 : 500, "application/json",
                   tapeLoaded ? "{\"tapeState\":\"loaded\"}" : "{\"error\":\"invalid_demo\"}");

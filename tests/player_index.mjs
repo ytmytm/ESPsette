@@ -11,7 +11,7 @@ function element() {
     classList: {add(){}, remove(){}, toggle(){}},
     replaceChildren(){this.children = []}, append(child){(this.children ||= []).push(child)},
     play(){this.paused = false; return Promise.resolve()},
-    pause(){this.paused = true}, removeAttribute(){}, load(){}
+    pause(){this.paused = true}, removeAttribute(){}, setAttribute(){}, load(){}
   };
 }
 const context = vm.createContext({
@@ -92,6 +92,26 @@ const crossingResult = await vm.runInContext(
 );
 assert.equal(crossingResult.total, 65535 * 47 * 8 + 16 + 66 * 8);
 assert.deepEqual(Array.from(crossingResult.positions.keys()), [65555, 65559]);
+context.longTape = new Blob([new Uint8Array(20),
+  Uint8Array.of(0, 0xff, 0xff, 0xff, 0x2f)]);
+const longScan = await vm.runInContext('scanTape(longTape)', context);
+assert.equal(longScan.timeline[1].offset, 24);
+assert.equal(longScan.timeline[1].phase, 1);
+
+context.navSource = {type:'tap', id:90, seekCycles:0, indexEntries:[], timeline:[
+  {offset:20, prefixCycles:0, phase:0},
+  {offset:100, prefixCycles:9852480, phase:1},
+  {offset:200, prefixCycles:19704960, phase:0},
+  {offset:300, prefixCycles:29557440, phase:1}]};
+vm.runInContext('source=navSource; last={sessionId:90, playedCycles:4926240, clockHz:985248}', context);
+assert.equal(vm.runInContext('navigationTarget(1).offset', context), 200);
+assert.equal(vm.runInContext('navigationTarget(-1).offset', context), 20);
+vm.runInContext(`navSource.indexEntries=[{offset:100,prefixCycles:9852480,phase:1},
+  {offset:200,prefixCycles:19704960,phase:0}];
+  last.playedCycles=14778720;`, context);
+assert.equal(vm.runInContext('navigationTarget(1).offset', context), 200);
+assert.equal(vm.runInContext('navigationTarget(-1).offset', context), 100);
+vm.runInContext('source=null', context);
 
 for (const payload of [[0, 0x10, 0], [0, 0, 0, 0]]) {
   context.badTape = new Blob([new Uint8Array(20), Uint8Array.from(payload)]);
@@ -183,13 +203,27 @@ const c16Session = await vm.runInContext(
 );
 assert.equal(c16Session.logicalSize, 8);
 assert.equal(vm.runInContext('mock.clockHz', context), 886724);
+await vm.runInContext("mockApi('/autoplay', {body:new URLSearchParams({enabled:'0'})})", context);
+const manualSession = await vm.runInContext(
+  `mockApi('/session', {body:new URLSearchParams({type:'prg', size:'5',
+    header:'0108', machine:'c64', turbo:'0', name:'manual.prg'})})`, context
+);
+assert.ok(manualSession.sessionId);
+assert.equal(vm.runInContext('mock.sensePressed', context), false);
+await vm.runInContext("document.getElementById('play').onclick()", context);
+assert.equal(vm.runInContext('mock.sensePressed', context), true);
+await vm.runInContext("document.getElementById('stop').onclick()", context);
+assert.equal(vm.runInContext('mock.sensePressed', context), false);
+await vm.runInContext("document.getElementById('autoPlay').checked = true; document.getElementById('autoPlay').onchange()", context);
+assert.equal(vm.runInContext('mock.autoPlay', context), true);
 const resume = await vm.runInContext(
   `mockApi('/session', {body:new URLSearchParams({type:'tap', size:'26',
     name:'resume.tap', cycles:'920'})})`, context
 );
 context.resumeTape = tape;
 vm.runInContext(`source = {file:resumeTape, type:'tap', id:${resume.sessionId},
-  offset:20, logicalSize:26, total:920, indexEntries:[]};
+  offset:20, logicalSize:26, total:920, fullTotal:920, seekCycles:0, indexEntries:[],
+  timeline:[{offset:20, prefixCycles:0, phase:0}]};
   originalApi = api; api = async () => { throw Error('offline'); };`, context);
 await vm.runInContext('step()', context);
 assert.equal(vm.runInContext('source.offset', context), 20);
@@ -199,10 +233,23 @@ await vm.runInContext('step()', context);
 assert.equal(vm.runInContext('source.offset', context), 26);
 assert.equal(vm.runInContext('mock.fileOffsetReceived', context), 26);
 assert.match(elements.get('transport').textContent, /Połączenie wznowione/);
+await vm.runInContext("document.getElementById('rewind').onclick()", context);
+assert.equal(vm.runInContext('source.offset', context), 20);
+assert.equal(vm.runInContext('mock.fileOffsetReceived', context), 20);
+vm.runInContext(`source.timeline.push({offset:25, prefixCycles:10, phase:0});
+  last.clockHz=1;`, context);
+await vm.runInContext("document.getElementById('fastForward').onclick()", context);
+assert.equal(vm.runInContext('source.offset', context), 25);
+assert.equal(vm.runInContext('mock.fileOffsetReceived', context), 25);
 vm.runInContext('mock.sessionId++', context);
 await vm.runInContext('step()', context);
 assert.equal(vm.runInContext('source', context), null);
 assert.match(elements.get('transport').textContent, /Brak pliku źródłowego/);
+await vm.runInContext("document.getElementById('demo').onclick()", context);
+vm.runInContext('mock.playedCycles = 1234; render({...mock})', context);
+await vm.runInContext("document.getElementById('rewind').onclick()", context);
+assert.equal(vm.runInContext('mock.playedCycles', context), 0);
+assert.equal(vm.runInContext('mock.sensePressed', context), true);
 vm.runInContext("document.getElementById('saveMock').onclick()", context);
 assert.match(elements.get('writeDetail').textContent, /ESP:TEST/);
 vm.runInContext("mock.writeMachine = 'c16'; render({...mock})", context);
