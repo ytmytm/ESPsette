@@ -29,6 +29,14 @@ void TapeSource::useStream(const uint8_t header[20], uint32_t size, uint32_t id)
   sessionId_ = id;
 }
 
+bool TapeSource::seek(uint32_t offset, uint32_t newId) {
+  if (kind_ != Kind::STREAMED || offset < 20 || offset >= size_ || newId == 0) return false;
+  retainedFrom_ = offset;
+  nextOffset_ = offset;
+  sessionId_ = newId;
+  return true;
+}
+
 void TapeSource::eject() {
   kind_ = Kind::EMPTY;
   embedded_ = nullptr;

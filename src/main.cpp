@@ -11,9 +11,9 @@
 #define PIN_SENSE 1 // GPIO1 (TxD) -> SENSE (F,6) $01 bit 4 (with pullup to 3.3V, 10k) // 0 = pushed, 1 = released
 #define PIN_READ  3 // GPIO3 (RxD) -> READ  (D,4) CIA#1 /FLAG, I2S, pulled to 5V in C64, normal high (input pullup), impulse low
 
-#if __has_include("local_ota.h")
 #include <Arduino.h>
 
+#if __has_include("local_ota.h")
 #include "local_ota.h" // Optional local OTA secret; ignored by Git.
 #endif
 
@@ -432,6 +432,7 @@ void setupWebserver() {
   HTTPServer.on("/player", HTTP_GET, handlePlayer);
   HTTPServer.on("/state", HTTP_GET, handleState);
   HTTPServer.on("/session", HTTP_POST, handleSession);
+  HTTPServer.on("/seek", HTTP_POST, handleSeek);
   HTTPServer.on("/chunk", HTTP_POST, handleChunk, handleChunkUpload);
   HTTPServer.on("/eject", HTTP_POST, handleEject);
   HTTPServer.on("/demo", HTTP_POST, handleDemo);
@@ -619,6 +620,13 @@ static bool parseDecimal64(const String& input, uint64_t& output) {
   return true;
 }
 
+static uint32_t newSessionId(uint32_t previous) {
+  uint32_t id = (micros() ^ ESP.getChipId() ^
+                 (uint32_t)random(1, 0x7fffffff)) | 1U;
+  if (id == previous) id += 2;
+  return id;
+}
+
 static int8_t hexDigit(char c) {
   if (c >= '0' && c <= '9') return c - '0';
   if (c >= 'a' && c <= 'f') return c - 'a' + 10;
@@ -712,7 +720,7 @@ void handleSession() {
     HTTPServer.send(400, "text/plain", "Only C64 PAL TAP v1 is supported");
     return;
   }
-  const uint32_t id = (micros() ^ ESP.getChipId() ^ (uint32_t)random(1, 0x7fffffff)) | 1U;
+  const uint32_t id = newSessionId(0);
   tapeSource.useStream(header, size, id);
   tapeName = HTTPServer.arg("name");
   tapEnd = size;
@@ -730,6 +738,47 @@ void handleSession() {
   String response;
   serializeJson(reply, response);
   HTTPServer.send(201, "application/json", response);
+}
+
+void handleSeek() {
+  uint32_t id, offset;
+  uint64_t remainingCycles;
+  if (digitalRead(PIN_MOTOR) == HIGH ||
+      state == State::STREAMING || state == State::DRAINING) {
+    HTTPServer.send(409, "text/plain", "Stop MOTOR before seeking");
+    return;
+  }
+  if (!parseDecimal(HTTPServer.arg("sid"), id) ||
+      !parseDecimal(HTTPServer.arg("offset"), offset) ||
+      !parseDecimal64(HTTPServer.arg("cycles"), remainingCycles) ||
+      remainingCycles == 0 || tapeSource.kind() != TapeSource::Kind::STREAMED ||
+      id != tapeSource.sessionId() || offset < 20 || offset >= tapEnd) {
+    HTTPServer.send(400, "text/plain", "Invalid session or TAP offset");
+    return;
+  }
+  // The browser has scanned the source TAP and checked that this IDX offset
+  // is a record boundary. The ESP only holds a sliding window of that file.
+  const uint32_t nextId = newSessionId(id);
+  if (!tapeSource.seek(offset, nextId)) {
+    HTTPServer.send(400, "text/plain", "Invalid TAP offset");
+    return;
+  }
+  tapeLoaded = false;
+  totalTapeCycles = 0;
+  reportedTotalCycles = remainingCycles; // Display metadata, not timing control.
+  playedBaseCycles = 0;
+  playerError = nullptr;
+  uploadSeen = false;
+  state = State::WAITING;
+  resetPlayer(offset);
+  StaticJsonDocument<128> reply;
+  reply["sessionId"] = nextId;
+  reply["nextOffset"] = offset;
+  reply["freeBytes"] = tapeSource.freeBytes();
+  reply["tapeState"] = "ejected";
+  String response;
+  serializeJson(reply, response);
+  HTTPServer.send(200, "application/json", response);
 }
 
 void handleChunkUpload() {

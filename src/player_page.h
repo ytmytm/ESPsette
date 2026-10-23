@@ -18,17 +18,18 @@ main{max-width:760px;margin:auto;padding:18px}h1{font-size:1.6rem;margin:0 0 4px
 .has-video .cassette,.ejected .cassette{display:none}.window video{width:100%;height:100%;object-fit:cover}.window video:not([src]),.ejected .window video{display:none}.ejected .window:after{content:'PUSTY DECK';color:#56616e;letter-spacing:.2em}
 .keys{display:flex;gap:7px;justify-content:center;margin-top:15px}.key{background:linear-gradient(#24272b,#0c1015);border:2px solid #535a62;border-radius:4px 4px 10px 10px;padding:9px 14px;box-shadow:0 5px 2px #080a0d;color:#b9c4cb}.key.pressed{transform:translateY(4px);box-shadow:0 1px 2px #080a0d;color:#fff}
 .card{background:#202832;border:1px solid #36414b;border-radius:12px;padding:16px;margin-top:18px}
-label{display:block;margin:12px 0}input[type=file]{display:block;width:100%;margin-top:8px}button{font:inherit;border:0;border-radius:8px;background:#d5a43a;color:#17191a;padding:10px 15px;margin:4px 5px 4px 0;font-weight:700}button.secondary{background:#414e5b;color:#fff}button:disabled{opacity:.45}a{color:#9fcfff}
+label{display:block;margin:12px 0}input[type=file],select{display:block;width:100%;margin-top:8px}select{font:inherit;padding:10px;background:#111923;color:#fff;border:1px solid #566472;border-radius:8px}.drop{border:2px dashed #687786;border-radius:10px;padding:18px;text-align:center;color:#b9c7d3}.drop.over{border-color:#e2b94d;background:#39414a}button{font:inherit;border:0;border-radius:8px;background:#d5a43a;color:#17191a;padding:10px 15px;margin:4px 5px 4px 0;font-weight:700}button.secondary{background:#414e5b;color:#fff}button:disabled{opacity:.45}a{color:#9fcfff}
 .stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.stats div{background:#131a22;border-radius:7px;padding:12px}.stats b{display:block;font-size:1.2rem;overflow-wrap:anywhere}small{color:#a4b3bf}#error{color:#ffaaa6;min-height:1.3em}
 </style>
 <main><h1>espsette</h1><p>Kaseta przez Wi-Fi · C64 PAL</p>
 <div id="deck" class="deck"><div class="window"><video id="windowVideo" muted loop playsinline></video><div class="cassette"><div class="reel"></div><div class="reel"></div></div></div><div class="keys"><span id="play" class="key pressed">PLAY</span><span class="key">STOP</span><span class="key">REW</span></div></div>
 <section class="card"><div class="stats"><div><small>Kaseta</small><b id="loaded">—</b></div><div><small>Motor</small><b id="motor">—</b></div><div><small>Odtworzone</small><b id="played">—</b></div><div><small>Bufor ESP</small><b id="buffer">—</b></div><div><small>Pozostało sygnału</small><b id="remaining">—</b></div></div><p id="phase">Łączenie…</p><p id="error"></p></section>
-<section class="card"><label>Plik TAP C64 PAL v1<input id="file" type="file" accept=".tap"></label><button id="load">Włóż kasetę</button><button id="demo" class="secondary">Kaseta demo</button><button id="eject" class="secondary">Wysuń</button><p>Plik pozostaje w tej karcie. Zostaw przeglądarkę otwartą podczas LOAD; przy braku miejsca kolejna porcja zaczeka bez otwartego żądania HTTP.</p><label>Opcjonalny film w okienku<input id="previewVideoFile" type="file" accept="video/mp4,video/webm"></label><p>Możesz użyć lokalnie pobranego <a href="https://pixabay.com/videos/tape-recorder-music-stale-nostalgic-118790/" target="_blank" rel="noopener">filmu magnetofonu z Pixabay</a>. Film pozostaje w przeglądarce i zatrzymuje się razem z MOTOR.</p><a id="wifiLink" href="/wifi">Konfiguracja Wi-Fi</a></section><section id="previewPanel" class="card" hidden><h2>Podgląd lokalny</h2><p>Symulacja bez ESP-01. Wybierz TAP i przełącz MOTOR, aby sprawdzić animację, bufor i układ strony.</p><button id="motorToggle" class="secondary">MOTOR on/off</button></section></main>
+<section class="card"><div id="dropzone" class="drop">Upuść TAP i opcjonalny IDX tutaj</div><p id="selectedFiles"></p><label>Kaseta TAP C64 PAL v1<input id="file" type="file" accept=".tap"></label><label>Indeks IDX (opcjonalny)<input id="indexFile" type="file" accept=".idx,text/plain"></label><button id="clearIndex" class="secondary">Usuń wybór IDX</button><button id="load">Włóż kasetę</button><button id="demo" class="secondary">Kaseta demo</button><button id="eject" class="secondary">Wysuń</button><div id="indexControls" hidden><label>Pozycja z IDX<select id="idxPositions"></select></label><button id="seek" class="secondary">Przeskocz do pozycji</button><p id="indexInfo"></p></div><p>Plik pozostaje w tej karcie. Zostaw przeglądarkę otwartą podczas LOAD; przy braku miejsca kolejna porcja zaczeka bez otwartego żądania HTTP.</p><label>Opcjonalny film w okienku<input id="previewVideoFile" type="file" accept="video/mp4,video/webm"></label><p>Możesz użyć lokalnie pobranego <a href="https://pixabay.com/videos/tape-recorder-music-stale-nostalgic-118790/" target="_blank" rel="noopener">filmu magnetofonu z Pixabay</a>. Film pozostaje w przeglądarce i zatrzymuje się razem z MOTOR.</p><a id="wifiLink" href="/wifi">Konfiguracja Wi-Fi</a></section><section id="previewPanel" class="card" hidden><h2>Podgląd lokalny</h2><p>Symulacja bez ESP-01. Wybierz TAP i przełącz MOTOR, aby sprawdzić animację, bufor i układ strony.</p><button id="motorToggle" class="secondary">MOTOR on/off</button></section></main>
 <script>
 const $ = id => document.getElementById(id);
 const preview = location.protocol === 'file:' || new URLSearchParams(location.search).has('preview');
 let source = null, busy = false, last = null, videoUrl = null;
+let selectedTap = null, selectedIdx = null;
 let mockBytes = 0, mockSize = 0, mockDemo = true, mockTick = Date.now();
 const mock = {tapeState:'loaded', fileName:'draxcaught (demo)', motorOn:false,
   sensePressed:true, playing:false, phase:'idle', playedCycles:0,
@@ -76,6 +77,18 @@ async function mockApi(path, options = {}) {
     if (mockBytes >= 4096 || mock.fileOffsetReceived === mockSize) mock.tapeState = 'loaded';
     return {nextOffset:mock.fileOffsetReceived, freeBytes:8192-mockBytes, loaded:mock.tapeState==='loaded'};
   }
+  if (path === '/seek') {
+    const args = options.body;
+    if (mock.motorOn || Number(args.get('sid')) !== mock.sessionId)
+      throw new Error('Zatrzymaj MOTOR / nieaktualna sesja');
+    const offset = Number(args.get('offset'));
+    if (offset < 20 || offset >= mockSize) throw new Error('Błędny offset TAP');
+    mock.sessionId++; mock.fileOffsetReceived = offset; mockBytes = 0;
+    mock.tapeState = 'ejected'; mock.playedCycles = 0;
+    mock.totalCycles = Number(args.get('cycles'));
+    mock.phase = 'idle'; mock.error = null;
+    return {sessionId:mock.sessionId, nextOffset:offset, freeBytes:8192, tapeState:'ejected'};
+  }
   if (path === '/eject') {
     if (mock.motorOn) throw new Error('Zatrzymaj MOTOR');
     mock.tapeState = 'ejected'; mockBytes = 0; mock.phase = 'idle';
@@ -120,12 +133,36 @@ function render(s) {
   $('buffer').textContent = s.fileOffsetReceived ? (8192 - s.freeBytes) + ' B' : '—';
   $('phase').textContent = 'Faza: ' + s.phase + ' · odebrano ' + s.fileOffsetReceived + ' B';
   if (s.error) $('error').textContent = 'Błąd odtwarzacza: ' + s.error;
+  $('seek').disabled = !!s.motorOn || !source || source.id !== s.sessionId;
   const video = $('windowVideo');
   if (videoUrl && playing && video.paused) video.play().catch(() => {});
   if ((!playing || s.tapeState === 'ejected') && !video.paused) video.pause();
 }
 
-async function scanTape(file) {
+async function parseIdx(file) {
+  if (!file) return [];
+  if (file.size > 262144) throw Error('IDX jest zbyt duży');
+  const lines = (await file.text()).replace(/^\uFEFF/, '').split(/\r?\n/);
+  const entries = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line || /^[#;']/.test(line)) continue;
+    const match = /^(0[xX][0-9a-fA-F]+|0[0-7]+|[1-9][0-9]*|0)[ \t]+(.+)$/.exec(line);
+    if (!match) throw Error('Nieznany format IDX w wierszu ' + (i + 1));
+    const token = match[1];
+    const radix = /^0[xX]/.test(token) ? 16 : /^0[0-7]+$/.test(token) ? 8 : 10;
+    const offset = parseInt(token, radix);
+    if (!Number.isSafeInteger(offset) || !match[2].trim())
+      throw Error('Błędny offset lub opis IDX w wierszu ' + (i + 1));
+    entries.push({offset, label:match[2].trim().slice(0, 120)});
+    if (entries.length > 256) throw Error('IDX ma za dużo pozycji');
+  }
+  if (!entries.length) throw Error('IDX nie zawiera pozycji');
+  return entries;
+}
+
+async function scanTape(file, indexedOffsets = []) {
+  const wanted = new Set(indexedOffsets), positions = new Map();
   let position = 20, total = 0;
   while (position < file.size) {
     const bytes = new Uint8Array(await file.slice(position,
@@ -133,6 +170,8 @@ async function scanTape(file) {
     const limit = Math.min(65536, file.size - position);
     let i = 0;
     while (i < limit) {
+      const absolute = position + i;
+      if (wanted.has(absolute)) positions.set(absolute, total);
       if (bytes[i]) { total += bytes[i] * 8; i++; }
       else {
         if (i + 3 >= bytes.length) throw Error('Ucięty impuls TAP');
@@ -143,7 +182,29 @@ async function scanTape(file) {
     }
     position += i;
   }
-  return total;
+  return {total, positions};
+}
+
+function showIndex(entries, warning = '') {
+  const select = $('idxPositions');
+  select.replaceChildren();
+  for (const entry of entries) {
+    const option = document.createElement('option');
+    option.value = String(entry.offset);
+    option.textContent = '0x' + entry.offset.toString(16).toUpperCase() + ' · ' + entry.label;
+    select.append(option);
+  }
+  $('indexControls').hidden = entries.length === 0;
+  $('indexInfo').textContent = warning || entries.length + ' poprawnych pozycji';
+}
+
+function selectedFilesText() {
+  $('selectedFiles').textContent = (selectedTap?.name || 'Brak TAP') +
+    (selectedIdx ? ' + ' + selectedIdx.name : '');
+}
+async function acquire() {
+  while (busy) await new Promise(resolve => setTimeout(resolve, 25));
+  busy = true;
 }
 
 async function step() {
@@ -178,18 +239,30 @@ async function step() {
 }
 
 $('load').onclick = async () => {
-  const file = $('file').files[0];
+  const file = selectedTap || $('file').files[0];
   if (!file) { $('error').textContent = 'Wybierz TAP'; return; }
   if (last?.motorOn) { $('error').textContent = 'Zatrzymaj MOTOR'; return; }
-  busy = true;
+  await acquire();
   try {
     const bytes = new Uint8Array(await file.slice(0, 20).arrayBuffer());
     const header = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
-    const total = await scanTape(file);
+    const indexEntries = await parseIdx(selectedIdx);
+    const scan = await scanTape(file, indexEntries.map(entry => entry.offset));
+    const validEntries = indexEntries.filter(entry =>
+      entry.offset >= 20 && entry.offset < file.size && scan.positions.has(entry.offset))
+      .map(entry => ({...entry, prefixCycles:scan.positions.get(entry.offset)}));
+    if (indexEntries.length && !validEntries.length)
+      throw Error('IDX nie ma żadnej pozycji na granicy rekordu TAP');
     const body = new URLSearchParams({size:String(file.size), header,
-      name:file.name, cycles:String(total)});
+      name:file.name, cycles:String(scan.total)});
     const ack = await api('/session', {method:'POST', body});
-    source = {file, id:ack.sessionId, offset:ack.nextOffset, total};
+    source = {file, id:ack.sessionId, offset:ack.nextOffset,
+      total:scan.total, fullTotal:scan.total, indexEntries:validEntries};
+    const mismatch = selectedIdx && selectedIdx.name.replace(/\.idx$/i,'').toLowerCase() !==
+      file.name.replace(/\.tap$/i,'').toLowerCase();
+    showIndex(validEntries, (indexEntries.length - validEntries.length) +
+      ' wpisów pominiętych (poza TAP lub wewnątrz rekordu)' +
+      (mismatch ? ' · nazwy TAP/IDX różnią się' : ''));
     $('error').textContent = '';
   } catch (error) {
     $('error').textContent = 'Nie można włożyć TAP: ' + error.message;
@@ -197,17 +270,56 @@ $('load').onclick = async () => {
 };
 
 $('eject').onclick = async () => {
-  busy = true;
-  try { await api('/eject', {method:'POST'}); source = null; $('error').textContent = ''; }
+  await acquire();
+  try { await api('/eject', {method:'POST'}); source = null; showIndex([]); $('error').textContent = ''; }
   catch (error) { $('error').textContent = error.message; }
   finally { busy = false; }
 };
 $('demo').onclick = async () => {
-  busy = true;
-  try { await api('/demo', {method:'POST'}); source = null; $('error').textContent = ''; }
+  await acquire();
+  try { await api('/demo', {method:'POST'}); source = null; showIndex([]); $('error').textContent = ''; }
   catch (error) { $('error').textContent = error.message; }
   finally { busy = false; }
 };
+
+$('seek').onclick = async () => {
+  if (!source || last?.motorOn) {
+    $('error').textContent = 'Wybierz TAP i zatrzymaj MOTOR';
+    return;
+  }
+  const offset = Number($('idxPositions').value);
+  const entry = source.indexEntries.find(item => item.offset === offset);
+  if (!entry) { $('error').textContent = 'Niepoprawna pozycja IDX'; return; }
+  await acquire();
+  try {
+    const remaining = source.fullTotal - entry.prefixCycles;
+    const body = new URLSearchParams({sid:String(source.id),
+      offset:String(entry.offset), cycles:String(remaining)});
+    const ack = await api('/seek', {method:'POST', body});
+    source.id = ack.sessionId;
+    source.offset = ack.nextOffset;
+    source.total = remaining;
+    $('error').textContent = '';
+  } catch (error) {
+    $('error').textContent = 'Nie można przeskoczyć: ' + error.message;
+  } finally { busy = false; }
+};
+
+$('file').onchange = event => { selectedTap = event.target.files[0] || null; selectedFilesText(); };
+$('indexFile').onchange = event => { selectedIdx = event.target.files[0] || null; selectedFilesText(); };
+$('clearIndex').onclick = () => { selectedIdx = null; $('indexFile').value = ''; selectedFilesText(); };
+const dropzone = $('dropzone');
+dropzone.ondragover = event => { event.preventDefault(); dropzone.classList.add('over'); };
+dropzone.ondragleave = () => dropzone.classList.remove('over');
+dropzone.ondrop = event => {
+  event.preventDefault(); dropzone.classList.remove('over');
+  for (const file of event.dataTransfer.files) {
+    if (/\.tap$/i.test(file.name)) selectedTap = file;
+    else if (/\.idx$/i.test(file.name)) selectedIdx = file;
+  }
+  selectedFilesText();
+};
+selectedFilesText();
 
 $('previewVideoFile').onchange = event => {
   if (videoUrl) URL.revokeObjectURL(videoUrl);

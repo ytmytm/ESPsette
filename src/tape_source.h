@@ -11,6 +11,7 @@ class TapeSource {
 
   void useEmbedded(const uint8_t* data, uint32_t size);
   void useStream(const uint8_t header[20], uint32_t size, uint32_t id);
+  bool seek(uint32_t offset, uint32_t newId);
   void eject();
   bool read(uint32_t offset, uint8_t& value) const;
   bool append(uint32_t offset, const uint8_t* data, size_t length);
