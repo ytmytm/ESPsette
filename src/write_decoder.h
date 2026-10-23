@@ -3,16 +3,20 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// Diagnostic C64 ROM SAVE header decoder. No command is executed.
-// feedMicros() accepts the time between successive WRITE rising edges (full C64 pulses).
+// Diagnostic C64/C16 ROM SAVE header decoder. No command is executed.
+// feedMicros() accepts time between successive WRITE rising edges (full pulses).
 class WriteDecoder {
  public:
+  enum class Machine : uint8_t { UNKNOWN, C64, C16 };
   void motorStart();
   void motorStop();
   void feedMicros(uint16_t duration);
   void overflow();
   const char* status() const { return status_; }
   const char* name() const { return name_; }
+  const char* machineName() const {
+    return machine_ == Machine::C64 ? "c64" : machine_ == Machine::C16 ? "c16" : "unknown";
+  }
   uint8_t fileType() const { return header_[0]; }
   uint16_t startAddress() const { return header_[1] | (uint16_t(header_[2]) << 8); }
   uint16_t endAddress() const { return header_[3] | (uint16_t(header_[4]) << 8); }
@@ -33,6 +37,7 @@ class WriteDecoder {
   uint8_t byte_ = 0;
   uint8_t parity_ = 1;
   Stage stage_ = Stage::SEARCH;
+  Machine machine_ = Machine::UNKNOWN;
   uint8_t expectedSync_ = 0;
   uint16_t headerIndex_ = 0;
   uint8_t checksum_ = 0;
@@ -43,7 +48,7 @@ class WriteDecoder {
   uint32_t errorCount_ = 0;
   uint32_t overflowCount_ = 0;
 
-  static Pulse classify(uint16_t duration);
+  Pulse classify(uint16_t duration) const;
   void resetFrame();
   void fail(const char* reason);
   void onByte(uint8_t value);

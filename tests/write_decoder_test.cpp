@@ -10,33 +10,36 @@ static void pulse(WriteDecoder& decoder, uint16_t duration) {
   decoder.feedMicros(duration);
 }
 
-static void byte(WriteDecoder& decoder, uint8_t value) {
-  pulse(decoder, 690);
-  pulse(decoder, 544);
+static void byte(WriteDecoder& decoder, uint8_t value, bool c16 = false) {
+  const uint16_t shortPulse = c16 ? 505 : 390;
+  const uint16_t mediumPulse = c16 ? 1010 : 544;
+  const uint16_t longPulse = c16 ? 2021 : 690;
+  pulse(decoder, longPulse);
+  pulse(decoder, mediumPulse);
   uint8_t parity = 1;
   for (uint8_t bit = 0; bit < 8; ++bit) {
     const bool one = (value >> bit) & 1;
-    pulse(decoder, one ? 544 : 390);
-    pulse(decoder, one ? 390 : 544);
+    pulse(decoder, one ? mediumPulse : shortPulse);
+    pulse(decoder, one ? shortPulse : mediumPulse);
     parity ^= one;
   }
-  pulse(decoder, parity ? 544 : 390);
-  pulse(decoder, parity ? 390 : 544);
+  pulse(decoder, parity ? mediumPulse : shortPulse);
+  pulse(decoder, parity ? shortPulse : mediumPulse);
 }
 
 static void block(WriteDecoder& decoder, const uint8_t* header,
-                  bool first, bool corruptCopy = false) {
+                  bool first, bool c16 = false, bool corruptCopy = false) {
   for (int value = first ? 137 : 9; value >= (first ? 129 : 1); --value)
-    byte(decoder, value);
+    byte(decoder, value, c16);
   uint8_t checksum = 0;
   for (int i = 0; i < 192; ++i) {
     const uint8_t value = corruptCopy && i == 10 ? header[i] ^ 1 : header[i];
-    byte(decoder, value);
+    byte(decoder, value, c16);
     checksum ^= value;
   }
-  byte(decoder, checksum);
-  pulse(decoder, 690);
-  pulse(decoder, 390);
+  byte(decoder, checksum, c16);
+  pulse(decoder, c16 ? 2021 : 690);
+  pulse(decoder, c16 ? 1010 : 390);
 }
 
 int main() {
@@ -55,6 +58,7 @@ int main() {
   block(good, header, false);
   good.motorStop();
   assert(good.receivedCount() == 1);
+  assert(good.machineName()[1] == '6'); // c64
   assert(good.errorCount() == 0);
   assert(good.startAddress() == 0x0801);
   assert(good.endAddress() == 0x0810);
@@ -63,8 +67,18 @@ int main() {
   WriteDecoder damaged;
   damaged.motorStart();
   block(damaged, header, true);
-  block(damaged, header, false, true);
+  block(damaged, header, false, false, true);
   damaged.motorStop();
   assert(damaged.receivedCount() == 0);
   assert(damaged.errorCount() > 0);
+
+  WriteDecoder plus4;
+  plus4.motorStart();
+  block(plus4, header, true, true);
+  for (int i = 0; i < 79; ++i) pulse(plus4, 505);
+  block(plus4, header, false, true);
+  plus4.motorStop();
+  assert(plus4.receivedCount() == 1);
+  assert(plus4.errorCount() == 0);
+  assert(plus4.machineName()[1] == '1'); // c16 / Plus4
 }

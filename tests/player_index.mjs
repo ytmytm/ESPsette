@@ -110,4 +110,6 @@ assert.equal(c16Session.logicalSize, 8);
 assert.equal(vm.runInContext('mock.clockHz', context), 886724);
 vm.runInContext("document.getElementById('saveMock').onclick()", context);
 assert.match(elements.get('writeDetail').textContent, /ESP:TEST/);
+vm.runInContext("mock.writeMachine = 'c16'; render({...mock})", context);
+assert.match(elements.get('writeDetail').textContent, /C16\/Plus4/);
 console.log('IDX parser, TAP boundaries, C64/C16 PRG and WRITE preview OK');

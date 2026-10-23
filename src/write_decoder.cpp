@@ -1,6 +1,14 @@
 #include "write_decoder.h"
 
-WriteDecoder::Pulse WriteDecoder::classify(uint16_t duration) {
+WriteDecoder::Pulse WriteDecoder::classify(uint16_t duration) const {
+  // C16/Plus4 ROM whole waves are roughly 478/956/1913 us. WAV-PRG uses
+  // 505/1010/2021 us. The 2:4:8 spacing separates them from C64 pulses.
+  if (machine_ == Machine::C16) {
+    if (duration >= 380 && duration <= 680) return Pulse::SHORT;
+    if (duration >= 800 && duration <= 1250) return Pulse::MEDIUM;
+    if (duration >= 1600 && duration <= 2400) return Pulse::LONG;
+    return Pulse::INVALID;
+  }
   // C64 ROM SAVE is approximately 352/512/672 us; generated test tapes
   // commonly use 390/544/690 us. Boundaries leave room for clock variation.
   if (duration >= 260 && duration <= 455) return Pulse::SHORT;
@@ -20,6 +28,7 @@ void WriteDecoder::resetFrame() {
 
 void WriteDecoder::motorStart() {
   resetFrame();
+  machine_ = Machine::UNKNOWN;
   status_ = "listening";
 }
 
@@ -126,6 +135,11 @@ void WriteDecoder::onTerminator() {
 
 void WriteDecoder::feedMicros(uint16_t duration) {
   if (stage_ == Stage::DONE) return; // Ignore the saved program data.
+  if (stage_ == Stage::SEARCH && !byteBits_ && firstPulse_ == Pulse::INVALID) {
+    if (duration > 615 && duration <= 850) machine_ = Machine::C64;
+    else if (duration >= 1600 && duration <= 2400) machine_ = Machine::C16;
+    else return; // Ignore the pilot until a byte marker is seen.
+  }
   const Pulse pulse = classify(duration);
   if (pulse == Pulse::INVALID) {
     if (byteBits_) { fail("pulse_error"); return; }
@@ -136,9 +150,14 @@ void WriteDecoder::feedMicros(uint16_t duration) {
     if (firstPulse_ == Pulse::LONG) {
       firstPulse_ = Pulse::INVALID;
       if (pulse == Pulse::MEDIUM) {
-        byteBits_ = true;
-        bitIndex_ = byte_ = 0;
-        parity_ = 1;
+        if (machine_ == Machine::C16 &&
+            (stage_ == Stage::FIRST_END || stage_ == Stage::SECOND_END))
+          onTerminator();
+        else {
+          byteBits_ = true;
+          bitIndex_ = byte_ = 0;
+          parity_ = 1;
+        }
       } else if (pulse == Pulse::SHORT) onTerminator();
       else if (pulse == Pulse::LONG) firstPulse_ = Pulse::LONG;
     } else {

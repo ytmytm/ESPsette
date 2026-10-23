@@ -19,7 +19,7 @@ Firmware ESP-01 do odtwarzania sygnału kasetowego przez port datasette C64 lub 
 | `src/network_config.*` | portal AP, połączenie STA i konfiguracja LittleFS |
 | `src/tape_source.*` | ograniczony bufor kasety zasilany porcjami z przeglądarki |
 | `src/prg_encoder.*` | standardowe impulsy kasety C64/C16 generowane z PRG |
-| `src/write_decoder.*` | weryfikacja podwójnego nagłówka `SAVE` C64 bez wykonywania komend |
+| `src/write_decoder.*` | weryfikacja podwójnego nagłówka `SAVE` C64 i C16/Plus4 bez wykonywania komend |
 | `web/player.html` | źródło strony i samodzielny podgląd lokalny |
 | `scripts/embed-player.py` | generuje `src/player_page.h` z HTML przed budowaniem |
 | `include/local_ota.h.example` | opcjonalne hasło OTA, bez danych Wi-Fi |
@@ -80,9 +80,9 @@ Obsługiwany jest standardowy `LOAD` na C64 PAL oraz C16/Plus4 PAL bez turbo. PR
 
 ## Diagnostyczny odbiór WRITE
 
-`src/write_decoder.*` rozpoznaje standardowy nagłówek `SAVE` C64: sekwencję synchronizacji, parzystość bajtów, sumę XOR, znacznik końca i zgodność drugiej kopii. Po poprawnym odbiorze `/state` oraz strona pokazują nazwę, typ, adresy i informację „brak przypisanej akcji”. Dane programu po nagłówku są ignorowane. Firmware nie interpretuje nazwy jako komendy i niczego przez WRITE nie nadaje.
+`src/write_decoder.*` automatycznie rozpoznaje standardowy nagłówek `SAVE` C64 albo C16/Plus4 po długościach impulsów: sekwencję synchronizacji, parzystość bajtów, sumę XOR, znacznik końca i zgodność drugiej kopii. Po poprawnym odbiorze `/state` oraz strona pokazują rozpoznaną maszynę, nazwę, typ, adresy i informację „brak przypisanej akcji”. Dane programu po nagłówku są ignorowane. Firmware nie interpretuje nazwy jako komendy i niczego przez WRITE nie nadaje.
 
-Domyślny profil **nie podłącza przerwania GPIO2**. `PROFILE=1m-write` lub `4m-write` włącza nasłuch dopiero dla płytki, która chroni GPIO2 przed 5 V, gwarantuje wysoki stan przy starcie ESP i odłącza C64 podczas flashowania. Profil wymaga API I2S bez zegara na GPIO2; przy jego braku kompilacja kończy się błędem. Do czasu sprawdzenia schematu i pomiaru nie należy łączyć WRITE C64 bezpośrednio z ESP-01. Strona w zwykłym profilu wyraźnie pokazuje, że nasłuch jest nieaktywny; w lokalnym podglądzie można kliknąć „Symuluj SAVE”, aby obejrzeć prezentację wyniku. Test dekodera dla komputera hosta jest w `tests/write_decoder_test.cpp` i czeka na uruchomienie na Macu.
+Domyślny profil **nie podłącza przerwania GPIO2**. `PROFILE=1m-write` lub `4m-write` włącza nasłuch dopiero dla płytki, która chroni GPIO2 przed 5 V, gwarantuje wysoki stan przy starcie ESP i odłącza C64 podczas flashowania. Profil wymaga API I2S bez zegara na GPIO2; przy jego braku kompilacja kończy się błędem. Do czasu sprawdzenia schematu i pomiaru nie należy łączyć WRITE C64 bezpośrednio z ESP-01. Strona w zwykłym profilu wyraźnie pokazuje, że nasłuch jest nieaktywny; w lokalnym podglądzie można kliknąć „Symuluj SAVE”, aby obejrzeć prezentację wyniku. Test dekodera obu maszyn dla komputera hosta jest w `tests/write_decoder_test.cpp` i czeka na uruchomienie na Macu. C16 używa znacznika końca długi+średni; C64 długi+krótki. Odstępy między zboczami WRITE trzeba potwierdzić na obu komputerach.
 
 ## OTA po uruchomieniu sieci
 

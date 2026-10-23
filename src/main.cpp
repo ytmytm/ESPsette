@@ -797,6 +797,7 @@ void handleState() {
   doc["error"] = playerError;
   doc["writeEnabled"] = bool(ESPSETTE_WRITE_CAPTURE);
   doc["writeStatus"] = writeDecoder.status();
+  doc["writeMachine"] = writeDecoder.machineName();
   doc["writeName"] = writeDecoder.name();
   doc["writeType"] = writeDecoder.fileType();
   doc["writeStart"] = writeDecoder.startAddress();

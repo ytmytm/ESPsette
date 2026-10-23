@@ -31,7 +31,7 @@ const mock = {tapeState:'loaded', sourceType:'tap', machine:'c64', clockHz:98524
   sensePressed:true, playing:false, phase:'idle', playedCycles:0,
   totalCycles:117000000, bufferedMillis:null, fileOffsetReceived:0,
   freeBytes:8192, sessionId:0, error:null, writeEnabled:false,
-  writeStatus:'idle', writeName:'', writeType:0, writeStart:0, writeEnd:0,
+  writeStatus:'idle', writeMachine:'unknown', writeName:'', writeType:0, writeStart:0, writeEnd:0,
   writeHeaders:0, writeErrors:0, writeOverflows:0};
 
 function updateMock() {
@@ -161,7 +161,7 @@ function render(s) {
   $('writeStatus').textContent = s.writeEnabled ?
     (writeLabels[s.writeStatus] || s.writeStatus) : 'Nieaktywny';
   $('writeDetail').textContent = s.writeStatus === 'header_verified_no_action' ?
-    'SAVE "' + s.writeName + '" · typ ' + s.writeType + ' · $' +
+    (s.writeMachine === 'c16' ? 'C16/Plus4' : 'C64') + ' · SAVE "' + s.writeName + '" · typ ' + s.writeType + ' · $' +
     s.writeStart.toString(16).toUpperCase().padStart(4, '0') + '–$' +
     s.writeEnd.toString(16).toUpperCase().padStart(4, '0') +
     ' · brak przypisanej akcji' :
@@ -406,7 +406,8 @@ if (preview) {
   $('wifiLink').hidden = true;
   $('motorToggle').onclick = () => { mock.motorOn = !mock.motorOn; updateMock(); render({...mock}); };
   $('saveMock').onclick = () => { mock.writeEnabled = true;
-    mock.writeStatus = 'header_verified_no_action'; mock.writeName = 'ESP:TEST';
+    mock.writeStatus = 'header_verified_no_action'; mock.writeMachine = 'c64';
+    mock.writeName = 'ESP:TEST';
     mock.writeType = 1; mock.writeStart = 0x0801; mock.writeEnd = 0x0810;
     mock.writeHeaders++; render({...mock}); };
 }
