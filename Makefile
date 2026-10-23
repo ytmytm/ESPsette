@@ -23,7 +23,7 @@ endif
 
 ESPTOOL := ESPTOOL_CFGFILE="$(CURDIR)/esptool.cfg" ./tools/venv/bin/python -m esptool --chip esp8266 --port "$(PORT)"
 
-.PHONY: help setup build flash ota flash-id chip-info
+.PHONY: help setup build flash ota flash-id chip-info embed-web preview
 
 help:
 	@printf '%s\n' \
@@ -52,14 +52,20 @@ help:
 setup:
 	./scripts/setup-tools.sh
 
-build:
+embed-web:
+	./tools/venv/bin/python scripts/embed-player.py
+
+preview:
+	./scripts/open-preview.sh
+
+build: embed-web
 	./scripts/pio.sh run $(PIO_VERBOSE) -e $(SERIAL_ENV)
 
-flash:
+flash: embed-web
 	@test -n "$(PORT)" || { echo 'Set PORT=/dev/cu.usbserial-...'; exit 1; }
 	./scripts/pio.sh run $(PIO_VERBOSE) -e $(SERIAL_ENV) -t upload --upload-port "$(PORT)"
 
-ota:
+ota: embed-web
 	@test -n "$(OTA_ENV)" || { echo 'OTA is not planned for 512 KB'; exit 1; }
 	@test -n "$(OTA_HOST)" || { echo 'Set OTA_HOST to the device IP or .local name'; exit 1; }
 	@./scripts/ota.sh $(OTA_ENV) "$(OTA_HOST)"

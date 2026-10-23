@@ -2,6 +2,8 @@
 
 > Stan dokumentu: analiza zaczęła się od archiwalnego projektu `esptapuino`; rozwijany projekt nosi nazwę `espsette`. Patch `poprawka-i2s-rate.patch` został już nałożony na `src/main.ino` i usunięty jako osobny plik. Historia repozytorium została oczyszczona z definicji danych Wi-Fi; daty commitów zachowano. W gałęzi `espsette/implementation` rozpoczęto wdrożenie portalu AP i konfiguracji LittleFS. Sąsiedni worktree `../espsette/` zachowuje wariant do pierwszej próby sprzętowej z lokalnym `include/local_wifi.h`. Opisy pozostałych przyszłych funkcji także są planem, dopóki nie zostaną osobno zaimplementowane.
 
+**Stan kolejnej iteracji:** worktree `../espsette-implementation/` ma bufor pierścieniowy 8 KB dla dużego TAP, krótkie żądania `/session` i `/chunk`, stan `/state`, `loaded/ejected`, lokalny podgląd `web/player.html` oraz tymczasowy deck CSS. `make build` generuje z tego samego HTML nagłówek firmware. Odtwarzacz nadal zawiera osadzony TAP demo; PRG, IDX, WRITE i docelowa grafika są otwarte. Bez kompilacji i pomiaru sprzętowego nie należy uznawać ciągłości streamingu ani dokładności pozycji DMA za potwierdzone. [Film magnetofonu z Pixabay](https://pixabay.com/videos/tape-recorder-music-stale-nostalgic-118790/) jest opcjonalnym plikiem wybieranym lokalnie przez użytkownika w przeglądarce; nie jest przechowywany w flash ESP.
+
 Data analizy: 2026-10-22. Zakres: przegląd archiwalnego `esptapuino.ino`, obecnego `src/main.ino`, dekodowanie danych z `draxcaught.h` i dokumentacji formatu TAP oraz rdzenia Arduino dla ESP8266. Nie było dostępu do zmontowanego układu ani oscyloskopu; wnioski o przebiegu na pinach wymagają potwierdzenia na sprzęcie.
 
 ## Najważniejszy wniosek

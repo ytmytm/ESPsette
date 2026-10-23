@@ -38,7 +38,8 @@ bool validHostname(const String& value) {
 }
 }  // namespace
 
-NetworkConfig::NetworkConfig(ESP8266WebServer& server) : server_(server) {}
+NetworkConfig::NetworkConfig(ESP8266WebServer& server, uint8_t motorPin)
+    : server_(server), motorPin_(motorPin) {}
 
 bool NetworkConfig::validate(const Settings& value, String& error) const {
   if (value.ssid.length() == 0 || value.ssid.length() > 32 || value.password.length() > 63) {
@@ -168,6 +169,10 @@ String NetworkConfig::address() const {
 }
 
 void NetworkConfig::sendPortal() {
+  if (digitalRead(motorPin_) == HIGH) {
+    server_.send(503, "text/plain", "Otwórz konfigurację po zatrzymaniu MOTOR.");
+    return;
+  }
   String page;
   page.reserve(2200);
   page += F("<!doctype html><html lang='pl'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>espsette Wi-Fi</title><style>body{font:1rem system-ui;max-width:32rem;margin:2rem auto;padding:0 1rem;background:#16191e;color:#eee}label{display:block;margin:1rem 0}input{box-sizing:border-box;width:100%;padding:.7rem;font:inherit}input[type=checkbox]{width:auto}button{padding:.8rem 1.2rem;font:inherit}a{color:#8ad}</style><h1>espsette — Wi-Fi</h1>");
@@ -189,12 +194,16 @@ void NetworkConfig::sendPortal() {
     page += names[i]; page += F("' value='"); page += escapeHtml(*values[i]);
     page += F("'></label>");
   }
-  page += F("<button type='submit'>Zapisz i połącz</button></form><form method='post' action='/retry'><button type='submit'>Ponów połączenie</button></form><p><a href='/'>Stan kasety</a></p></html>");
+  page += F("<button type='submit'>Zapisz i połącz</button></form><form method='post' action='/retry'><button type='submit'>Ponów połączenie</button></form><p><a href='/player'>Otwórz odtwarzacz</a></p></html>");
   server_.sendHeader("Cache-Control", "no-store");
   server_.send(200, "text/html; charset=utf-8", page);
 }
 
 void NetworkConfig::receiveSettings() {
+  if (digitalRead(motorPin_) == HIGH) {
+    server_.send(409, "text/plain", "Zatrzymaj MOTOR przed zmianą konfiguracji.");
+    return;
+  }
   Settings value;
   value.ssid = server_.arg("ssid");
   value.password = server_.arg("password");
@@ -222,6 +231,10 @@ void NetworkConfig::receiveSettings() {
 }
 
 void NetworkConfig::retry() {
+  if (digitalRead(motorPin_) == HIGH) {
+    server_.send(409, "text/plain", "Zatrzymaj MOTOR przed ponowieniem połączenia.");
+    return;
+  }
   restartPending_ = true;
   restartAfter_ = millis() + 1500;
   server_.send(200, "text/html; charset=utf-8", "<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><p>Moduł uruchomi się ponownie i ponowi połączenie.</p>");

@@ -6,7 +6,7 @@
 
 class NetworkConfig {
  public:
-  explicit NetworkConfig(ESP8266WebServer& server);
+  NetworkConfig(ESP8266WebServer& server, uint8_t motorPin);
   void begin();
   void handle(bool motorOn);
   bool staConnected() const { return staConnected_; }
@@ -28,6 +28,7 @@ class NetworkConfig {
   } settings_;
 
   ESP8266WebServer& server_;
+  uint8_t motorPin_;
   DNSServer dnsServer_;
   String hostname_ = "espsette";
   bool fsReady_ = false;

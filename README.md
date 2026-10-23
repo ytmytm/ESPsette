@@ -5,9 +5,9 @@ Firmware ESP-01 do odtwarzania sygnału kasetowego przez port datasette C64. Pro
 ## Stan kodu
 
 - `src/main.ino` zawiera historyczny odtwarzacz TAP z nałożoną poprawką tempa I2S, obsługi MOTOR i kończenia transmisji.
-- `include/draxcaught.h` to tymczasowy, osadzony obraz TAP. Docelowo plik będzie dostarczany przez przeglądarkę.
+- `include/draxcaught.h` pozostaje demonstracyjnym TAP. Można też wskazać w przeglądarce duży plik TAP C64 PAL v1; strona podaje go porcjami do bufora 8 KB ESP.
 - Dane Wi-Fi są wprowadzane przez portal AP i zapisywane do LittleFS. Nie są kompilowane do firmware. Ta gałąź implementuje konfigurację; wcześniejszy wariant do pierwszej próby pozostaje w sąsiednim worktree `../espsette/`.
-- Połączenia WRITE, dekoder komend, strumieniowanie z przeglądarki i strona kasety są zaplanowane, ale niezaimplementowane.
+- Strumieniowanie TAP i podstawowa strona decku są zaimplementowane w tej gałęzi. Generator PRG, indeksy IDX, WRITE i docelowa fotorealistyczna grafika pozostają kolejnymi etapami.
 - Zmiany w tym worktree nie były kompilowane ani sprawdzane na ESP-01. Pierwszą próbę sprzętową z osadzonym TAP można wykonać z sąsiedniego worktree `../espsette/`; tę gałąź skompilować osobno później.
 
 ## Układ katalogów
@@ -17,6 +17,9 @@ Firmware ESP-01 do odtwarzania sygnału kasetowego przez port datasette C64. Pro
 | `src/main.ino` | firmware |
 | `include/` | nagłówki i tymczasowy obraz TAP |
 | `src/network_config.*` | portal AP, połączenie STA i konfiguracja LittleFS |
+| `src/tape_source.*` | ograniczony bufor kasety zasilany porcjami z przeglądarki |
+| `web/player.html` | źródło strony i samodzielny podgląd lokalny |
+| `scripts/embed-player.py` | generuje `src/player_page.h` z HTML przed budowaniem |
 | `include/local_ota.h.example` | opcjonalne hasło OTA, bez danych Wi-Fi |
 | `scripts/` | lokalny bootstrap i uruchamianie PlatformIO |
 | `platformio.ini` | przypięta platforma ESP8266, profile flashowania |
@@ -45,7 +48,7 @@ Profil `PROFILE=512k` jest przewidziany tylko do flashowania kablem i może nie 
 
 Po starcie ESP trzyma SENSE w stanie zwolnionego PLAY podczas konfiguracji Wi-Fi i sprawdzania osadzonego TAP. Po poprawnej walidacji naciska wirtualny PLAY (SENSE niski) i czeka na MOTOR. Wpisanie `LOAD` na C64 uruchamia MOTOR; dopiero wtedy firmware rozpoczyna impulsy READ. Zatrzymanie MOTOR wstrzymuje odtwarzanie i po wznowieniu ma kontynuować z zapamiętanej pozycji.
 
-Po konfiguracji Wi-Fi odczytać jego IP w panelu routera. Na Macu otworzyć `http://ADRES_IP/` — obecna prosta strona podaje stan GPIO, MOTOR, odtwarzacza i długość TAP. Kolorowe logi RemoteDebug są na porcie TCP 23; przed wpisaniem `LOAD` na C64 połączyć terminal:
+Po konfiguracji Wi-Fi odczytać jego IP w panelu routera. Na Macu otworzyć `http://ADRES_IP/` — strona pokazuje deck, stan MOTOR, kasetę, odtworzony czas i bufor. W trybie AP portal działa pod `/`, a odtwarzacz pod `/player`. Kolorowe logi RemoteDebug są na porcie TCP 23; przed wpisaniem `LOAD` na C64 połączyć terminal:
 
 Domyślny hostname firmware to `espsette`. Ta sama nazwa jest przekazywana do Wi-Fi, ArduinoOTA i RemoteDebug. Obecny firmware nie uruchamia mDNS, więc `espsette.local` nie jest jeszcze gwarantowanym adresem; do pierwszej próby użyć IP przydzielonego przez router.
 
@@ -54,6 +57,18 @@ nc ADRES_IP 23
 ```
 
 Logowanie przez UART pozostaje wyłączone, bo te piny sterują SENSE i READ. RemoteDebug wysyła zdarzenia tylko do podłączonego klienta, więc wcześniejszych komunikatów startowych nie odtworzy; co 10 sekund pojawia się stan GPIO, a przy próbie ładowania zdarzenia MOTOR i odtwarzacza. Sprawdzić rozpoznanie nagłówka przez C64, przerwę MOTOR po nagłówku, wznowienie i zakończenie odczytu. Jeżeli nie ma strony ani logu, najpierw sprawdzić IP, konfigurację Wi-Fi i czy Mac oraz ESP są w tej samej sieci. Sam TAP można próbować odtwarzać bez Wi-Fi.
+
+## Lokalny podgląd strony bez ESP-01
+
+Otwórz [web/player.html](web/player.html) bezpośrednio w przeglądarce albo użyj `make preview`. Przy adresie `file://` strona używa symulowanego stanu ESP: można wybrać TAP, włączyć/wyłączyć MOTOR, wysunąć kasetę i obserwować wskaźniki. To symulacja interfejsu i przepływu żądań, **nie test sygnału na GPIO ani wydajności Wi-Fi**. Ten sam HTML jest przed budowaniem wstawiany do firmware przez `make embed-web`, więc zmiany UI nie wymagają flashowania, dopóki nie są gotowe do próby na urządzeniu. `make preview` nie wymaga instalacji PlatformIO.
+
+Opcjonalnie można pobrać [film magnetofonu z Pixabay](https://pixabay.com/videos/tape-recorder-music-stale-nostalgic-118790/) i wskazać go w polu „film w okienku”. Wideo pozostaje lokalnym plikiem przeglądarki; odtwarza się przy `motorOn` i zatrzymuje przy postoju. Nie jest dołączone do repozytorium ani obrazu ESP. Bez filmu strona używa tymczasowego rysunku CSS; docelowy fotorealistyczny deck nadal wymaga przygotowania zasobów. Strona źródłowa opisuje materiał jako MP4 1920×1080, 50 FPS, dostępny na licencji Pixabay Content License.
+
+## Strumieniowanie TAP w tej gałęzi
+
+Strona skanuje TAP lokalnie, tworzy sesję przez `POST /session`, a następnie wysyła maksymalnie 1024 bajty na żądanie `POST /chunk` z ID sesji i bezwzględnym offsetem. `GET /state` zwraca wolne miejsce 8 KB bufora, MOTOR, `loaded/ejected`, postęp nadawania READ i błąd. Przy pełnym buforze przeglądarka nie utrzymuje otwartego uploadu; po pauzie MOTOR dosyła następne porcje. `POST /eject` i `POST /demo` działają tylko przy wyłączonym MOTOR. Przy niezgodnym offsetcie odpowiedź podaje aktualną pozycję, żeby przeglądarka mogła ponowić transfer bez duplikowania danych. Sumę cykli z pliku wylicza przeglądarka; ESP używa jej tylko do prezentacji czasu, a nie do sterowania sygnałem.
+
+Ten transport obsługuje obecnie **C64 PAL TAP v1**. Plik pozostaje w otwartej karcie przeglądarki; jej uśpienie może opróżnić bufor i zakończyć LOAD błędem. 8 KB bufora i czas obsługi HTTP wymagają pomiaru na prawdziwym ESP-01/C64, szczególnie dla szybkich loaderów. Endpointy nie mają jeszcze uwierzytelniania. Na modułach 512 KB lub 1 MB może zabraknąć miejsca na połączenie demonstracyjnego TAP, strony, LittleFS i OTA; rozmiar obrazu trzeba zmierzyć podczas kompilacji na Macu.
 
 ## OTA po uruchomieniu sieci
 
