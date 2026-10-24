@@ -110,7 +110,7 @@ Po wgraniu: **odłączyć GPIO0 od GND**, zresetować (DTR/RST albo USB) — sta
 
 1. Połączyć jak w tabeli powyżej (GPIO0–GND, TX↔RX, VCC, DTR–RST, CH_PD→3V3).
 2. Podłączyć USB do Maca; `ls /dev/cu.*` (`cu.usbserial-…` / `cu.wchusbserial-…`).
-3. `make flash-id PORT=/dev/cu.…` — ma wypisać flash (np. 1 MB); esptool sam impulsuje RST przez DTR.
+3. `make flash-id PORT=/dev/cu.…` albo pełniejszy odczyt `make chip-info PORT=/dev/cu.…` (flash-id, chip-id, MAC, status flash); esptool sam impulsuje RST przez DTR.
 4. (Opcjonalnie Wi-Fi) `cp include/local_wifi.h.example include/local_wifi.h` i wpisać SSID/hasło.
 5. `make setup` raz na maszynie, potem `make build PROFILE=1m`.
 6. `make flash PROFILE=1m PORT=/dev/cu.…`

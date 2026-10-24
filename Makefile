@@ -21,7 +21,9 @@ else
 $(error PROFILE must be 512k, 1m, or 4m)
 endif
 
-.PHONY: setup build flash ota flash-id
+ESPTOOL := ESPTOOL_CFGFILE="$(CURDIR)/esptool.cfg" ./tools/venv/bin/python -m esptool --chip esp8266 --port "$(PORT)"
+
+.PHONY: setup build flash ota flash-id chip-info
 
 setup:
 	./scripts/setup-tools.sh
@@ -40,4 +42,16 @@ ota:
 
 flash-id:
 	@test -n "$(PORT)" || { echo 'Set PORT=/dev/cu.usbserial-...'; exit 1; }
-	ESPTOOL_CFGFILE="$(CURDIR)/esptool.cfg" ./tools/venv/bin/python -m esptool --chip esp8266 --port "$(PORT)" flash-id
+	$(ESPTOOL) flash-id
+
+# Read-only chip dump (same download-mode wiring as flash-id; does not erase).
+chip-info:
+	@test -n "$(PORT)" || { echo 'Set PORT=/dev/cu.usbserial-...'; exit 1; }
+	@echo '=== flash-id ==='
+	$(ESPTOOL) flash-id
+	@echo '=== chip-id ==='
+	$(ESPTOOL) chip-id
+	@echo '=== read-mac ==='
+	$(ESPTOOL) read-mac
+	@echo '=== read-flash-status ==='
+	$(ESPTOOL) read-flash-status
