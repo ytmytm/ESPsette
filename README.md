@@ -4,17 +4,17 @@ Firmware ESP-01 do odtwarzania sygnału kasetowego przez port datasette C64 lub 
 
 ## Stan kodu
 
-- `src/main.ino` zawiera historyczny odtwarzacz TAP z nałożoną poprawką tempa I2S, obsługi MOTOR i kończenia transmisji.
+- `src/main.cpp` zawiera historyczny odtwarzacz TAP z nałożoną poprawką tempa I2S, obsługi MOTOR i kończenia transmisji.
 - `include/draxcaught.h` pozostaje demonstracyjnym TAP. Można też wskazać w przeglądarce duży plik TAP C64 lub C16/Plus4 PAL v1/v2 albo zwykły PRG; strona podaje dane porcjami do bufora 8 KB ESP.
-- Dane Wi-Fi są wprowadzane przez portal AP i zapisywane do LittleFS. Nie są kompilowane do firmware. Ta gałąź implementuje konfigurację; wcześniejszy wariant do pierwszej próby pozostaje w sąsiednim worktree `../espsette/`.
+- Dane Wi-Fi są wprowadzane przez portal AP i zapisywane do LittleFS. Nie są kompilowane do firmware. Ta gałąź implementuje konfigurację Wi-Fi przez portal AP i LittleFS.
 - Strumieniowanie TAP, tekstowy IDX w formacie Ultimate 64 i podstawowa strona decku są zaimplementowane w tej gałęzi. Generator standardowej kasety z PRG dla C64 i C16/Plus4 PAL jest zaimplementowany. Dekoder nagłówka SAVE z WRITE jest gotowy w osobnym profilu sprzętowym; turbo pozostaje kolejnym etapem. Strona ma skompresowany obraz kasety, animowane szpulki i pięć klawiszy decku.
-- Zmiany w tym worktree nie były kompilowane ani sprawdzane na ESP-01. Pierwszą próbę sprzętową z osadzonym TAP można wykonać z sąsiedniego worktree `../espsette/`; tę gałąź skompilować osobno później.
+- Domyślny build ma `ESPSETTE_GPIO_DISABLED=1` (Wi-Fi/AP/strona bez sterowania pinami kasety); do C64/C16 wyłączyć tę flagę.
 
 ## Układ katalogów
 
 | Ścieżka | Znaczenie |
 | --- | --- |
-| `src/main.ino` | firmware |
+| `src/main.cpp` | firmware |
 | `include/` | nagłówki i tymczasowy obraz TAP |
 | `src/network_config.*` | portal AP, połączenie STA i konfiguracja LittleFS |
 | `src/tape_source.*` | ograniczony bufor kasety zasilany porcjami z przeglądarki |
@@ -23,28 +23,139 @@ Firmware ESP-01 do odtwarzania sygnału kasetowego przez port datasette C64 lub 
 | `web/player.html` | źródło strony i samodzielny podgląd lokalny |
 | `scripts/embed-player.py` | generuje `src/player_page.h` z HTML przed budowaniem |
 | `include/local_ota.h.example` | opcjonalne hasło OTA, bez danych Wi-Fi |
-| `scripts/` | lokalny bootstrap i uruchamianie PlatformIO |
+| `scripts/` | lokalny bootstrap, PlatformIO, `esp_boot_dump.py` |
+| `esptool.cfg` | reset DTR-only dla CH340 (wemos.cc) |
 | `platformio.ini` | przypięta platforma ESP8266, profile flashowania |
 | `tools/` | ignorowane przez Git: `uv`, Python, PlatformIO, pakiety i toolchainy |
+| `~/.cache/espsette/` | lokalny cache `uv` / PlatformIO (poza NFS) |
 | `.pio/` | ignorowane wyniki budowania |
 
-## Mac z USB-C: pierwszy flash
+## Flash ESP-01 przez USB-UART 3,3 V (krok po kroku)
 
-Potrzebny jest programator USB-UART 3,3 V z gniazdem ESP-01 oraz przewód lub przejściówka USB-C. Powinien zapewniać stabilne zasilanie 3,3 V i przełączenie GPIO0 w tryb programowania. Programowanie szeregowe wykonujemy z modułem odłączonym od obwodu C64. Dla adaptera bez automatycznego resetu trzeba ręcznie ustawić tryb FLASH, zresetować ESP i po wgraniu wrócić do RUN.
+Programować **tylko zasilaniem 3,3 V**. 5 V na VCC albo na liniach TX/RX zabija ESP8266. Moduł odłączyć od obwodu C64/C16 na czas flashowania.
 
 Po pierwszym uruchomieniu, gdy nie ma poprawnego `/config.json` albo sieć jest niedostępna, moduł tworzy otwarty AP `espsette-XXXXXX`. Połącz Maca lub telefon z tą siecią i otwórz `http://192.168.4.1/`. Portal pozwala podać SSID, hasło, nazwę hosta i opcjonalnie statyczny adres IPv4. Po zapisie ESP uruchomi się ponownie i spróbuje połączyć z siecią. Jeśli to się nie uda, AP wróci; konfiguracja pozostanie zachowana. Ustawienia można później zmienić pod `/wifi`, a przycisk „Ponów połączenie” ponawia próbę przez restart, gdy MOTOR jest wyłączony.
+
+### Co jest potrzebne
+
+- ESP-01 / ESP-01S
+- adapter USB–UART na **3,3 V** (FTDI / CP2102 / CH340 itd.) albo gotowa przejściówka z gniazdem ESP-01
+- na Macu: przejściówka USB-C jeśli adapter ma USB-A
+- zworka / kabelek do zwarcia **GPIO0–GND** (tryb flash), ewentualnie drugi do **RST–GND** (reset), jeśli adapter nie ma przycisków
+
+### Rozkład pinów ESP-01
+
+Widok **z góry** (antena u góry, 8 pinów u dołu, dwa rzędy po cztery). Lewa kolumna / prawa kolumna:
+
+```
+            ANTENA
+       ┌─────────────────┐
+       │                 │
+       │     ESP-01      │
+       │                 │
+       │  GND      TXD   │  ← rząd bliżej anteny
+       │  GPIO2    CH_PD │
+       │  GPIO0    RST   │
+       │  RXD      VCC   │  ← rząd na krawędzi płytki
+       └─────────────────┘
+            piny w dół
+```
+
+To samo w tabeli (kolejność: od anteny do krawędzi):
+
+| Lewa | Prawa |
+| --- | --- |
+| **GND** | **TXD** (GPIO1) |
+| **GPIO2** | **CH_PD** (EN) |
+| **GPIO0** | **RST** |
+| **RXD** (GPIO3) | **VCC** (3,3 V) |
+
+ESP-01S ma ten sam układ pinów; różnice to głównie LED / antena PCB — nazwy sygnałów się nie zmieniają.
+
+### Rola pinów przy flashu
+
+| Pin ESP-01 | Rola przy flashu |
+| --- | --- |
+| **VCC** | +3,3 V z adaptera (nie 5 V) |
+| **GND** | masa wspólna z adapterem |
+| **RXD** (GPIO3) | ← TXD adaptera USB-UART |
+| **TXD** (GPIO1) | → RXD adaptera USB-UART |
+| **CH_PD** (EN) | na stałe do **3,3 V** (moduł musi być włączony) |
+| **GPIO0** | **GND** = tryb programowania; po flashu odłączyć / puścić w górę = RUN |
+| **GPIO2** | zostawić wolny / podciągnięty w górę; **nie** zwierać do GND przy boocie |
+| **RST** | impuls do **GND** = reset (wejście w tryb wybrany przez GPIO0) |
+
+Krzyżowanie UART: **TX adaptera → RX ESP**, **RX adaptera → TX ESP**. Wspólne GND obowiązkowe.
+
+Zworka flash: **GPIO0 ↔ GND** (lewa kolumna, trzeci pin od anteny). Reset: krótko **RST ↔ GND** (prawa kolumna, trzeci od anteny).
+
+### Zworka FLASH vs RUN
+
+ESP8266 czyta GPIO0 **w momencie resetu**:
+
+1. **Flash:** zworka **GPIO0–GND**, potem impuls RST–GND (albo wyjęcie/włożenie USB).
+2. **Uruchomienie firmware:** zdjąć zworkę z GPIO0 (stan wysoki), znowu RST.
+
+Gotowe programatory ESP-01 często mają przełącznik `FLASH`/`UART` albo przyciski IO0 + RST — to to samo co zworka GPIO0 i reset.
+
+### CH340 bez RTS (sprawdzone na adapterze wemos.cc)
+
+Tani CH340 ma **DTR**, ale zwykle **bez użytecznego RTS**. Działający układ na czas flashu:
+
+| Adapter CH340 | ESP-01 |
+| --- | --- |
+| **GND** | **GPIO0** (zworka trybu programowania; masa wspólna z resztą połączeń) |
+| **TXD** | **RXD** |
+| **RXD** | **TXD** |
+| **VCC** (3,3 V) | **VCC** |
+| **DTR** | **RST** |
+
+**CH_PD** trzymaj na **3,3 V** (na module / do VCC). **GPIO2** nie zwierać do GND. **CTS** / **R/C** zostawić niepodłączone.
+
+`esptool.cfg` pulsuje tylko DTR (polarność dopasowana do tego adaptera). Ładują ją `make flash-id` i `make flash` przez `ESPTOOL_CFGFILE`.
+
+Po wgraniu: **odłączyć GPIO0 od GND**, zresetować (DTR/RST albo USB) — start firmware w trybie RUN.
+
+### Kolejność na stole
+
+1. Połączyć jak w tabeli powyżej (GPIO0–GND, TX↔RX, VCC, DTR–RST, CH_PD→3V3).
+2. Podłączyć USB do Maca; `ls /dev/cu.*` (`cu.usbserial-…` / `cu.wchusbserial-…`).
+3. `make flash-id PORT=/dev/cu.…` albo pełniejszy odczyt `make chip-info PORT=/dev/cu.…` (flash-id, chip-id, MAC, status flash); esptool sam impulsuje RST przez DTR.
+4. `make setup` raz na maszynie, potem `make build PROFILE=1m` (domyślnie z `ESPSETTE_GPIO_DISABLED=1` do prób na samym USB-serial).
+5. `make flash PROFILE=1m PORT=/dev/cu.…`
+6. Po udanym wgraniu: **zdjąć GPIO0–GND**, **odłączyć DTR–RST** na czas normalnej pracy (inaczej adapter może resetować moduł), zresetować — firmware startuje.
+7. Szukać AP `espsette-XXXXXX` albo IP w LAN i otworzyć portal / player.
+8. Dopiero po sprawdzeniu sieci wkładać ESP-01 w układ z C64/C16 (MOTOR/SENSE/READ); do realnych GPIO ustawić `-DESPSETTE_GPIO_DISABLED=0`.
+
+Diagnostyka boot ROM na USB: `PORT=/dev/cu.… uv run --with pyserial ./scripts/esp_boot_dump.py -n 3` (74880 baud, impuls DTR jak w `esptool.cfg`).
 
 ```sh
 make setup
 ls /dev/cu.*
-make flash-id PORT=/dev/cu.usbserial-XXXX
+make flash-id PORT=/dev/cu.usbserial-XXXX   # albo: make chip-info PORT=...
 make build PROFILE=1m
 make flash PROFILE=1m PORT=/dev/cu.usbserial-XXXX
+# zdjąć GPIO0–GND, odłączyć DTR–RST, reset → RUN / AP
 ```
 
-`make setup` pobiera `uv` i lokalnego Pythona 3.12 do `tools/`, a następnie instaluje w `tools/venv` przypięte PlatformIO i esptool. Pakiety platformy, biblioteki i toolchainy PlatformIO trafią do `tools/pio-core` przy pierwszym `make build`. Nie dodaje poleceń do profilu powłoki ani nie wymaga globalnego PlatformIO. Potrzebny jest `curl`, `make`, dostęp do internetu przy pierwszej instalacji i ewentualnie sterownik użytego adaptera USB-UART. Katalog `tools/` należy tworzyć osobno na Macu; nie przenosić do niego plików binarnych z WSL.
+`make setup` instaluje lokalnie `uv`, Python 3.12 i PlatformIO w `tools/venv`; cache PlatformIO/uv ląduje w `~/.cache/espsette/` (lokalny dysk — NFS bez `flock` psuje build). Nie trzeba globalnego PlatformIO. Potrzebne: `curl`, `make`, internet przy pierwszym setupie, sterownik chipu UART. Lista celów: `make help`.
 
-Profil `PROFILE=512k` jest przewidziany tylko do flashowania kablem i może nie pomieścić obecnej binarki. `PROFILE=4m` używa ogólnego profilu pamięci ESP8266; fizyczny moduł i połączenia pinów pozostają ESP-01. Faktyczną pojemność ustalać przez `make flash-id`. Parametry flash i zgodność API rdzenia/I2S trzeba potwierdzić pierwszą kompilacją oraz próbą na sprzęcie.
+Typowe błędy: zasilanie 5 V; brak wspólnego GND; TX/RX nie skrzyżowane; flash bez GPIO0 w LOW; GPIO2 w LOW przy starcie; programowanie przy podłączonym C64.
+
+Profil `PROFILE=512k` tylko kabel i może nie pomieścić binarki. `PROFILE=4m` to profil pamięci „dużego” flash przy tym samym pinoucie ESP-01. Rzeczywisty rozmiar flash: `make flash-id`.
+
+## Piny kasety (C64 / C16)
+
+Mapowanie firmware ↔ port datasette. Poziomy 5 V / izolacja / bootstrapping: [kicad/PLAN_POLACZEN.md](kicad/PLAN_POLACZEN.md). Domyślny build ma `ESPSETTE_GPIO_DISABLED=1` i **nie** steruje tymi pinami (tylko Wi‑Fi/AP/strona); do realnego toru kasety ustaw `-DESPSETTE_GPIO_DISABLED=0`.
+
+| ESP-01 | GPIO | Kierunek | Datasette | Rola |
+| --- | --- | --- | --- | --- |
+| GPIO0 | 0 | ← wejście | **MOTOR** | HIGH = silnik włączony (C64/C16); nie wolno trzymać LOW przy boocie ESP |
+| TXD | 1 | → wyjście | **SENSE** (PLAY) | LOW = wirtualne PLAY wciśnięte; to też UART TX — bez soft-GPIO nie ma logu na USB |
+| GPIO2 | 2 | ← wejście (opcjonalnie) | **WRITE** | tylko profil `1m-write` / `4m-write`; musi być HIGH przy starcie ESP |
+| RXD | 3 | → wyjście I2S | **READ** | impulsy taśmy; w spoczynku kod trzyma GPIO LOW (zakłada odwrócenie tranzystorem) |
+
+Wspólne **GND** z komputerem / zasilaniem. UART programatora na GPIO1/GPIO3 tylko po odłączeniu torów SENSE/READ od portu kasety.
 
 ## Pierwsza próba C64 i zdalny debug
 
