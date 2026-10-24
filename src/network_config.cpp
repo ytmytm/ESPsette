@@ -4,10 +4,23 @@
 #include <ESP8266WiFi.h>
 #include <LittleFS.h>
 
+#ifndef ESPSETTE_GPIO_DISABLED
+#define ESPSETTE_GPIO_DISABLED 0
+#endif
+
 namespace {
 constexpr char CONFIG_PATH[] = "/config.json";
 constexpr char TEMP_PATH[] = "/config.tmp";
 constexpr char BACKUP_PATH[] = "/config.bak";
+
+bool motorBusy(uint8_t pin) {
+#if ESPSETTE_GPIO_DISABLED
+  (void)pin;
+  return false;
+#else
+  return digitalRead(pin) == HIGH;
+#endif
+}
 
 String escapeHtml(const String& value) {
   String escaped;
@@ -169,7 +182,7 @@ String NetworkConfig::address() const {
 }
 
 void NetworkConfig::sendPortal() {
-  if (digitalRead(motorPin_) == HIGH) {
+  if (motorBusy(motorPin_)) {
     server_.send(503, "text/plain", "Open settings after MOTOR stops.");
     return;
   }
@@ -200,7 +213,7 @@ void NetworkConfig::sendPortal() {
 }
 
 void NetworkConfig::receiveSettings() {
-  if (digitalRead(motorPin_) == HIGH) {
+  if (motorBusy(motorPin_)) {
     server_.send(409, "text/plain", "Stop MOTOR before changing settings.");
     return;
   }
@@ -231,7 +244,7 @@ void NetworkConfig::receiveSettings() {
 }
 
 void NetworkConfig::retry() {
-  if (digitalRead(motorPin_) == HIGH) {
+  if (motorBusy(motorPin_)) {
     server_.send(409, "text/plain", "Stop MOTOR before retrying the connection.");
     return;
   }

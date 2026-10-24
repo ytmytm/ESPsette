@@ -36,6 +36,25 @@
 
 #include <RemoteDebug.h>
 
+#ifndef ESPSETTE_GPIO_DISABLED
+#define ESPSETTE_GPIO_DISABLED 0
+#endif
+
+#if ESPSETTE_GPIO_DISABLED
+// Bench / USB-serial: leave tape GPIOs alone; player UI uses soft sense only.
+static bool softSensePressed = false;
+
+static inline void setSensePressed(bool pressed) { softSensePressed = pressed; }
+static inline bool senseIsPressed() { return softSensePressed; }
+static inline bool motorIsOn() { return false; }
+#else
+static inline void setSensePressed(bool pressed) {
+  digitalWrite(PIN_SENSE, pressed ? LOW : HIGH);
+}
+static inline bool senseIsPressed() { return digitalRead(PIN_SENSE) == LOW; }
+static inline bool motorIsOn() { return digitalRead(PIN_MOTOR) == HIGH; }
+#endif
+
 RemoteDebug Debug;
 ESP8266WebServer HTTPServer(80);
 NetworkConfig networkConfig(HTTPServer, PIN_MOTOR);
@@ -244,13 +263,17 @@ bool validateTap() {
 }
 
 void idleReadPin() {
+#if !ESPSETTE_GPIO_DISABLED
   pinMode(PIN_READ, OUTPUT);
   digitalWrite(PIN_READ, LOW); // The external transistor makes this READ high.
+#endif
 }
 
 void stopI2S() {
+#if !ESPSETTE_GPIO_DISABLED
   i2s_end();
   idleReadPin();
+#endif
 }
 
 bool nextTapeBit(uint8_t &bit);
@@ -325,6 +348,12 @@ void pauseTape() {
 }
 
 void startTape() {
+#if ESPSETTE_GPIO_DISABLED
+  state = State::ERROR;
+  playerError = "gpio_disabled";
+  debugE("Tape GPIO disabled; I2S not started");
+  return;
+#endif
   if (playbackComplete) {
     playedBaseCycles = 0;
     playbackComplete = false;
@@ -529,12 +558,16 @@ void pumpTape() {
 }
 
 void setupPins() {
+#if ESPSETTE_GPIO_DISABLED
+  softSensePressed = false;
+#else
   pinMode(PIN_MOTOR, INPUT);
   pinMode(PIN_WRITE, INPUT_PULLUP); // GPIO2 must stay high at boot.
   pinMode(PIN_SENSE, FUNCTION_3); // Release UART TX for GPIO1.
   digitalWrite(PIN_SENSE, HIGH); // Release PLAY until the embedded TAP is ready.
   pinMode(PIN_SENSE, OUTPUT);
   idleReadPin();
+#endif
 }
 
 void setupNetwork() {
@@ -634,7 +667,10 @@ void setup() {
     state = State::WAITING;
     tapeLoaded = true;
   }
-  digitalWrite(PIN_SENSE, autoPlay && tapeLoaded ? LOW : HIGH); // Embedded demo inserted at boot.
+  setSensePressed(autoPlay && tapeLoaded); // Embedded demo inserted at boot.
+#if ESPSETTE_GPIO_DISABLED
+  lastMotor = LOW;
+#else
   lastMotor = digitalRead(PIN_MOTOR);
   attachInterrupt(digitalPinToInterrupt(PIN_MOTOR), onMotorFalling, FALLING);
 #if ESPSETTE_WRITE_CAPTURE
@@ -642,19 +678,25 @@ void setup() {
   if (writeActive) writeDecoder.motorStart();
   attachInterrupt(digitalPinToInterrupt(PIN_WRITE), onWriteEdge, RISING);
 #endif
+#endif
   lastcall = millis();
   debugI("setup completed; TAP bytes=%lu", (unsigned long)tapEnd);
 }
 
 void debugGPIOs() {
+#if ESPSETTE_GPIO_DISABLED
+  debugI("* GPIO disabled (soft sense=%i motor=%i)",
+         senseIsPressed() ? 1 : 0, motorIsOn() ? 1 : 0);
+#else
   debugI("* GPIO0=%i GPIO1=%i GPIO2=%i GPIO3=%i",
          digitalRead(0), digitalRead(1), digitalRead(2), digitalRead(3));
+#endif
 }
 
 void loop() {
   const uint32_t loopStartUs = micros();
   const uint32_t timeBeginLoop = millis();
-  const uint8_t motor = digitalRead(PIN_MOTOR);
+  const uint8_t motor = motorIsOn() ? HIGH : LOW;
   if (motor != lastMotor) {
     lastMotor = motor;
     debugI("Motor state changed to %u", motor);
@@ -834,14 +876,15 @@ static uint32_t currentRunBits() {
 
 void handleState() {
   StaticJsonDocument<1024> doc;
-  const bool motorOn = digitalRead(PIN_MOTOR) == HIGH;
+  const bool motorOn = motorIsOn();
   doc["tapeState"] = tapeLoaded ? "loaded" : "ejected";
   doc["sourceType"] = sourceFormat == SourceFormat::PRG ? "prg" : "tap";
   doc["machine"] = sourceClockHz == C16_CLOCK_HZ ? "c16" : "c64";
   doc["clockHz"] = sourceClockHz;
   doc["fileName"] = tapeLoaded ? tapeName : "";
   doc["motorOn"] = motorOn;
-  doc["sensePressed"] = digitalRead(PIN_SENSE) == LOW;
+  doc["sensePressed"] = senseIsPressed();
+  doc["gpioDisabled"] = bool(ESPSETTE_GPIO_DISABLED);
   doc["autoPlay"] = autoPlay;
   doc["defaultMachine"] = defaultC16 ? "c16" : "c64";
   doc["playing"] = motorOn && tapeLoaded &&
@@ -901,7 +944,7 @@ void handleSession() {
   uint32_t fileSize;
   uint64_t cycles = 0;
   uint8_t prefix[20] = {};
-  if (digitalRead(PIN_MOTOR) == HIGH ||
+  if (motorIsOn() ||
       state == State::STREAMING || state == State::DRAINING) {
     HTTPServer.send(409, "text/plain", "Stop MOTOR before changing the tape");
     return;
@@ -982,7 +1025,7 @@ void handleSession() {
   playerError = nullptr;
   state = State::WAITING;
   resetPlayer(firstOffset);
-  digitalWrite(PIN_SENSE, autoPlay ? LOW : HIGH);
+  setSensePressed(autoPlay);
   StaticJsonDocument<160> reply;
   reply["sessionId"] = id;
   reply["nextOffset"] = firstOffset;
@@ -996,7 +1039,7 @@ void handleSession() {
 void handleSeek() {
   uint32_t id, offset, phase;
   uint64_t remainingCycles;
-  if (digitalRead(PIN_MOTOR) == HIGH ||
+  if (motorIsOn() ||
       state == State::STREAMING || state == State::DRAINING) {
     HTTPServer.send(409, "text/plain", "Stop MOTOR before seeking");
     return;
@@ -1091,13 +1134,13 @@ void handleSense() {
     HTTPServer.send(400, "application/json", "{\"error\":\"invalid_sense\"}");
     return;
   }
-  digitalWrite(PIN_SENSE, pressed == "1" ? LOW : HIGH);
+  setSensePressed(pressed == "1");
   HTTPServer.send(200, "application/json", pressed == "1" ?
       "{\"sensePressed\":true}" : "{\"sensePressed\":false}");
 }
 
 void handleAutoPlay() {
-  if (digitalRead(PIN_MOTOR) == HIGH) {
+  if (motorIsOn()) {
     HTTPServer.send(409, "application/json", "{\"error\":\"motor_on\"}");
     return;
   }
@@ -1145,13 +1188,13 @@ void handleDefaultMachine() {
 }
 
 void handleEject() {
-  if (digitalRead(PIN_MOTOR) == HIGH) {
+  if (motorIsOn()) {
     HTTPServer.send(409, "text/plain", "Stop MOTOR before ejecting");
     return;
   }
   tapeSource.eject();
   tapeLoaded = false;
-  digitalWrite(PIN_SENSE, HIGH);
+  setSensePressed(false);
   tapEnd = 0;
   totalTapeCycles = 0;
   reportedTotalCycles = 0;
@@ -1164,7 +1207,7 @@ void handleEject() {
 }
 
 void handleDemo() {
-  if (digitalRead(PIN_MOTOR) == HIGH) {
+  if (motorIsOn()) {
     HTTPServer.send(409, "text/plain", "Stop MOTOR before inserting the demo");
     return;
   }
@@ -1178,7 +1221,7 @@ void handleDemo() {
   playerError = nullptr;
   resetPlayer(20);
   tapeLoaded = validateTap();
-  digitalWrite(PIN_SENSE, autoPlay && tapeLoaded ? LOW : HIGH);
+  setSensePressed(autoPlay && tapeLoaded);
   state = tapeLoaded ? State::WAITING : State::ERROR;
   HTTPServer.send(tapeLoaded ? 200 : 500, "application/json",
                   tapeLoaded ? "{\"tapeState\":\"loaded\"}" : "{\"error\":\"invalid_demo\"}");
