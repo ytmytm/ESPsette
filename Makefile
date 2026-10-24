@@ -40,4 +40,4 @@ ota:
 
 flash-id:
 	@test -n "$(PORT)" || { echo 'Set PORT=/dev/cu.usbserial-...'; exit 1; }
-	./tools/venv/bin/python -m esptool --chip esp8266 --port "$(PORT)" flash-id
+	ESPTOOL_CFGFILE="$(CURDIR)/esptool.cfg" ./tools/venv/bin/python -m esptool --chip esp8266 --port "$(PORT)" flash-id

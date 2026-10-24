@@ -17,6 +17,8 @@ export PLATFORMIO_CACHE_DIR="$pio_local/cache"
 export PLATFORMIO_BUILD_CACHE_DIR="$pio_local/build-cache"
 export PLATFORMIO_WORKSPACE_DIR="$pio_ws"
 export ESPSETTE_OTA_PASSWORD="${ESPSETTE_OTA_PASSWORD:-}"
+# DTR-only reset for CH340 without RTS (see esptool.cfg)
+export ESPTOOL_CFGFILE="${ESPTOOL_CFGFILE:-$project_dir/esptool.cfg}"
 # Unbuffered so progress shows before PlatformIO finishes starting
 export PYTHONUNBUFFERED=1
 printf 'pio: core=%s\n' "$PLATFORMIO_CORE_DIR" >&2
