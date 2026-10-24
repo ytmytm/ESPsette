@@ -23,7 +23,31 @@ endif
 
 ESPTOOL := ESPTOOL_CFGFILE="$(CURDIR)/esptool.cfg" ./tools/venv/bin/python -m esptool --chip esp8266 --port "$(PORT)"
 
-.PHONY: setup build flash ota flash-id chip-info
+.PHONY: help setup build flash ota flash-id chip-info
+
+help:
+	@printf '%s\n' \
+		'espsette — ESP-01 tape firmware' \
+		'' \
+		'Targets:' \
+		'  make help                          Show this help' \
+		'  make setup                         Install local uv/Python/PlatformIO tools' \
+		'  make build [PROFILE=1m] [VERBOSE=1] Compile (PROFILE: 512k|1m|4m)' \
+		'  make flash PORT=... [PROFILE=1m]   Serial upload (download-mode wiring)' \
+		'  make ota OTA_HOST=... [PROFILE=1m] Wi-Fi OTA (needs password in image)' \
+		'  make flash-id PORT=...             SPI flash manufacturer / size' \
+		'  make chip-info PORT=...            flash-id + chip-id + MAC + flash status' \
+		'' \
+		'Serial flash / chip-info wiring (CH340 without RTS):' \
+		'  GPIO0-GND, TXD-RXD, RXD-TXD, VCC-VCC 3V3, DTR-RST; CH_PD at 3V3' \
+		'  After flash: disconnect GPIO0 from GND, reset to run' \
+		'' \
+		'Examples:' \
+		'  make setup' \
+		'  make chip-info PORT=/dev/cu.usbserial-XXXX' \
+		'  make build PROFILE=1m' \
+		'  make flash PROFILE=1m PORT=/dev/cu.usbserial-XXXX' \
+		'  make ota PROFILE=1m OTA_HOST=192.168.1.50'
 
 setup:
 	./scripts/setup-tools.sh
