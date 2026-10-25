@@ -8,7 +8,7 @@ Firmware ESP-01 do odtwarzania sygnału kasetowego przez port datasette C64 lub 
 - `include/draxcaught.h` pozostaje małym demonstracyjnym TAP w PROGMEM. Duże TAP/PRG **tylko ze strony**: przeglądarka trzyma plik i dokłada porcje do bufora 8 KB na ESP (bez cache w LittleFS).
 - Dane Wi-Fi wprowadza **WiFiManager** (captive portal jak w ESPHome: skan SSID + hasło). Hostname / autoplay to drobne pliki w LittleFS; poświadczenia sieci trzyma WiFiManager.
 - Strumieniowanie TAP, tekstowy IDX w formacie Ultimate 64 i podstawowa strona decku są zaimplementowane w tej gałęzi. Generator standardowej kasety z PRG dla C64 i C16/Plus4 PAL jest zaimplementowany. Dekoder nagłówka SAVE z WRITE jest gotowy w osobnym profilu sprzętowym; turbo pozostaje kolejnym etapem. Strona ma skompresowany obraz kasety, animowane szpulki i pięć klawiszy decku.
-- Domyślny build ma `ESPSETTE_GPIO_DISABLED=1` (Wi-Fi/AP/strona bez sterowania pinami kasety); do C64/C16 wyłączyć tę flagę.
+- Domyślny build ma `ESPSETTE_GPIO_DISABLED=0` (prawdziwe piny kasety). Do prób tylko USB-serial ustaw `-DESPSETTE_GPIO_DISABLED=1`.
 
 ## Układ katalogów
 
@@ -121,7 +121,7 @@ Po wgraniu: **odłączyć GPIO0 od GND**, zresetować (DTR/RST albo USB) — sta
 1. Połączyć jak w tabeli powyżej (GPIO0–GND, TX↔RX, VCC, DTR–RST, CH_PD→3V3).
 2. Podłączyć USB do Maca; `ls /dev/cu.*` (`cu.usbserial-…` / `cu.wchusbserial-…`).
 3. `make flash-id PORT=/dev/cu.…` albo pełniejszy odczyt `make chip-info PORT=/dev/cu.…` (flash-id, chip-id, MAC, status flash); esptool sam impulsuje RST przez DTR.
-4. `make setup` raz na maszynie, potem `make build PROFILE=1m` (domyślnie z `ESPSETTE_GPIO_DISABLED=1` do prób na samym USB-serial).
+4. `make setup` raz na maszynie, potem `make build PROFILE=1m` (domyślnie z `ESPSETTE_GPIO_DISABLED=0` pod C64/C16; `=1` tylko do benchu USB-serial).
 5. `make flash PROFILE=1m PORT=/dev/cu.…`
 6. Po udanym wgraniu: **zdjąć GPIO0–GND**, **odłączyć DTR–RST** na czas normalnej pracy (inaczej adapter może resetować moduł), zresetować — firmware startuje.
 7. Szukać AP `espsette-XXXXXX` albo IP w LAN i otworzyć portal / player.
@@ -146,7 +146,7 @@ Profil `PROFILE=512k` tylko kabel i może nie pomieścić binarki. `PROFILE=4m` 
 
 ## Piny kasety (C64 / C16)
 
-Mapowanie firmware ↔ port datasette. Poziomy 5 V / izolacja / bootstrapping: [kicad/PLAN_POLACZEN.md](kicad/PLAN_POLACZEN.md). Domyślny build ma `ESPSETTE_GPIO_DISABLED=1` i **nie** steruje tymi pinami (tylko Wi‑Fi/AP/strona); do realnego toru kasety ustaw `-DESPSETTE_GPIO_DISABLED=0`.
+Mapowanie firmware ↔ port datasette. Poziomy 5 V / izolacja / bootstrapping: [kicad/PLAN_POLACZEN.md](kicad/PLAN_POLACZEN.md). Domyślny build ma `ESPSETTE_GPIO_DISABLED=0` i steruje pinami kasety; do benchu bez C64 ustaw `-DESPSETTE_GPIO_DISABLED=1`.
 
 | ESP-01 | GPIO | Kierunek | Datasette | Rola |
 | --- | --- | --- | --- | --- |
