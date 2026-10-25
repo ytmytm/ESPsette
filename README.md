@@ -5,8 +5,8 @@ Firmware ESP-01 do odtwarzania sygnału kasetowego przez port datasette C64 lub 
 ## Stan kodu
 
 - `src/main.cpp` zawiera historyczny odtwarzacz TAP z nałożoną poprawką tempa I2S, obsługi MOTOR i kończenia transmisji.
-- `include/draxcaught.h` pozostaje demonstracyjnym TAP. Można też wskazać w przeglądarce duży plik TAP C64 lub C16/Plus4 PAL v1/v2 albo zwykły PRG; strona podaje dane porcjami do bufora 8 KB ESP.
-- Dane Wi-Fi wprowadza **WiFiManager** (captive portal jak w ESPHome: skan SSID + hasło). Hostname jest w LittleFS; poświadczenia sieci trzyma WiFiManager.
+- `include/draxcaught.h` pozostaje małym demonstracyjnym TAP w PROGMEM. Duże TAP/PRG **tylko ze strony**: przeglądarka trzyma plik i dokłada porcje do bufora 8 KB na ESP (bez cache w LittleFS).
+- Dane Wi-Fi wprowadza **WiFiManager** (captive portal jak w ESPHome: skan SSID + hasło). Hostname / autoplay to drobne pliki w LittleFS; poświadczenia sieci trzyma WiFiManager.
 - Strumieniowanie TAP, tekstowy IDX w formacie Ultimate 64 i podstawowa strona decku są zaimplementowane w tej gałęzi. Generator standardowej kasety z PRG dla C64 i C16/Plus4 PAL jest zaimplementowany. Dekoder nagłówka SAVE z WRITE jest gotowy w osobnym profilu sprzętowym; turbo pozostaje kolejnym etapem. Strona ma skompresowany obraz kasety, animowane szpulki i pięć klawiszy decku.
 - Domyślny build ma `ESPSETTE_GPIO_DISABLED=1` (Wi-Fi/AP/strona bez sterowania pinami kasety); do C64/C16 wyłączyć tę flagę.
 
@@ -34,7 +34,7 @@ Firmware ESP-01 do odtwarzania sygnału kasetowego przez port datasette C64 lub 
 
 Programować **tylko zasilaniem 3,3 V**. 5 V na VCC albo na liniach TX/RX zabija ESP8266. Moduł odłączyć od obwodu C64/C16 na czas flashowania.
 
-Gdy brak zapisanej sieci albo połączenie się nie uda, ESP podnosi AP `espsette-XXXXXX` z **captive portal** (WiFiManager): lista sieci, hasło, hostname. Po zapisie łączy się ze STA. Ponowna konfiguracja: otwórz `/wifi` (czyści zapisane Wi-Fi i restartuje w tryb setup). Zwykły `make flash` nie kasuje poświadczeń WM; `erase_flash` tak.
+Gdy brak zapisanej sieci albo połączenie się nie uda, ESP podnosi AP `espsette-XXXXXX` z **captive portal** (WiFiManager): lista sieci, hasło, hostname. Po zapisie łączy się ze STA. **OTA** (`make ota OTA_HOST=<IP>`) nie zmienia Wi-Fi. Strona `/wifi` tylko pokazuje potwierdzenie; kasowanie sieci wymaga osobnego POST. Zwykły `make flash` nie kasuje poświadczeń WM; `erase_flash` tak.
 
 ### Co jest potrzebne
 
@@ -207,15 +207,23 @@ Domyślny profil **nie podłącza przerwania GPIO2**. `PROFILE=1m-write` lub `4m
 
 Wektory generatora PRG i przypadki IDX na podstawie testów Pi1551 opisuje [tests/README.md](tests/README.md).
 
-## OTA po uruchomieniu sieci
+## Flash layout 1 MB, OTA i brak cache TAP
 
-Po skopiowaniu `include/local_ota.h.example` do ignorowanego `include/local_ota.h`, ustawieniu tam niepustego `ESPSETTE_OTA_PASSWORD` i potwierdzeniu, że moduł ma miejsce na drugi obraz, można użyć:
+Profil `PROFILE=1m` **musi** używać `eagle.flash.1m64.ld` (ustawione w `platformio.ini`): ~958 KB na szkic + **64 KB LittleFS**. Domyślny layout PlatformIO dla `esp01_1m` (256 KB FS) zostawia tylko ~762 KB na firmware — po WiFiManagerze, stronie i ArduinoOTA obraz się nie mieści.
+
+To świadomy kompromis:
+
+- **OTA działa** (`make ota`, domyślnie bez hasła na zaufanej LAN).
+- LittleFS starczy na hostname, autoplay i flagi migracji — **nie** na przechowywanie kaset.
+- Dlatego TAP/PRG **streamujemy ze strony** (plik w karcie przeglądarki → `POST /chunk` do okna 8 KB). Lokalny cache TAP w LittleFS na tym układzie **nie jest planowany** i nie zmieści się obok OTA bez rezygnacji z aktualizacji Wi‑Fi albo bez większego flash (np. 4 MB).
+
+Osadzone demo `draxcaught` siedzi w PROGMEM (w obrazie firmware), nie w LittleFS.
 
 ```sh
 make ota PROFILE=1m OTA_HOST=192.168.1.123
 ```
 
-`make ota` prosi o hasło w terminalu i przekazuje je uploaderowi PlatformIO; musi być takie samo jak w obrazie aktualnie działającym na urządzeniu. Cel OTA buduje ten sam kod co cel szeregowy. Wymaga miejsca na drugi obraz firmware, dlatego moduły 512 KB pozostają przy kablu. Firmware obsługuje OTA tylko poza aktywnym odtwarzaniem. Adapter USB-UART zachować do odzyskania urządzenia po błędzie sieci lub nieudanej aktualizacji. Pierwszą próbę OTA wykonać dopiero po udanym wczytaniu kasety i pomiarze rozmiaru obrazu na Macu.
+Opcjonalne hasło OTA: `include/local_ota.h` + ta sama wartość w `ESPSETTE_OTA_PASSWORD` przy `make ota`. Firmware przyjmuje OTA tylko poza aktywnym odtwarzaniem. Adapter USB-UART zachować do odzyskania. Moduły 512 KB zwykle nie mieszczą tego firmware ani OTA.
 
 ## Historia i archiwum
 

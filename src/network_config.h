@@ -15,9 +15,11 @@ class NetworkConfig {
   bool apActive() const;
   const String& hostname() const { return hostname_; }
   String address() const;
-  void openConfigPortal();
+  void handleWifiGet();
+  void handleWifiPost();
 
  private:
+  void resetWifiAndReboot();
   ESP8266WebServer& server_;
   uint8_t motorPin_;
   WiFiManager wifiManager_;

@@ -6,23 +6,10 @@ if [ "$#" -ne 2 ]; then
   exit 2
 fi
 
-if [ -z "${ESPSETTE_OTA_PASSWORD:-}" ]; then
-  if [ ! -r /dev/tty ]; then
-    printf 'Set ESPSETTE_OTA_PASSWORD in a local environment.\n' >&2
-    exit 1
-  fi
-  printf 'OTA password: ' >&2
-  stty -echo < /dev/tty
-  trap 'stty echo < /dev/tty' 0 1 2 3 15
-  IFS= read -r ESPSETTE_OTA_PASSWORD < /dev/tty
-  stty echo < /dev/tty
-  trap - 0 1 2 3 15
-  printf '\n' >&2
+# Open OTA by default. If the running image was built with a non-empty
+# ESPSETTE_OTA_PASSWORD, export the same value here so --auth is passed.
+set -- "$(dirname "$0")/pio.sh" run -e "$1" -t upload --upload-port "$2"
+if [ -n "${ESPSETTE_OTA_PASSWORD:-}" ]; then
+  set -- "$@" --upload-flags "--auth=${ESPSETTE_OTA_PASSWORD}"
 fi
-
-if [ -z "$ESPSETTE_OTA_PASSWORD" ]; then
-  printf 'OTA password is required.\n' >&2
-  exit 1
-fi
-export ESPSETTE_OTA_PASSWORD
-exec "$(dirname "$0")/pio.sh" run -e "$1" -t upload --upload-port "$2"
+exec "$@"

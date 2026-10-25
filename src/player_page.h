@@ -3,10 +3,7 @@
 #include <pgmspace.h>
 
 // Generated from web/player.html by scripts/embed-player.py. Do not edit here.
-static const char PLAYER_PAGE[] PROGMEM = R"PAGE(<!doctype html>
-<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>espsette</title>
-<style>
+static const char PLAYER_PAGE[] PROGMEM = R"PAGE(<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>espsette</title><style>
 :root{color-scheme:dark;font:16px system-ui}*{box-sizing:border-box}body{margin:0;background:#11151b;color:#edf0f2}
 main{max-width:760px;margin:auto;padding:18px}h1{font-size:1.6rem;margin:0 0 4px}p{line-height:1.45;color:#abb7c3}
 .deck{background:linear-gradient(135deg,#373d44,#1d232b 58%,#353d42);border:3px solid #60666b;border-radius:20px;padding:20px;box-shadow:0 22px 45px #0008,inset 0 2px 4px #ffffff33}
@@ -27,13 +24,8 @@ label{display:block;margin:12px 0}input[type=file],select{display:block;width:10
 .scope-wrap{margin-top:14px;background:#0c1117;border:1px solid #2a3440;border-radius:8px;padding:10px 10px 8px}
 .scope-wrap canvas{display:block;width:100%;height:72px;image-rendering:pixelated}
 .scope-wrap small{display:block;margin-top:6px}
-</style>
-<main><h1>espsette</h1><p>Tape over Wi-Fi · C64 / C16 PAL</p>
-<div id="deck" class="deck"><div class="deck-top"><span>DATASETTE</span><output id="counter" class="counter" aria-label="Tape counter 000"><span class="counter-digit"><span id="counterStrip0" class="counter-strip"><span id="counterOld0">0</span><span id="counterNext0">0</span></span></span><span class="counter-digit"><span id="counterStrip1" class="counter-strip"><span id="counterOld1">0</span><span id="counterNext1">0</span></span></span><span class="counter-digit"><span id="counterStrip2" class="counter-strip"><span id="counterOld2">0</span><span id="counterNext2">0</span></span></span></output></div><div class="window"><div class="cassette" id="cassette"><div class="reel" id="reelLeft"></div><div class="reel right" id="reelRight"></div></div></div><div class="keys" role="group" aria-label="Datasette controls"><button id="rewind" class="key" type="button" aria-label="Previous tape position">◀◀<br>REW</button><button id="stop" class="key" type="button" aria-label="Release PLAY on SENSE">■<br>STOP</button><button id="play" class="key pressed" type="button" aria-label="Press PLAY on SENSE">▶<br>PLAY</button><button id="fastForward" class="key" type="button" aria-label="Next tape position">▶▶<br>FF</button><button id="deckEject" class="key" type="button" aria-label="Eject tape">⏏<br>EJECT</button></div><p id="deckMessage" role="status" aria-live="polite"></p><label class="autoplay"><input id="autoPlay" type="checkbox" checked> Autoplay when tape is inserted</label></div>
-<section class="card"><div class="stats"><div><small>Tape</small><b id="loaded">—</b></div><div><small>Motor</small><b id="motor">—</b></div><div><small>Played</small><b id="played">—</b></div><div><small>ESP buffer</small><b id="buffer">—</b></div><div><small>Signal remaining</small><b id="remaining">—</b></div><div><small>WRITE / SAVE</small><b id="writeStatus">—</b></div></div><div class="scope-wrap"><canvas id="scope" width="640" height="72" aria-label="READ waveform"></canvas><small id="scopeLabel">READ · waiting for playback</small></div><p id="writeDetail"></p><p id="phase">Connecting…</p><p id="transport"></p><p id="error"></p><details id="debugPanel" class="debug"><summary>Debug / ESP state</summary><p id="diagnostics"></p><pre id="debugJson"></pre></details></section>
-<section class="card"><label>Default computer for PRG<select id="defaultMachine"><option value="c64">C64</option><option value="c16">C16 / Plus/4 PAL</option></select></label><p>A TAP identifies its computer in the header. The built-in demo is for C64.</p></section>
-<section class="card"><div id="dropzone" class="drop">Drop a TAP or PRG; optionally add an IDX for TAP</div><p id="selectedFiles"></p><label>C64 / C16 PAL TAP v1–v2 or PRG<input id="file" type="file" accept=".tap,.prg"></label><div id="indexPicker"><label>IDX index (optional for TAP)<input id="indexFile" type="file" accept=".idx,text/plain"></label><button id="clearIndex" class="secondary">Clear IDX selection</button></div><div id="prgOptions" hidden><label>Computer<select id="machine"><option value="c64">C64</option><option value="c16">C16 / Plus/4 PAL</option></select></label><label>Prepend turbo loader<select id="turbo"><option value="0">No — standard LOAD</option><option value="1" disabled>Yes — coming later</option></select></label><label>Tape name<input id="programName" maxlength="16" placeholder="PROGRAM"></label></div><button id="load">Insert tape</button><button id="demo" class="secondary">Demo tape</button><div id="indexControls" hidden><label>IDX position<select id="idxPositions"></select></label><button id="seek" class="secondary">Jump to position</button><p id="indexInfo"></p></div><p>The file stays in this tab. Keep the browser open during LOAD; when the ESP buffer is full, the next chunk waits without keeping an HTTP request open.</p><a id="wifiLink" href="/wifi">Wi-Fi settings</a></section><section id="previewPanel" class="card" hidden><h2>Local preview</h2><p>Simulation without an ESP-01. Select a TAP or PRG and toggle MOTOR to check the animation, buffer and page layout.</p><button id="motorToggle" class="secondary">MOTOR on/off</button><button id="saveMock" class="secondary">Simulate SAVE</button></section></main>
-<script>
+.ota-cmd{background:#111923;padding:12px;border-radius:8px;overflow:auto;font:13px ui-monospace,monospace}
+</style><main><h1>espsette</h1><p>Tape over Wi-Fi · C64 / C16 PAL</p><div id="deck" class="deck"><div class="deck-top"><span>DATASETTE</span><output id="counter" class="counter" aria-label="Tape counter 000"><span class="counter-digit"><span id="counterStrip0" class="counter-strip"><span id="counterOld0">0</span><span id="counterNext0">0</span></span></span><span class="counter-digit"><span id="counterStrip1" class="counter-strip"><span id="counterOld1">0</span><span id="counterNext1">0</span></span></span><span class="counter-digit"><span id="counterStrip2" class="counter-strip"><span id="counterOld2">0</span><span id="counterNext2">0</span></span></span></output></div><div class="window"><div class="cassette" id="cassette"><div class="reel" id="reelLeft"></div><div class="reel right" id="reelRight"></div></div></div><div class="keys" role="group" aria-label="Datasette controls"><button id="rewind" class="key" type="button" aria-label="Previous tape position">◀◀<br>REW</button><button id="stop" class="key" type="button" aria-label="Release PLAY on SENSE">■<br>STOP</button><button id="play" class="key pressed" type="button" aria-label="Press PLAY on SENSE">▶<br>PLAY</button><button id="fastForward" class="key" type="button" aria-label="Next tape position">▶▶<br>FF</button><button id="deckEject" class="key" type="button" aria-label="Eject tape">⏏<br>EJECT</button></div><p id="deckMessage" role="status" aria-live="polite"></p><label class="autoplay"><input id="autoPlay" type="checkbox" checked> Autoplay when tape is inserted</label></div><section class="card"><div class="stats"><div><small>Tape</small><b id="loaded">—</b></div><div><small>Motor</small><b id="motor">—</b></div><div><small>Played</small><b id="played">—</b></div><div><small>ESP buffer</small><b id="buffer">—</b></div><div><small>Signal remaining</small><b id="remaining">—</b></div><div><small>WRITE / SAVE</small><b id="writeStatus">—</b></div></div><div class="scope-wrap"><canvas id="scope" width="640" height="72" aria-label="READ waveform"></canvas><small id="scopeLabel">READ · waiting for playback</small></div><p id="writeDetail"></p><p id="phase">Connecting…</p><p id="transport"></p><p id="error"></p><details id="debugPanel" class="debug"><summary>Debug / ESP state</summary><p id="diagnostics"></p><pre id="debugJson"></pre></details></section><section class="card"><label>Default computer for PRG<select id="defaultMachine"><option value="c64">C64</option><option value="c16">C16 / Plus/4 PAL</option></select></label><p>A TAP identifies its computer in the header. The built-in demo is for C64.</p></section><section class="card"><div id="dropzone" class="drop">Drop a TAP or PRG; optionally add an IDX for TAP</div><p id="selectedFiles"></p><label>C64 / C16 PAL TAP v1–v2 or PRG<input id="file" type="file" accept=".tap,.prg"></label><div id="indexPicker"><label>IDX index (optional for TAP)<input id="indexFile" type="file" accept=".idx,text/plain"></label><button id="clearIndex" class="secondary">Clear IDX selection</button></div><div id="prgOptions" hidden><label>Computer<select id="machine"><option value="c64">C64</option><option value="c16">C16 / Plus/4 PAL</option></select></label><label>Prepend turbo loader<select id="turbo"><option value="0">No — standard LOAD</option><option value="1" disabled>Yes — coming later</option></select></label><label>Tape name<input id="programName" maxlength="16" placeholder="PROGRAM"></label></div><button id="load">Insert tape</button><button id="demo" class="secondary">Demo tape</button><div id="indexControls" hidden><label>IDX position<select id="idxPositions"></select></label><button id="seek" class="secondary">Jump to position</button><p id="indexInfo"></p></div><p>The file stays in this tab. Keep the browser open during LOAD; when the ESP buffer is full, the next chunk waits without keeping an HTTP request open.</p></section><section id="networkCard" class="card"><h2>Network / OTA</h2><p id="networkInfo">Connecting…</p><pre id="otaCmd" class="ota-cmd"></pre><p id="otaHint"></p><p><a id="wifiLink" href="/wifi">Forget Wi-Fi…</a> (not OTA)</p></section><section id="previewPanel" class="card" hidden><h2>Local preview</h2><p>Simulation without an ESP-01. Select a TAP or PRG and toggle MOTOR to check the animation, buffer and page layout.</p><button id="motorToggle" class="secondary">MOTOR on/off</button><button id="saveMock" class="secondary">Simulate SAVE</button></section></main><script>
 const $ = id => document.getElementById(id);
 const preview = location.protocol === 'file:' || new URLSearchParams(location.search).has('preview');
 let source = null, busy = false, last = null;
@@ -44,763 +36,738 @@ let counterOriginCycles = 0;
 let mockBytes = 0, mockSize = 0, mockDemo = true, mockTick = Date.now();
 let mockType = 'tap';
 const mock = {tapeState:'loaded', sourceType:'tap', machine:'c64', clockHz:985248, fileName:'draxcaught (demo)', motorOn:false,
-  sensePressed:true, autoPlay:true, defaultMachine:'c64', playing:false, phase:'idle', playedCycles:0,
-  totalCycles:117000000, bufferedMillis:null, fileOffsetReceived:0,
-  freeBytes:8192, sessionId:0, logicalSize:0, error:null, writeEnabled:false, gpioDisabled:false,
-  freeHeap:32000, maxFreeBlock:24000, maxLoopUs:0, maxHttpUs:0,
-  i2sUnderruns:0, sourceUnderruns:0, uploadErrors:0,
-  writeStatus:'idle', writeMachine:'unknown', writeName:'', writeType:0, writeStart:0, writeEnd:0,
-  writeHeaders:0, writeErrors:0, writeOverflows:0, scope:'', scopeHz:0};
+sensePressed:true, autoPlay:true, defaultMachine:'c64', playing:false, phase:'idle', playedCycles:0,
+totalCycles:117000000, bufferedMillis:null, fileOffsetReceived:0,
+freeBytes:8192, sessionId:0, logicalSize:0, error:null, writeEnabled:false, gpioDisabled:false,
+freeHeap:32000, maxFreeBlock:24000, maxLoopUs:0, maxHttpUs:0,
+i2sUnderruns:0, sourceUnderruns:0, uploadErrors:0,
+writeStatus:'idle', writeMachine:'unknown', writeName:'', writeType:0, writeStart:0, writeEnd:0,
+writeHeaders:0, writeErrors:0, writeOverflows:0, scope:'', scopeHz:0, otaReady:false};
 let mockScopeLevel = 0;
-
 function drawScope(s) {
-  const canvas = $('scope');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const w = canvas.width, h = canvas.height;
-  ctx.fillStyle = '#0c1117';
-  ctx.fillRect(0, 0, w, h);
-  ctx.strokeStyle = '#1e2a36';
-  ctx.beginPath();
-  ctx.moveTo(0, h / 2);
-  ctx.lineTo(w, h / 2);
-  ctx.stroke();
-  const bits = typeof s.scope === 'string' ? s.scope : '';
-  if (!bits.length) {
-    $('scopeLabel').textContent = 'READ · waiting for playback';
-    return;
-  }
-  const mid = h * 0.55, amp = h * 0.32;
-  ctx.strokeStyle = '#7dcea0';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  for (let i = 0; i < bits.length; i++) {
-    const x = (i / Math.max(1, bits.length - 1)) * (w - 1);
-    const y = bits[i] === '1' ? mid - amp : mid + amp;
-    if (i === 0) ctx.moveTo(x, y);
-    else {
-      const prevY = bits[i - 1] === '1' ? mid - amp : mid + amp;
-      ctx.lineTo(x, prevY);
-      ctx.lineTo(x, y);
-    }
-  }
-  ctx.stroke();
-  const hz = s.scopeHz || 0;
-  $('scopeLabel').textContent = hz ?
-    'READ · ~' + Math.round(hz / 1000) + ' kSa/s · ' + bits.length + ' samples' :
-    'READ · ' + bits.length + ' samples';
+const canvas = $('scope');
+if (!canvas) return;
+const ctx = canvas.getContext('2d');
+const w = canvas.width, h = canvas.height;
+ctx.fillStyle = '#0c1117';
+ctx.fillRect(0, 0, w, h);
+ctx.strokeStyle = '#1e2a36';
+ctx.beginPath();
+ctx.moveTo(0, h / 2);
+ctx.lineTo(w, h / 2);
+ctx.stroke();
+const bits = typeof s.scope === 'string' ? s.scope : '';
+if (!bits.length) {
+$('scopeLabel').textContent = 'READ · waiting for playback';
+return;
 }
-
+const mid = h * 0.55, amp = h * 0.32;
+ctx.strokeStyle = '#7dcea0';
+ctx.lineWidth = 2;
+ctx.beginPath();
+for (let i = 0; i < bits.length; i++) {
+const x = (i / Math.max(1, bits.length - 1)) * (w - 1);
+const y = bits[i] === '1' ? mid - amp : mid + amp;
+if (i === 0) ctx.moveTo(x, y);
+else {
+const prevY = bits[i - 1] === '1' ? mid - amp : mid + amp;
+ctx.lineTo(x, prevY);
+ctx.lineTo(x, y);
+}
+}
+ctx.stroke();
+const hz = s.scopeHz || 0;
+$('scopeLabel').textContent = hz ?
+'READ · ~' + Math.round(hz / 1000) + ' kSa/s · ' + bits.length + ' samples' :
+'READ · ' + bits.length + ' samples';
+}
 function motorBlocksEdit(s) {
-  // REW/FF stay available; only tape insert/eject need MOTOR off on real GPIO.
-  return !!s?.motorOn && !s?.gpioDisabled;
+// REW/FF stay available; only tape insert/eject need MOTOR off on real GPIO.
+return !!s?.motorOn && !s?.gpioDisabled;
 }
-
 function updateMock() {
-  const now = Date.now(), seconds = Math.min(1, (now - mockTick) / 1000);
-  mockTick = now;
-  if (mock.motorOn && mock.sensePressed && mock.tapeState === 'loaded' &&
-      mock.phase !== 'error') {
-    if (!mockDemo) mockBytes = Math.max(0, mockBytes - Math.ceil(seconds *
-      (mockType === 'prg' ? 105 : 2200)));
-    mock.playedCycles = Math.min(mock.totalCycles || Infinity,
-      mock.playedCycles + Math.round(seconds * mock.clockHz));
-    if (!mockDemo && mockBytes === 0 && mock.fileOffsetReceived < mockSize) {
-      mock.error = 'buffer_underrun'; mock.phase = 'error';
-    } else     if (mock.playedCycles >= mock.totalCycles) mock.phase = 'done';
-    else mock.phase = 'data';
-    let wave = mock.scope || '';
-    const samples = Math.max(1, Math.min(24, Math.round(seconds * 80)));
-    for (let i = 0; i < samples; i++) {
-      if (Math.random() < 0.18) mockScopeLevel ^= 1;
-      wave += mockScopeLevel ? '1' : '0';
-    }
-    mock.scope = wave.slice(-192);
-    mock.scopeHz = 5000;
-  } else if (mock.playedCycles && mock.phase !== 'error' && mock.phase !== 'done') {
-    mock.phase = 'paused';
-  }
-  mock.playing = mock.motorOn && mock.sensePressed && mock.tapeState === 'loaded' &&
-    mock.phase === 'data';
-  mock.freeBytes = 8192 - mockBytes;
+const now = Date.now(), seconds = Math.min(1, (now - mockTick) / 1000);
+mockTick = now;
+if (mock.motorOn && mock.sensePressed && mock.tapeState === 'loaded' &&
+mock.phase !== 'error') {
+if (!mockDemo) mockBytes = Math.max(0, mockBytes - Math.ceil(seconds *
+(mockType === 'prg' ? 105 : 2200)));
+mock.playedCycles = Math.min(mock.totalCycles || Infinity,
+mock.playedCycles + Math.round(seconds * mock.clockHz));
+if (!mockDemo && mockBytes === 0 && mock.fileOffsetReceived < mockSize) {
+mock.error = 'buffer_underrun'; mock.phase = 'error';
+} else     if (mock.playedCycles >= mock.totalCycles) mock.phase = 'done';
+else mock.phase = 'data';
+let wave = mock.scope || '';
+const samples = Math.max(1, Math.min(24, Math.round(seconds * 80)));
+for (let i = 0; i < samples; i++) {
+if (Math.random() < 0.18) mockScopeLevel ^= 1;
+wave += mockScopeLevel ? '1' : '0';
 }
-
+mock.scope = wave.slice(-192);
+mock.scopeHz = 5000;
+} else if (mock.playedCycles && mock.phase !== 'error' && mock.phase !== 'done') {
+mock.phase = 'paused';
+}
+mock.playing = mock.motorOn && mock.sensePressed && mock.tapeState === 'loaded' &&
+mock.phase === 'data';
+mock.freeBytes = 8192 - mockBytes;
+}
 async function mockApi(path, options = {}) {
-  updateMock();
-  if (path === '/state') return {...mock};
-  if (path === '/sense') {
-    const pressed = options.body?.get('pressed');
-    if (pressed !== '0' && pressed !== '1') throw new Error('Invalid PLAY state');
-    mock.sensePressed = pressed === '1';
-    return {sensePressed:mock.sensePressed};
-  }
-  if (path === '/autoplay') {
-    if (mock.motorOn) throw new Error('Stop MOTOR');
-    mock.autoPlay = options.body?.get('enabled') === '1';
-    return {autoPlay:mock.autoPlay};
-  }
-  if (path === '/default-machine') {
-    const machine = options.body?.get('machine');
-    if (machine !== 'c64' && machine !== 'c16') throw new Error('Invalid computer');
-    mock.defaultMachine = machine;
-    return {defaultMachine:machine};
-  }
-  if (path === '/session') {
-    const args = options.body;
-    mockType = args.get('type') === 'prg' ? 'prg' : 'tap';
-    const fileSize = Number(args.get('size'));
-    mockSize = mockType === 'prg' ? 2 + 2 * (fileSize - 2) : fileSize;
-    mock.logicalSize = mockSize;
-    mockBytes = 0; mockDemo = false;
-    mock.sessionId++; mock.fileOffsetReceived = mockType === 'prg' ? 2 : 20;
-    mock.sourceType = mockType;
-    mock.machine = mockType === 'prg' ? args.get('machine') :
-      args.get('header')?.startsWith('433136') ? 'c16' : 'c64';
-    mock.clockHz = mock.machine === 'c16' ? 886724 : 985248;
-    mock.fileName = args.get('displayName') || args.get('name');
-    mock.totalCycles = mockType === 'prg' ? prgTotalCycles(fileSize - 2, mock.machine) :
-      Number(args.get('cycles'));
-    mock.playedCycles = 0; mock.tapeState = 'ejected'; mock.phase = 'idle'; mock.error = null;
-    mock.sensePressed = mock.autoPlay;
-    return {sessionId:mock.sessionId, nextOffset:mock.fileOffsetReceived,
-      logicalSize:mockSize, freeBytes:8192};
-  }
-  if (path.startsWith('/chunk?')) {
-    const args = new URLSearchParams(path.split('?')[1]);
-    const offset = Number(args.get('offset'));
-    if (Number(args.get('sid')) !== mock.sessionId || offset !== mock.fileOffsetReceived)
-      throw Object.assign(new Error('offset'), {data:{nextOffset:mock.fileOffsetReceived}});
-    const size = options.body.get('data').size;
-    if (size > mock.freeBytes) throw Object.assign(new Error('buffer'),
-      {data:{nextOffset:mock.fileOffsetReceived}});
-    mockBytes += size; mock.fileOffsetReceived += size;
-    if (mockBytes >= 4096 || mock.fileOffsetReceived === mockSize) mock.tapeState = 'loaded';
-    return {nextOffset:mock.fileOffsetReceived, freeBytes:8192-mockBytes, loaded:mock.tapeState==='loaded'};
-  }
-  if (path === '/seek') {
-    const args = options.body;
-    if (mockType !== 'tap' || mock.motorOn || Number(args.get('sid')) !== mock.sessionId)
-      throw new Error('Stop MOTOR / stale session');
-    const offset = Number(args.get('offset'));
-    if (offset < 20 || offset >= mockSize) throw new Error('Invalid TAP offset');
-    mock.sessionId++; mock.fileOffsetReceived = offset; mockBytes = 0;
-    mock.tapeState = 'ejected'; mock.playedCycles = 0;
-    mock.totalCycles = Number(args.get('cycles'));
-    mock.phase = 'idle'; mock.error = null;
-    return {sessionId:mock.sessionId, nextOffset:offset, freeBytes:8192, tapeState:'ejected'};
-  }
-  if (path === '/eject') {
-    if (mock.motorOn) throw new Error('Stop MOTOR');
-    mock.tapeState = 'ejected'; mockBytes = 0; mock.phase = 'idle';
-    mock.totalCycles = 0; mock.playedCycles = 0; mock.logicalSize = 0;
-    mock.sessionId = 0; mock.fileOffsetReceived = 0; mock.sensePressed = false; source = null;
-    return {tapeState:'ejected'};
-  }
-  if (path === '/nav') {
-    const dir = Number(options.body?.get('dir'));
-    if (dir !== 1 && dir !== -1) throw new Error('dir');
-    const counter = tapeCounterAtSeconds(mock.playedCycles / mock.clockHz);
-    const target = dir > 0 ? Math.floor(counter / 10) * 10 + 10 :
-      (counter % 10 === 0 ? Math.max(0, counter - 10) : Math.floor(counter / 10) * 10);
-    mock.playedCycles = secondsAtTapeCounter(target) * mock.clockHz;
-    mock.scope = '';
-    return {offset:20, playedCycles:mock.playedCycles, tapeState:mock.tapeState};
-  }
-  if (path === '/demo') {
-    if (mock.motorOn) throw new Error('Stop MOTOR');
-    mock.tapeState = 'loaded'; mock.fileName = 'draxcaught (demo)';
-    mockDemo = true; mockType = 'tap'; mock.sourceType = 'tap';
-    mock.machine = 'c64'; mock.clockHz = 985248;
-    mock.sessionId = 0; mock.logicalSize = 0; mock.fileOffsetReceived = 0;
-    mock.playedCycles = 0; mock.sensePressed = mock.autoPlay; mock.scope = '';
-    mock.totalCycles = 117000000; mock.phase = 'idle'; mock.error = null;
-    return {tapeState:'loaded'};
-  }
-  throw new Error('Unknown request: ' + path);
+updateMock();
+if (path === '/state') return {...mock};
+if (path === '/sense') {
+const pressed = options.body?.get('pressed');
+if (pressed !== '0' && pressed !== '1') throw new Error('Invalid PLAY state');
+mock.sensePressed = pressed === '1';
+return {sensePressed:mock.sensePressed};
 }
-
+if (path === '/autoplay') {
+if (mock.motorOn) throw new Error('Stop MOTOR');
+mock.autoPlay = options.body?.get('enabled') === '1';
+return {autoPlay:mock.autoPlay};
+}
+if (path === '/default-machine') {
+const machine = options.body?.get('machine');
+if (machine !== 'c64' && machine !== 'c16') throw new Error('Invalid computer');
+mock.defaultMachine = machine;
+return {defaultMachine:machine};
+}
+if (path === '/session') {
+const args = options.body;
+mockType = args.get('type') === 'prg' ? 'prg' : 'tap';
+const fileSize = Number(args.get('size'));
+mockSize = mockType === 'prg' ? 2 + 2 * (fileSize - 2) : fileSize;
+mock.logicalSize = mockSize;
+mockBytes = 0; mockDemo = false;
+mock.sessionId++; mock.fileOffsetReceived = mockType === 'prg' ? 2 : 20;
+mock.sourceType = mockType;
+mock.machine = mockType === 'prg' ? args.get('machine') :
+args.get('header')?.startsWith('433136') ? 'c16' : 'c64';
+mock.clockHz = mock.machine === 'c16' ? 886724 : 985248;
+mock.fileName = args.get('displayName') || args.get('name');
+mock.totalCycles = mockType === 'prg' ? prgTotalCycles(fileSize - 2, mock.machine) :
+Number(args.get('cycles'));
+mock.playedCycles = 0; mock.tapeState = 'ejected'; mock.phase = 'idle'; mock.error = null;
+mock.sensePressed = mock.autoPlay;
+return {sessionId:mock.sessionId, nextOffset:mock.fileOffsetReceived,
+logicalSize:mockSize, freeBytes:8192};
+}
+if (path.startsWith('/chunk?')) {
+const args = new URLSearchParams(path.split('?')[1]);
+const offset = Number(args.get('offset'));
+if (Number(args.get('sid')) !== mock.sessionId || offset !== mock.fileOffsetReceived)
+throw Object.assign(new Error('offset'), {data:{nextOffset:mock.fileOffsetReceived}});
+const size = options.body.get('data').size;
+if (size > mock.freeBytes) throw Object.assign(new Error('buffer'),
+{data:{nextOffset:mock.fileOffsetReceived}});
+mockBytes += size; mock.fileOffsetReceived += size;
+if (mockBytes >= 4096 || mock.fileOffsetReceived === mockSize) mock.tapeState = 'loaded';
+return {nextOffset:mock.fileOffsetReceived, freeBytes:8192-mockBytes, loaded:mock.tapeState==='loaded'};
+}
+if (path === '/seek') {
+const args = options.body;
+if (mockType !== 'tap' || mock.motorOn || Number(args.get('sid')) !== mock.sessionId)
+throw new Error('Stop MOTOR / stale session');
+const offset = Number(args.get('offset'));
+if (offset < 20 || offset >= mockSize) throw new Error('Invalid TAP offset');
+mock.sessionId++; mock.fileOffsetReceived = offset; mockBytes = 0;
+mock.tapeState = 'ejected'; mock.playedCycles = 0;
+mock.totalCycles = Number(args.get('cycles'));
+mock.phase = 'idle'; mock.error = null;
+return {sessionId:mock.sessionId, nextOffset:offset, freeBytes:8192, tapeState:'ejected'};
+}
+if (path === '/eject') {
+if (mock.motorOn) throw new Error('Stop MOTOR');
+mock.tapeState = 'ejected'; mockBytes = 0; mock.phase = 'idle';
+mock.totalCycles = 0; mock.playedCycles = 0; mock.logicalSize = 0;
+mock.sessionId = 0; mock.fileOffsetReceived = 0; mock.sensePressed = false; source = null;
+return {tapeState:'ejected'};
+}
+if (path === '/nav') {
+const dir = Number(options.body?.get('dir'));
+if (dir !== 1 && dir !== -1) throw new Error('dir');
+const counter = tapeCounterAtSeconds(mock.playedCycles / mock.clockHz);
+const target = dir > 0 ? Math.floor(counter / 10) * 10 + 10 :
+(counter % 10 === 0 ? Math.max(0, counter - 10) : Math.floor(counter / 10) * 10);
+mock.playedCycles = secondsAtTapeCounter(target) * mock.clockHz;
+mock.scope = '';
+return {offset:20, playedCycles:mock.playedCycles, tapeState:mock.tapeState};
+}
+if (path === '/demo') {
+if (mock.motorOn) throw new Error('Stop MOTOR');
+mock.tapeState = 'loaded'; mock.fileName = 'draxcaught (demo)';
+mockDemo = true; mockType = 'tap'; mock.sourceType = 'tap';
+mock.machine = 'c64'; mock.clockHz = 985248;
+mock.sessionId = 0; mock.logicalSize = 0; mock.fileOffsetReceived = 0;
+mock.playedCycles = 0; mock.sensePressed = mock.autoPlay; mock.scope = '';
+mock.totalCycles = 117000000; mock.phase = 'idle'; mock.error = null;
+return {tapeState:'loaded'};
+}
+throw new Error('Unknown request: ' + path);
+}
 async function api(path, options) {
-  if (preview) return mockApi(path, options);
-  const response = await fetch(path, options);
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw Object.assign(new Error(data.error || response.statusText), {data});
-  return data;
+if (preview) return mockApi(path, options);
+const response = await fetch(path, options);
+const data = await response.json().catch(() => ({}));
+if (!response.ok) throw Object.assign(new Error(data.error || response.statusText), {data});
+return data;
 }
-
 function prgTotalCycles(length, machine = 'c64') {
-  const [short, medium, long] = machine === 'c16' ? [448, 896, 1792] : [384, 536, 680];
-  const byteCycles = long + medium + 9 * (short + medium);
-  return (20000 + 79 + 5000 + 79) * short +
-    (2 * (9 + 192 + 1) + 2 * (9 + length + 1)) * byteCycles +
-    4 * (long + (machine === 'c16' ? medium : short)) + 200000;
+const [short, medium, long] = machine === 'c16' ? [448, 896, 1792] : [384, 536, 680];
+const byteCycles = long + medium + 9 * (short + medium);
+return (20000 + 79 + 5000 + 79) * short +
+(2 * (9 + 192 + 1) + 2 * (9 + length + 1)) * byteCycles +
+4 * (long + (machine === 'c16' ? medium : short)) + 200000;
 }
-
 function time(cycles, clockHz = 985248) {
-  if (cycles == null) return '—';
-  const seconds = Math.round(cycles / clockHz);
-  return Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0');
+if (cycles == null) return '—';
+const seconds = Math.round(cycles / clockHz);
+return Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0');
 }
-
 // Same spool geometry and rounding as Pi1551's TapeCounterAtTimeMs(),
 // with VICE's tape thickness, hub radius, tape speed and counter gearing.
 function tapeCounterAtSeconds(seconds) {
-  const d = 1.27e-5, r = 1.07e-2, v = 4.76e-2, g = 0.525;
-  const t = Math.floor(Math.max(0, seconds) * 1000) / 1000;
-  return Math.floor(g * (Math.sqrt(v * t / (d * Math.PI) + (r / d) ** 2) - r / d) + 0.5);
+const d = 1.27e-5, r = 1.07e-2, v = 4.76e-2, g = 0.525;
+const t = Math.floor(Math.max(0, seconds) * 1000) / 1000;
+return Math.floor(g * (Math.sqrt(v * t / (d * Math.PI) + (r / d) ** 2) - r / d) + 0.5);
 }
-
 function secondsAtTapeCounter(counter) {
-  const d = 1.27e-5, r = 1.07e-2, v = 4.76e-2, g = 0.525;
-  const turns = counter / g + r / d;
-  return (turns * turns - (r / d) ** 2) * d * Math.PI / v;
+const d = 1.27e-5, r = 1.07e-2, v = 4.76e-2, g = 0.525;
+const turns = counter / g + r / d;
+return (turns * turns - (r / d) ** 2) * d * Math.PI / v;
 }
-
 function showTapeCounter(raw) {
-  const value = raw % 1000;
-  const digits = String(value).padStart(3, '0');
-  const before = String(lastCounterValue ?? value).padStart(3, '0');
-  const animate = lastCounterRaw !== null && raw === lastCounterRaw + 1;
-  for (let i = 0; i < 3; i++) {
-    if (lastCounterValue === value) break;
-    const strip = $('counterStrip' + i);
-    strip.classList.remove('rolling');
-    $('counterOld' + i).textContent = animate ? before[i] : digits[i];
-    $('counterNext' + i).textContent = digits[i];
-    if (animate && before[i] !== digits[i]) {
-      void strip.offsetWidth; // Restart the upward roll for this digit.
-      strip.classList.add('rolling');
-    }
-  }
-  $('counter').setAttribute('aria-label', 'Tape counter ' + digits);
-  lastCounterValue = value;
-  lastCounterRaw = raw;
+const value = raw % 1000;
+const digits = String(value).padStart(3, '0');
+const before = String(lastCounterValue ?? value).padStart(3, '0');
+const animate = lastCounterRaw !== null && raw === lastCounterRaw + 1;
+for (let i = 0; i < 3; i++) {
+if (lastCounterValue === value) break;
+const strip = $('counterStrip' + i);
+strip.classList.remove('rolling');
+$('counterOld' + i).textContent = animate ? before[i] : digits[i];
+$('counterNext' + i).textContent = digits[i];
+if (animate && before[i] !== digits[i]) {
+void strip.offsetWidth; // Restart the upward roll for this digit.
+strip.classList.add('rolling');
 }
-
+}
+$('counter').setAttribute('aria-label', 'Tape counter ' + digits);
+lastCounterValue = value;
+lastCounterRaw = raw;
+}
 function render(s) {
-  last = s;
-  const playing = !!s.playing;
-  const editBlocked = motorBlocksEdit(s);
-  const canServerNav = s.tapeState === 'loaded' && s.sourceType === 'tap';
-  $('deck').classList.toggle('playing', playing);
-  $('deck').classList.toggle('ejected', s.tapeState === 'ejected');
-  $('play').classList.toggle('pressed', !!s.sensePressed);
-  $('stop').classList.toggle('pressed', !s.sensePressed);
-  $('play').setAttribute('aria-pressed', String(!!s.sensePressed));
-  $('stop').setAttribute('aria-pressed', String(!s.sensePressed));
-  // REW/FF stay enabled whenever a TAP (or demo) can be navigated.
-  $('rewind').disabled = !source &&
-    (s.tapeState !== 'loaded' || s.sessionId !== 0) && !canServerNav;
-  $('fastForward').disabled = !(navigationTarget(1) || canServerNav);
-  $('deckEject').disabled = editBlocked || s.tapeState === 'ejected' && !s.sessionId;
-  if (!$('deckMessage').textContent)
-    $('deckMessage').textContent = s.sensePressed ?
-      (s.motorOn ?
-        'PLAY + MOTOR: tape running.' :
-        'PLAY pressed; waiting for MOTOR.') :
-      'STOP released PLAY. Tape paused until PLAY + MOTOR.';
-  $('loaded').textContent = s.tapeState === 'loaded' ? (s.fileName || 'Loaded') : 'Ejected';
-  $('motor').textContent = s.motorOn ?
-    (s.gpioDisabled ? 'On (soft)' : 'On') : 'Off';
-  $('autoPlay').checked = !!s.autoPlay;
-  if (s.defaultMachine === 'c64' || s.defaultMachine === 'c16') {
-    $('defaultMachine').value = s.defaultMachine;
-    if (selectedDefaultMachine !== s.defaultMachine) {
-      selectedDefaultMachine = s.defaultMachine;
-      $('machine').value = s.defaultMachine;
-    }
-  }
-  const origin = source?.type === 'tap' && source.id === s.sessionId ?
-    source.seekCycles || 0 : s.phase === 'done' || s.phase === 'error' ? counterOriginCycles : 0;
-  const absoluteCycles = origin + (s.playedCycles || 0);
-  showTapeCounter(tapeCounterAtSeconds(absoluteCycles / s.clockHz));
-  const total = s.totalCycles || (source && source.id === s.sessionId ? source.total : null);
-  $('played').textContent = time(s.playedCycles, s.clockHz) +
-    (total ? ' / ' + time(total, s.clockHz) : '');
-  $('remaining').textContent = total ? time(Math.max(0, total - s.playedCycles), s.clockHz) : '—';
-  $('buffer').textContent = s.embedded ?
-    ('ROM · ' + (s.logicalSize || 0) + ' B') :
-    (s.fileOffsetReceived ? (8192 - s.freeBytes) + ' B' : '—');
-  $('phase').textContent = 'Phase: ' + s.phase + ' · received ' + s.fileOffsetReceived + ' B';
-  if ($('debugPanel').open) $('debugJson').textContent = JSON.stringify(s, null, 2);
-  $('diagnostics').textContent = s.freeHeap == null ? '' :
-    'ESP: heap ' + s.freeHeap + ' B (largest block ' + s.maxFreeBlock + ' B)' +
-    ' · max loop/HTTP ' + s.maxLoopUs + '/' + s.maxHttpUs + ' µs' +
-    ' · I2S/source underruns ' + s.i2sUnderruns + '/' + s.sourceUnderruns +
-    ' · upload errors ' + s.uploadErrors;
-  const writeLabels = {idle:'Waiting', listening:'Listening', receiving_header:'Receiving header',
-    header_verified_no_action:'Header verified', incomplete:'Incomplete header',
-    capture_overflow:'Capture overflow', checksum_error:'Checksum error',
-    copy_mismatch:'Copies differ', parity_error:'Parity error',
-    sync_error:'Sync error', pulse_error:'Pulse error',
-    invalid_header:'Invalid header',
-    missing_terminator:'Missing block terminator', unexpected_terminator:'Unexpected block terminator'};
-  $('writeStatus').textContent = s.writeEnabled ?
-    (writeLabels[s.writeStatus] || s.writeStatus) : 'Disabled';
-  $('writeDetail').textContent = s.writeStatus === 'header_verified_no_action' ?
-    (s.writeMachine === 'c16' ? 'C16/Plus4' : 'C64') + ' · SAVE "' + s.writeName + '" · type ' + s.writeType + ' · $' +
-    s.writeStart.toString(16).toUpperCase().padStart(4, '0') + '–$' +
-    s.writeEnd.toString(16).toUpperCase().padStart(4, '0') +
-    ' · no action assigned' :
-    (s.writeEnabled ? 'Verified headers: ' + s.writeHeaders +
-      ' · errors: ' + s.writeErrors + ' · overflows: ' + s.writeOverflows :
-      'GPIO2/WRITE requires protected hardware and a WRITE profile.');
-  if (s.error) $('error').textContent = 'Player error: ' + s.error;
-  $('seek').disabled = !source || source.type !== 'tap' || source.id !== s.sessionId;
-  drawScope(s);
+last = s;
+const playing = !!s.playing;
+const editBlocked = motorBlocksEdit(s);
+const canServerNav = s.tapeState === 'loaded' && s.sourceType === 'tap';
+$('deck').classList.toggle('playing', playing);
+$('deck').classList.toggle('ejected', s.tapeState === 'ejected');
+$('play').classList.toggle('pressed', !!s.sensePressed);
+$('stop').classList.toggle('pressed', !s.sensePressed);
+$('play').setAttribute('aria-pressed', String(!!s.sensePressed));
+$('stop').setAttribute('aria-pressed', String(!s.sensePressed));
+// REW/FF stay enabled whenever a TAP (or demo) can be navigated.
+$('rewind').disabled = !source &&
+(s.tapeState !== 'loaded' || s.sessionId !== 0) && !canServerNav;
+$('fastForward').disabled = !(navigationTarget(1) || canServerNav);
+$('deckEject').disabled = editBlocked || s.tapeState === 'ejected' && !s.sessionId;
+if (!$('deckMessage').textContent)
+$('deckMessage').textContent = s.sensePressed ?
+(s.motorOn ?
+'PLAY + MOTOR: tape running.' :
+'PLAY pressed; waiting for MOTOR.') :
+'STOP released PLAY. Tape paused until PLAY + MOTOR.';
+$('loaded').textContent = s.tapeState === 'loaded' ? (s.fileName || 'Loaded') : 'Ejected';
+$('motor').textContent = s.motorOn ?
+(s.gpioDisabled ? 'On (soft)' : 'On') : 'Off';
+$('autoPlay').checked = !!s.autoPlay;
+if (s.defaultMachine === 'c64' || s.defaultMachine === 'c16') {
+$('defaultMachine').value = s.defaultMachine;
+if (selectedDefaultMachine !== s.defaultMachine) {
+selectedDefaultMachine = s.defaultMachine;
+$('machine').value = s.defaultMachine;
 }
-
+}
+const origin = source?.type === 'tap' && source.id === s.sessionId ?
+source.seekCycles || 0 : s.phase === 'done' || s.phase === 'error' ? counterOriginCycles : 0;
+const absoluteCycles = origin + (s.playedCycles || 0);
+showTapeCounter(tapeCounterAtSeconds(absoluteCycles / s.clockHz));
+const total = s.totalCycles || (source && source.id === s.sessionId ? source.total : null);
+$('played').textContent = time(s.playedCycles, s.clockHz) +
+(total ? ' / ' + time(total, s.clockHz) : '');
+$('remaining').textContent = total ? time(Math.max(0, total - s.playedCycles), s.clockHz) : '—';
+$('buffer').textContent = s.embedded ?
+('ROM · ' + (s.logicalSize || 0) + ' B') :
+(s.fileOffsetReceived ? (8192 - s.freeBytes) + ' B' : '—');
+if ($('networkInfo')) {
+$('networkInfo').textContent = location.host +
+(s.gpioDisabled ? ' · GPIO soft' : '');
+$('otaCmd').textContent = 'make ota PROFILE=1m OTA_HOST=' + location.hostname;
+$('otaHint').textContent = s.otaReady ?
+'Stop tape before OTA. No password; Wi-Fi stays unchanged.' :
+'OTA not running (device offline?). Use USB flash for the first image.';
+}
+$('phase').textContent = 'Phase: ' + s.phase + ' · received ' + s.fileOffsetReceived + ' B';
+if ($('debugPanel').open) $('debugJson').textContent = JSON.stringify(s, null, 2);
+$('diagnostics').textContent = s.freeHeap == null ? '' :
+'ESP: heap ' + s.freeHeap + ' B (largest block ' + s.maxFreeBlock + ' B)' +
+' · max loop/HTTP ' + s.maxLoopUs + '/' + s.maxHttpUs + ' µs' +
+' · I2S/source underruns ' + s.i2sUnderruns + '/' + s.sourceUnderruns +
+' · upload errors ' + s.uploadErrors;
+const writeLabels = {idle:'Waiting', listening:'Listening', receiving_header:'Receiving header',
+header_verified_no_action:'Header verified', incomplete:'Incomplete header',
+capture_overflow:'Capture overflow', checksum_error:'Checksum error',
+copy_mismatch:'Copies differ', parity_error:'Parity error',
+sync_error:'Sync error', pulse_error:'Pulse error',
+invalid_header:'Invalid header',
+missing_terminator:'Missing block terminator', unexpected_terminator:'Unexpected block terminator'};
+$('writeStatus').textContent = s.writeEnabled ?
+(writeLabels[s.writeStatus] || s.writeStatus) : 'Disabled';
+$('writeDetail').textContent = s.writeStatus === 'header_verified_no_action' ?
+(s.writeMachine === 'c16' ? 'C16/Plus4' : 'C64') + ' · SAVE "' + s.writeName + '" · type ' + s.writeType + ' · $' +
+s.writeStart.toString(16).toUpperCase().padStart(4, '0') + '–$' +
+s.writeEnd.toString(16).toUpperCase().padStart(4, '0') +
+' · no action assigned' :
+(s.writeEnabled ? 'Verified headers: ' + s.writeHeaders +
+' · errors: ' + s.writeErrors + ' · overflows: ' + s.writeOverflows :
+'GPIO2/WRITE requires protected hardware and a WRITE profile.');
+if (s.error) $('error').textContent = 'Player error: ' + s.error;
+$('seek').disabled = !source || source.type !== 'tap' || source.id !== s.sessionId;
+drawScope(s);
+}
 async function parseIdx(file) {
-  if (!file) return [];
-  if (file.size > 262144) throw Error('IDX is too large');
-  const lines = (await file.text()).replace(/^\uFEFF/, '').split(/\r?\n/);
-  const entries = [];
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line || /^[#;']/.test(line)) continue;
-    const match = /^(0[xX][0-9a-fA-F]+|0[0-7]+|[1-9][0-9]*|0)[ \t]+(.+)$/.exec(line);
-    if (!match) throw Error('Unknown IDX format on line ' + (i + 1));
-    const token = match[1];
-    const radix = /^0[xX]/.test(token) ? 16 : /^0[0-7]+$/.test(token) ? 8 : 10;
-    const offset = parseInt(token, radix);
-    if (!Number.isSafeInteger(offset) || offset < 20 || offset > 0xffffffff ||
-        !match[2].trim())
-      throw Error('Invalid IDX offset or label on line ' + (i + 1));
-    entries.push({offset, label:match[2].trim().slice(0, 120)});
-    if (entries.length > 512) throw Error('IDX has too many entries');
-  }
-  if (!entries.length) throw Error('IDX contains no entries');
-  return entries;
+if (!file) return [];
+if (file.size > 262144) throw Error('IDX is too large');
+const lines = (await file.text()).replace(/^\uFEFF/, '').split(/\r?\n/);
+const entries = [];
+for (let i = 0; i < lines.length; i++) {
+const line = lines[i].trim();
+if (!line || /^[#;']/.test(line)) continue;
+const match = /^(0[xX][0-9a-fA-F]+|0[0-7]+|[1-9][0-9]*|0)[ \t]+(.+)$/.exec(line);
+if (!match) throw Error('Unknown IDX format on line ' + (i + 1));
+const token = match[1];
+const radix = /^0[xX]/.test(token) ? 16 : /^0[0-7]+$/.test(token) ? 8 : 10;
+const offset = parseInt(token, radix);
+if (!Number.isSafeInteger(offset) || offset < 20 || offset > 0xffffffff ||
+!match[2].trim())
+throw Error('Invalid IDX offset or label on line ' + (i + 1));
+entries.push({offset, label:match[2].trim().slice(0, 120)});
+if (entries.length > 512) throw Error('IDX has too many entries');
 }
-
+if (!entries.length) throw Error('IDX contains no entries');
+return entries;
+}
 function tapFormat(bytes, size) {
-  if (bytes.length !== 20 || size <= 20) throw Error('Incomplete TAP header');
-  const signature = String.fromCharCode(...bytes.slice(0, 12));
-  const c64 = signature === 'C64-TAPE-RAW' && bytes[13] === 0 &&
-    (bytes[12] === 1 || bytes[12] === 2);
-  const c16 = signature === 'C16-TAPE-RAW' && bytes[13] === 2 &&
-    (bytes[12] === 1 || bytes[12] === 2);
-  if (bytes[14] !== 0 || !(c64 || c16))
-    throw Error('Supported: C64 and C16 PAL TAP v1/v2');
-  const declared = new DataView(bytes.buffer, bytes.byteOffset, 20).getUint32(16, true);
-  if (declared !== size - 20) throw Error('TAP data length does not match the header');
-  return {machine:c16 ? 'c16' : 'c64', version:bytes[12]};
+if (bytes.length !== 20 || size <= 20) throw Error('Incomplete TAP header');
+const signature = String.fromCharCode(...bytes.slice(0, 12));
+const c64 = signature === 'C64-TAPE-RAW' && bytes[13] === 0 &&
+(bytes[12] === 1 || bytes[12] === 2);
+const c16 = signature === 'C16-TAPE-RAW' && bytes[13] === 2 &&
+(bytes[12] === 1 || bytes[12] === 2);
+if (bytes[14] !== 0 || !(c64 || c16))
+throw Error('Supported: C64 and C16 PAL TAP v1/v2');
+const declared = new DataView(bytes.buffer, bytes.byteOffset, 20).getUint32(16, true);
+if (declared !== size - 20) throw Error('TAP data length does not match the header');
+return {machine:c16 ? 'c16' : 'c64', version:bytes[12]};
 }
-
 async function scanTape(file, indexedOffsets = [], clockHz = 985248) {
-  const wanted = new Set(indexedOffsets), positions = new Map(), pulsePositions = new Map();
-  const timeline = [{offset:20, prefixCycles:0, phase:0}];
-  let position = 20, total = 0, pulses = 0, nextMark = clockHz * 10;
-  while (position < file.size) {
-    const bytes = new Uint8Array(await file.slice(position,
-      Math.min(file.size, position + 65539)).arrayBuffer());
-    const limit = Math.min(65536, file.size - position);
-    let i = 0;
-    while (i < limit) {
-      const absolute = position + i;
-      if (total >= nextMark) {
-        timeline.push({offset:absolute, prefixCycles:total, phase:pulses % 2});
-        while (total >= nextMark) nextMark += clockHz * 10;
-      }
-      if (wanted.has(absolute)) {
-        positions.set(absolute, total);
-        pulsePositions.set(absolute, pulses);
-      }
-      if (bytes[i]) { total += bytes[i] * 8; i++; }
-      else {
-        if (i + 3 >= bytes.length) throw Error('Truncated TAP pulse');
-        const cycles = bytes[i+1] | (bytes[i+2] << 8) | (bytes[i+3] << 16);
-        if (!cycles) throw Error('Zero-length TAP pulse');
-        total += cycles; i += 4;
-      }
-      pulses++;
-    }
-    position += i;
-  }
-  return {total, positions, pulsePositions, timeline};
+const wanted = new Set(indexedOffsets), positions = new Map(), pulsePositions = new Map();
+const timeline = [{offset:20, prefixCycles:0, phase:0}];
+let position = 20, total = 0, pulses = 0, nextMark = clockHz * 10;
+while (position < file.size) {
+const bytes = new Uint8Array(await file.slice(position,
+Math.min(file.size, position + 65539)).arrayBuffer());
+const limit = Math.min(65536, file.size - position);
+let i = 0;
+while (i < limit) {
+const absolute = position + i;
+if (total >= nextMark) {
+timeline.push({offset:absolute, prefixCycles:total, phase:pulses % 2});
+while (total >= nextMark) nextMark += clockHz * 10;
 }
-
+if (wanted.has(absolute)) {
+positions.set(absolute, total);
+pulsePositions.set(absolute, pulses);
+}
+if (bytes[i]) { total += bytes[i] * 8; i++; }
+else {
+if (i + 3 >= bytes.length) throw Error('Truncated TAP pulse');
+const cycles = bytes[i+1] | (bytes[i+2] << 8) | (bytes[i+3] << 16);
+if (!cycles) throw Error('Zero-length TAP pulse');
+total += cycles; i += 4;
+}
+pulses++;
+}
+position += i;
+}
+return {total, positions, pulsePositions, timeline};
+}
 function showIndex(entries, warning = '') {
-  const select = $('idxPositions');
-  select.replaceChildren();
-  for (const entry of entries) {
-    const option = document.createElement('option');
-    option.value = String(entry.offset);
-    option.textContent = '0x' + entry.offset.toString(16).toUpperCase() + ' · ' + entry.label;
-    select.append(option);
-  }
-  $('indexControls').hidden = entries.length === 0;
-  $('indexInfo').textContent = warning || entries.length + ' valid positions';
+const select = $('idxPositions');
+select.replaceChildren();
+for (const entry of entries) {
+const option = document.createElement('option');
+option.value = String(entry.offset);
+option.textContent = '0x' + entry.offset.toString(16).toUpperCase() + ' · ' + entry.label;
+select.append(option);
 }
-
+$('indexControls').hidden = entries.length === 0;
+$('indexInfo').textContent = warning || entries.length + ' valid positions';
+}
 function selectedFilesText() {
-  $('selectedFiles').textContent = (selectedFile?.name || 'No file') +
-    (selectedIdx ? ' + ' + selectedIdx.name : '');
+$('selectedFiles').textContent = (selectedFile?.name || 'No file') +
+(selectedIdx ? ' + ' + selectedIdx.name : '');
 }
 function updateFormatControls() {
-  const isPrg = /\.prg$/i.test(selectedFile?.name || '');
-  $('prgOptions').hidden = !isPrg;
-  $('indexPicker').hidden = isPrg;
-  if (isPrg) $('programName').value = selectedFile.name.replace(/\.prg$/i, '').slice(0, 16);
+const isPrg = /\.prg$/i.test(selectedFile?.name || '');
+$('prgOptions').hidden = !isPrg;
+$('indexPicker').hidden = isPrg;
+if (isPrg) $('programName').value = selectedFile.name.replace(/\.prg$/i, '').slice(0, 16);
 }
-
 function sourceChunk(item, offset, limit) {
-  let length = Math.min(1024, limit, item.logicalSize - offset);
-  if (item.type === 'prg') {
-    const withinCopy = (offset - 2) % item.dataLength;
-    length = Math.min(length, item.dataLength - withinCopy);
-    const start = 2 + withinCopy;
-    return item.file.slice(start, start + length);
-  }
-  return item.file.slice(offset, offset + length);
+let length = Math.min(1024, limit, item.logicalSize - offset);
+if (item.type === 'prg') {
+const withinCopy = (offset - 2) % item.dataLength;
+length = Math.min(length, item.dataLength - withinCopy);
+const start = 2 + withinCopy;
+return item.file.slice(start, start + length);
 }
-
+return item.file.slice(offset, offset + length);
+}
 function currentTapeCycles() {
-  return (source?.seekCycles || 0) +
-    (source && last?.sessionId === source.id ? last.playedCycles || 0 : 0);
+return (source?.seekCycles || 0) +
+(source && last?.sessionId === source.id ? last.playedCycles || 0 : 0);
 }
-
 function navigationTarget(direction) {
-  if (!source || source.type !== 'tap') return null;
-  const current = currentTapeCycles();
-  const epsilon = Math.max(1, (last?.clockHz || 985248) / 100);
-  if (source.indexEntries.length) {
-    const start = {offset:20, prefixCycles:0, phase:0};
-    const end = {offset:source.logicalSize, prefixCycles:source.fullTotal, phase:0, atEnd:true};
-    const entries = [start, ...source.indexEntries];
-    if (direction > 0) {
-      const next = entries.find(entry => entry.prefixCycles > current + epsilon);
-      return next || end;
-    }
-    const previous = entries.filter(entry => entry.prefixCycles < current - epsilon);
-    return previous.length ? previous[previous.length - 1] : start;
-  }
-  const clockHz = last?.clockHz || 985248;
-  const currentCounter = tapeCounterAtSeconds(current / clockHz);
-  const targetCounter = Math.max(0, Math.floor(currentCounter / 10) * 10 +
-    (direction > 0 ? 10 : currentCounter % 10 === 0 ? -10 : 0));
-  const target = secondsAtTapeCounter(targetCounter) * clockHz;
-  if (direction > 0) {
-    const next = source.timeline.find(entry => entry.prefixCycles >= target) ||
-      [...source.timeline].reverse().find(entry => entry.prefixCycles > current);
-    return next || {offset:source.logicalSize, prefixCycles:source.fullTotal, phase:0, atEnd:true};
-  }
-  const previous = source.timeline.filter(entry => entry.prefixCycles <= target);
-  return previous[previous.length - 1] || source.timeline[0] ||
-    {offset:20, prefixCycles:0, phase:0};
+if (!source || source.type !== 'tap') return null;
+const current = currentTapeCycles();
+const epsilon = Math.max(1, (last?.clockHz || 985248) / 100);
+if (source.indexEntries.length) {
+const start = {offset:20, prefixCycles:0, phase:0};
+const end = {offset:source.logicalSize, prefixCycles:source.fullTotal, phase:0, atEnd:true};
+const entries = [start, ...source.indexEntries];
+if (direction > 0) {
+const next = entries.find(entry => entry.prefixCycles > current + epsilon);
+return next || end;
 }
-
+const previous = entries.filter(entry => entry.prefixCycles < current - epsilon);
+return previous.length ? previous[previous.length - 1] : start;
+}
+const clockHz = last?.clockHz || 985248;
+const currentCounter = tapeCounterAtSeconds(current / clockHz);
+const targetCounter = Math.max(0, Math.floor(currentCounter / 10) * 10 +
+(direction > 0 ? 10 : currentCounter % 10 === 0 ? -10 : 0));
+const target = secondsAtTapeCounter(targetCounter) * clockHz;
+if (direction > 0) {
+const next = source.timeline.find(entry => entry.prefixCycles >= target) ||
+[...source.timeline].reverse().find(entry => entry.prefixCycles > current);
+return next || {offset:source.logicalSize, prefixCycles:source.fullTotal, phase:0, atEnd:true};
+}
+const previous = source.timeline.filter(entry => entry.prefixCycles <= target);
+return previous[previous.length - 1] || source.timeline[0] ||
+{offset:20, prefixCycles:0, phase:0};
+}
 async function acquire() {
-  while (busy) await new Promise(resolve => setTimeout(resolve, 25));
-  busy = true;
+while (busy) await new Promise(resolve => setTimeout(resolve, 25));
+busy = true;
 }
-
 function reconcileSource(item, state) {
-  if (!item) return {ok:false, reason:'no_file'};
-  if (state.sessionId !== item.id || state.sourceType !== item.type ||
-      state.logicalSize !== item.logicalSize)
-    return {ok:false, reason:'session_changed'};
-  if (state.phase === 'error') return {ok:false, reason:'playback_error'};
-  const offset = state.fileOffsetReceived;
-  if (!Number.isSafeInteger(offset) || offset < (item.type === 'prg' ? 2 : 20) ||
-      offset > item.logicalSize)
-    return {ok:false, reason:'invalid_offset'};
-  const changed = item.offset !== offset;
-  item.offset = offset; // ESP is authoritative after an uncertain HTTP result.
-  return {ok:true, changed};
+if (!item) return {ok:false, reason:'no_file'};
+if (state.sessionId !== item.id || state.sourceType !== item.type ||
+state.logicalSize !== item.logicalSize)
+return {ok:false, reason:'session_changed'};
+if (state.phase === 'error') return {ok:false, reason:'playback_error'};
+const offset = state.fileOffsetReceived;
+if (!Number.isSafeInteger(offset) || offset < (item.type === 'prg' ? 2 : 20) ||
+offset > item.logicalSize)
+return {ok:false, reason:'invalid_offset'};
+const changed = item.offset !== offset;
+item.offset = offset; // ESP is authoritative after an uncertain HTTP result.
+return {ok:true, changed};
 }
-
 async function step() {
-  if (busy) return;
-  busy = true;
-  try {
-    const state = await api('/state');
-    const hadSource = !!source;
-    const recovery = reconcileSource(source, state);
-    if (hadSource && !recovery.ok) {
-      source = null;
-      showIndex([]);
-    }
-    if ($('error').textContent.startsWith('Connection/transfer:'))
-      $('error').textContent = '';
-    render(state);
-    $('transport').textContent = hadSource && recovery.ok ?
-      (recovery.changed ? 'Connection restored; offset reconciled with ESP.' : 'Connected to ESP.') :
-      state.sessionId ? (recovery.reason === 'playback_error' ?
-        'Playback stopped; insert the file again.' :
-        'This tab has no source file for the session. Insert the file again.') : 'Connected to ESP.';
-    if (source && recovery.ok) {
-      let credit = state.freeBytes;
-      for (let requests = 0; requests < 4 && credit > 0 &&
-           source.offset < source.logicalSize; requests++) {
-        const blob = sourceChunk(source, source.offset, credit);
-        const form = new FormData();
-        form.append('data', blob, 'chunk.bin');
-        try {
-          const ack = await api('/chunk?sid=' + source.id + '&offset=' + source.offset,
-            {method:'POST', body:form});
-          source.offset = ack.nextOffset;
-          credit = ack.freeBytes;
-        } catch (error) {
-          // A 409 may mean stale offset, stale session, or a full ring. The
-          // next GET /state decides which; never trust this reply alone.
-          if (error.data && Number.isInteger(error.data.nextOffset)) break;
-          throw error;
-        }
-      }
-    }
-  } catch (error) {
-    $('transport').textContent = 'Connection lost; the file remains in this tab.';
-    $('error').textContent = 'Connection/transfer: ' + error.message;
-  } finally { busy = false; }
+if (busy) return;
+busy = true;
+try {
+const state = await api('/state');
+const hadSource = !!source;
+const recovery = reconcileSource(source, state);
+if (hadSource && !recovery.ok) {
+source = null;
+showIndex([]);
 }
-
+if ($('error').textContent.startsWith('Connection/transfer:'))
+$('error').textContent = '';
+render(state);
+$('transport').textContent = hadSource && recovery.ok ?
+(recovery.changed ? 'Connection restored; offset reconciled with ESP.' : 'Connected to ESP.') :
+state.sessionId ? (recovery.reason === 'playback_error' ?
+'Playback stopped; insert the file again.' :
+'This tab has no source file for the session. Insert the file again.') : 'Connected to ESP.';
+if (source && recovery.ok) {
+let credit = state.freeBytes;
+for (let requests = 0; requests < 4 && credit > 0 &&
+source.offset < source.logicalSize; requests++) {
+const blob = sourceChunk(source, source.offset, credit);
+const form = new FormData();
+form.append('data', blob, 'chunk.bin');
+try {
+const ack = await api('/chunk?sid=' + source.id + '&offset=' + source.offset,
+{method:'POST', body:form});
+source.offset = ack.nextOffset;
+credit = ack.freeBytes;
+} catch (error) {
+// A 409 may mean stale offset, stale session, or a full ring. The
+// next GET /state decides which; never trust this reply alone.
+if (error.data && Number.isInteger(error.data.nextOffset)) break;
+throw error;
+}
+}
+}
+} catch (error) {
+$('transport').textContent = 'Connection lost; the file remains in this tab.';
+$('error').textContent = 'Connection/transfer: ' + error.message;
+} finally { busy = false; }
+}
 $('load').onclick = async () => {
-  const file = selectedFile || $('file').files[0];
-  if (!file) { $('error').textContent = 'Select a TAP or PRG'; return; }
-  if (motorBlocksEdit(last)) { $('error').textContent = 'Stop MOTOR'; return; }
-  await acquire();
-  try {
-    const isPrg = /\.prg$/i.test(file.name);
-    if (!isPrg && !/\.tap$/i.test(file.name)) throw Error('Select a TAP or PRG');
-    const bytes = new Uint8Array(await file.slice(0, isPrg ? 2 : 20).arrayBuffer());
-    const header = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
-    let body, scan = null, validEntries = [], indexEntries = [];
-    if (isPrg) {
-      if (file.size < 3) throw Error('PRG contains no program data');
-      body = new URLSearchParams({type:'prg', size:String(file.size), header,
-        name:file.name, displayName:$('programName').value || file.name.replace(/\.prg$/i, ''),
-        machine:$('machine').value, turbo:$('turbo').value});
-    } else {
-      const format = tapFormat(bytes, file.size);
-      indexEntries = await parseIdx(selectedIdx);
-      scan = await scanTape(file, indexEntries.map(entry => entry.offset),
-        format.machine === 'c16' ? 886724 : 985248);
-      validEntries = indexEntries.filter(entry =>
-        entry.offset >= 20 && entry.offset < file.size && scan.positions.has(entry.offset))
-        .map(entry => ({...entry, prefixCycles:scan.positions.get(entry.offset),
-          phase:format.version === 2 ? scan.pulsePositions.get(entry.offset) % 2 : 0}))
-        .sort((a, b) => a.offset - b.offset);
-      if (indexEntries.length && !validEntries.length)
-        throw Error('IDX has no entry at a TAP record boundary');
-      body = new URLSearchParams({type:'tap', size:String(file.size), header,
-        name:file.name, cycles:String(scan.total)});
-    }
-    const ack = await api('/session', {method:'POST', body});
-    counterOriginCycles = 0;
-    source = {file, type:isPrg ? 'prg' : 'tap', id:ack.sessionId,
-      offset:ack.nextOffset, logicalSize:ack.logicalSize || file.size,
-      dataLength:isPrg ? file.size - 2 : 0,
-      total:isPrg ? null : scan.total, fullTotal:isPrg ? null : scan.total,
-      indexEntries:validEntries, timeline:isPrg ? [] : scan.timeline.map(entry =>
-        ({...entry, phase:bytes[12] === 2 ? entry.phase : 0})),
-      seekOffset:20, seekCycles:0,
-      sessionBody:isPrg ? new URLSearchParams(body) : null};
-    if (isPrg) showIndex([]);
-    else {
-      const mismatch = selectedIdx && selectedIdx.name.replace(/\.idx$/i,'').toLowerCase() !==
-        file.name.replace(/\.tap$/i,'').toLowerCase();
-      showIndex(validEntries, (indexEntries.length - validEntries.length) +
-        ' entries skipped (outside TAP or inside a record)' +
-        (mismatch ? ' · TAP/IDX names differ' : ''));
-    }
-    $('error').textContent = '';
-  } catch (error) {
-    $('error').textContent = 'Cannot insert file: ' + error.message;
-  } finally { busy = false; }
+const file = selectedFile || $('file').files[0];
+if (!file) { $('error').textContent = 'Select a TAP or PRG'; return; }
+if (motorBlocksEdit(last)) { $('error').textContent = 'Stop MOTOR'; return; }
+await acquire();
+try {
+const isPrg = /\.prg$/i.test(file.name);
+if (!isPrg && !/\.tap$/i.test(file.name)) throw Error('Select a TAP or PRG');
+const bytes = new Uint8Array(await file.slice(0, isPrg ? 2 : 20).arrayBuffer());
+const header = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+let body, scan = null, validEntries = [], indexEntries = [];
+if (isPrg) {
+if (file.size < 3) throw Error('PRG contains no program data');
+body = new URLSearchParams({type:'prg', size:String(file.size), header,
+name:file.name, displayName:$('programName').value || file.name.replace(/\.prg$/i, ''),
+machine:$('machine').value, turbo:$('turbo').value});
+} else {
+const format = tapFormat(bytes, file.size);
+indexEntries = await parseIdx(selectedIdx);
+scan = await scanTape(file, indexEntries.map(entry => entry.offset),
+format.machine === 'c16' ? 886724 : 985248);
+validEntries = indexEntries.filter(entry =>
+entry.offset >= 20 && entry.offset < file.size && scan.positions.has(entry.offset))
+.map(entry => ({...entry, prefixCycles:scan.positions.get(entry.offset),
+phase:format.version === 2 ? scan.pulsePositions.get(entry.offset) % 2 : 0}))
+.sort((a, b) => a.offset - b.offset);
+if (indexEntries.length && !validEntries.length)
+throw Error('IDX has no entry at a TAP record boundary');
+body = new URLSearchParams({type:'tap', size:String(file.size), header,
+name:file.name, cycles:String(scan.total)});
+}
+const ack = await api('/session', {method:'POST', body});
+counterOriginCycles = 0;
+source = {file, type:isPrg ? 'prg' : 'tap', id:ack.sessionId,
+offset:ack.nextOffset, logicalSize:ack.logicalSize || file.size,
+dataLength:isPrg ? file.size - 2 : 0,
+total:isPrg ? null : scan.total, fullTotal:isPrg ? null : scan.total,
+indexEntries:validEntries, timeline:isPrg ? [] : scan.timeline.map(entry =>
+({...entry, phase:bytes[12] === 2 ? entry.phase : 0})),
+seekOffset:20, seekCycles:0,
+sessionBody:isPrg ? new URLSearchParams(body) : null};
+if (isPrg) showIndex([]);
+else {
+const mismatch = selectedIdx && selectedIdx.name.replace(/\.idx$/i,'').toLowerCase() !==
+file.name.replace(/\.tap$/i,'').toLowerCase();
+showIndex(validEntries, (indexEntries.length - validEntries.length) +
+' entries skipped (outside TAP or inside a record)' +
+(mismatch ? ' · TAP/IDX names differ' : ''));
+}
+$('error').textContent = '';
+} catch (error) {
+$('error').textContent = 'Cannot insert file: ' + error.message;
+} finally { busy = false; }
 };
-
 $('deckEject').onclick = async () => {
-  await acquire();
-  try {
-    await api('/eject', {method:'POST'});
-    counterOriginCycles = 0;
-    source = null; showIndex([]);
-    $('error').textContent = '';
-    $('deckMessage').textContent = 'Tape ejected.';
-  }
-  catch (error) { $('error').textContent = error.message; }
-  finally { busy = false; }
+await acquire();
+try {
+await api('/eject', {method:'POST'});
+counterOriginCycles = 0;
+source = null; showIndex([]);
+$('error').textContent = '';
+$('deckMessage').textContent = 'Tape ejected.';
+}
+catch (error) { $('error').textContent = error.message; }
+finally { busy = false; }
 };
 $('demo').onclick = async () => {
-  $('deck').scrollIntoView({behavior: 'smooth', block: 'start'});
-  await acquire();
-  try {
-    await api('/demo', {method:'POST'});
-    counterOriginCycles = 0; source = null; showIndex([]);
-    $('error').textContent = '';
-    $('deckMessage').textContent = 'Loading embedded demo…';
-    // Demo insert runs in the ESP loop (not inside HTTP) to avoid WDT/Wi-Fi drops.
-    for (let i = 0; i < 300; i++) {
-      await new Promise((r) => setTimeout(r, 100));
-      const s = await api('/state');
-      render(s);
-      if (s.tapeState === 'loaded') {
-        $('deckMessage').textContent = 'Demo tape loaded.';
-        $('deck').scrollIntoView({behavior: 'smooth', block: 'start'});
-        break;
-      }
-      if (s.tapeState === 'error') {
-        throw new Error(s.error || 'demo failed');
-      }
-    }
-  } catch (error) { $('error').textContent = error.message; }
-  finally { busy = false; }
+$('deck').scrollIntoView({behavior: 'smooth', block: 'start'});
+await acquire();
+try {
+await api('/demo', {method:'POST'});
+counterOriginCycles = 0; source = null; showIndex([]);
+$('error').textContent = '';
+$('deckMessage').textContent = 'Loading embedded demo…';
+// Demo insert runs in the ESP loop (not inside HTTP) to avoid WDT/Wi-Fi drops.
+for (let i = 0; i < 300; i++) {
+await new Promise((r) => setTimeout(r, 100));
+const s = await api('/state');
+render(s);
+if (s.tapeState === 'loaded') {
+$('deckMessage').textContent = 'Demo tape loaded.';
+$('deck').scrollIntoView({behavior: 'smooth', block: 'start'});
+break;
+}
+if (s.tapeState === 'error') {
+throw new Error(s.error || 'demo failed');
+}
+}
+} catch (error) { $('error').textContent = error.message; }
+finally { busy = false; }
 };
-
 async function serverNav(dir) {
-  await acquire();
-  try {
-    await api('/nav', {method:'POST', body:new URLSearchParams({dir:String(dir)})});
-    counterOriginCycles = 0;
-    $('error').textContent = '';
-    $('deckMessage').textContent = dir > 0 ? 'Fast-forwarded.' : 'Rewound.';
-  } catch (error) {
-    $('error').textContent = 'Cannot seek: ' + error.message;
-  } finally { busy = false; }
+await acquire();
+try {
+await api('/nav', {method:'POST', body:new URLSearchParams({dir:String(dir)})});
+counterOriginCycles = 0;
+$('error').textContent = '';
+$('deckMessage').textContent = dir > 0 ? 'Fast-forwarded.' : 'Rewound.';
+} catch (error) {
+$('error').textContent = 'Cannot seek: ' + error.message;
+} finally { busy = false; }
 }
-
 async function seekTo(entry) {
-  if (!source) {
-    $('error').textContent = 'Select a TAP';
-    return;
-  }
-  await acquire();
-  try {
-    if (entry.atEnd) {
-      const body = new URLSearchParams({sid:String(source.id),
-        offset:String(source.logicalSize), cycles:String(source.fullTotal),
-        phase:'0', end:'1'});
-      const ack = await api('/seek', {method:'POST', body});
-      source.id = ack.sessionId;
-      source.offset = ack.nextOffset;
-      source.total = 0;
-      source.seekOffset = source.logicalSize;
-      source.seekCycles = 0;
-      counterOriginCycles = 0;
-      $('error').textContent = '';
-      $('deckMessage').textContent = 'Fast-forwarded to end of tape.';
-      return;
-    }
-    const remaining = source.fullTotal - entry.prefixCycles;
-    const body = new URLSearchParams({sid:String(source.id),
-      offset:String(entry.offset), cycles:String(remaining), phase:String(entry.phase)});
-    const ack = await api('/seek', {method:'POST', body});
-    source.id = ack.sessionId;
-    source.offset = ack.nextOffset;
-    source.total = remaining;
-    source.seekOffset = entry.offset;
-    source.seekCycles = entry.prefixCycles;
-    counterOriginCycles = entry.prefixCycles;
-    if (source.indexEntries.some(item => item.offset === entry.offset))
-      $('idxPositions').value = String(entry.offset);
-    $('error').textContent = '';
-    $('deckMessage').textContent = entry.offset === 20 ?
-      'Rewound to start.' : 'Jumped to 0x' + entry.offset.toString(16).toUpperCase() + '.';
-  } catch (error) {
-    $('error').textContent = 'Cannot seek: ' + error.message;
-  } finally { busy = false; }
+if (!source) {
+$('error').textContent = 'Select a TAP';
+return;
 }
-
+await acquire();
+try {
+if (entry.atEnd) {
+const body = new URLSearchParams({sid:String(source.id),
+offset:String(source.logicalSize), cycles:String(source.fullTotal),
+phase:'0', end:'1'});
+const ack = await api('/seek', {method:'POST', body});
+source.id = ack.sessionId;
+source.offset = ack.nextOffset;
+source.total = 0;
+source.seekOffset = source.logicalSize;
+source.seekCycles = 0;
+counterOriginCycles = 0;
+$('error').textContent = '';
+$('deckMessage').textContent = 'Fast-forwarded to end of tape.';
+return;
+}
+const remaining = source.fullTotal - entry.prefixCycles;
+const body = new URLSearchParams({sid:String(source.id),
+offset:String(entry.offset), cycles:String(remaining), phase:String(entry.phase)});
+const ack = await api('/seek', {method:'POST', body});
+source.id = ack.sessionId;
+source.offset = ack.nextOffset;
+source.total = remaining;
+source.seekOffset = entry.offset;
+source.seekCycles = entry.prefixCycles;
+counterOriginCycles = entry.prefixCycles;
+if (source.indexEntries.some(item => item.offset === entry.offset))
+$('idxPositions').value = String(entry.offset);
+$('error').textContent = '';
+$('deckMessage').textContent = entry.offset === 20 ?
+'Rewound to start.' : 'Jumped to 0x' + entry.offset.toString(16).toUpperCase() + '.';
+} catch (error) {
+$('error').textContent = 'Cannot seek: ' + error.message;
+} finally { busy = false; }
+}
 $('seek').onclick = async () => {
-  const offset = Number($('idxPositions').value);
-  const entry = source?.indexEntries.find(item => item.offset === offset);
-  if (!entry) { $('error').textContent = 'Invalid IDX position'; return; }
-  await seekTo(entry);
+const offset = Number($('idxPositions').value);
+const entry = source?.indexEntries.find(item => item.offset === offset);
+if (!entry) { $('error').textContent = 'Invalid IDX position'; return; }
+await seekTo(entry);
 };
-
 $('rewind').onclick = async () => {
-  if (!source && last?.tapeState === 'loaded' && last.sessionId === 0) {
-    await acquire();
-    try {
-      await api('/demo', {method:'POST'});
-      counterOriginCycles = 0;
-      $('deckMessage').textContent = 'Demo tape rewound to start.';
-      $('error').textContent = '';
-    } catch (error) {
-      $('error').textContent = 'Cannot rewind demo: ' + error.message;
-    } finally { busy = false; }
-    return;
-  }
-  if (source?.type === 'tap') {
-    const prev = navigationTarget(-1);
-    if (prev) return seekTo(prev);
-  }
-  if (!source && last?.tapeState === 'loaded' && last.sourceType === 'tap')
-    return serverNav(-1);
-  if (!source) return;
-  await acquire();
-  try {
-    const ack = await api('/session', {method:'POST', body:source.sessionBody});
-    source.id = ack.sessionId;
-    source.offset = ack.nextOffset;
-    source.seekOffset = 2;
-    counterOriginCycles = 0;
-    $('error').textContent = '';
-    $('deckMessage').textContent = 'Program rewound to start.';
-  } catch (error) {
-    $('error').textContent = 'Cannot rewind: ' + error.message;
-  } finally { busy = false; }
+if (!source && last?.tapeState === 'loaded' && last.sessionId === 0) {
+await acquire();
+try {
+await api('/demo', {method:'POST'});
+counterOriginCycles = 0;
+$('deckMessage').textContent = 'Demo tape rewound to start.';
+$('error').textContent = '';
+} catch (error) {
+$('error').textContent = 'Cannot rewind demo: ' + error.message;
+} finally { busy = false; }
+return;
+}
+if (source?.type === 'tap') {
+const prev = navigationTarget(-1);
+if (prev) return seekTo(prev);
+}
+if (!source && last?.tapeState === 'loaded' && last.sourceType === 'tap')
+return serverNav(-1);
+if (!source) return;
+await acquire();
+try {
+const ack = await api('/session', {method:'POST', body:source.sessionBody});
+source.id = ack.sessionId;
+source.offset = ack.nextOffset;
+source.seekOffset = 2;
+counterOriginCycles = 0;
+$('error').textContent = '';
+$('deckMessage').textContent = 'Program rewound to start.';
+} catch (error) {
+$('error').textContent = 'Cannot rewind: ' + error.message;
+} finally { busy = false; }
 };
-
 $('fastForward').onclick = async () => {
-  if (source?.type === 'tap') {
-    const next = navigationTarget(1);
-    if (next) return seekTo(next);
-  }
-  if (last?.tapeState === 'loaded' && last.sourceType === 'tap')
-    return serverNav(1);
+if (source?.type === 'tap') {
+const next = navigationTarget(1);
+if (next) return seekTo(next);
+}
+if (last?.tapeState === 'loaded' && last.sourceType === 'tap')
+return serverNav(1);
 };
-
 async function setSense(pressed) {
-  await acquire();
-  try {
-    const ack = await api('/sense', {method:'POST',
-      body:new URLSearchParams({pressed:pressed ? '1' : '0'})});
-    if (last) render({...last, sensePressed:ack.sensePressed});
-    $('deckMessage').textContent = pressed ?
-      'PLAY pressed. Tape runs when MOTOR is also on.' :
-      'STOP released PLAY. Tape paused.';
-    $('error').textContent = '';
-  } catch (error) {
-    $('error').textContent = 'Cannot change PLAY: ' + error.message;
-  } finally { busy = false; }
+await acquire();
+try {
+const ack = await api('/sense', {method:'POST',
+body:new URLSearchParams({pressed:pressed ? '1' : '0'})});
+if (last) render({...last, sensePressed:ack.sensePressed});
+$('deckMessage').textContent = pressed ?
+'PLAY pressed. Tape runs when MOTOR is also on.' :
+'STOP released PLAY. Tape paused.';
+$('error').textContent = '';
+} catch (error) {
+$('error').textContent = 'Cannot change PLAY: ' + error.message;
+} finally { busy = false; }
 }
 $('play').onclick = () => setSense(true);
 $('stop').onclick = () => setSense(false);
-
 $('autoPlay').onchange = async () => {
-  const enabled = $('autoPlay').checked;
-  await acquire();
-  try {
-    const ack = await api('/autoplay', {method:'POST',
-      body:new URLSearchParams({enabled:enabled ? '1' : '0'})});
-    if (last) render({...last, autoPlay:ack.autoPlay});
-    $('deckMessage').textContent = ack.autoPlay ?
-      'Autoplay: inserting the next tape will press PLAY.' :
-      'Autoplay off: press PLAY after inserting a tape.';
-    $('error').textContent = '';
-  } catch (error) {
-    $('autoPlay').checked = !enabled;
-    $('error').textContent = 'Cannot save autoplay: ' + error.message;
-  } finally { busy = false; }
+const enabled = $('autoPlay').checked;
+await acquire();
+try {
+const ack = await api('/autoplay', {method:'POST',
+body:new URLSearchParams({enabled:enabled ? '1' : '0'})});
+if (last) render({...last, autoPlay:ack.autoPlay});
+$('deckMessage').textContent = ack.autoPlay ?
+'Autoplay: inserting the next tape will press PLAY.' :
+'Autoplay off: press PLAY after inserting a tape.';
+$('error').textContent = '';
+} catch (error) {
+$('autoPlay').checked = !enabled;
+$('error').textContent = 'Cannot save autoplay: ' + error.message;
+} finally { busy = false; }
 };
-
 $('defaultMachine').onchange = async () => {
-  const machine = $('defaultMachine').value;
-  await acquire();
-  try {
-    const ack = await api('/default-machine', {method:'POST',
-      body:new URLSearchParams({machine})});
-    if (last) render({...last, defaultMachine:ack.defaultMachine});
-    $('deckMessage').textContent = 'Default PRG computer: ' +
-      (ack.defaultMachine === 'c16' ? 'C16 / Plus/4' : 'C64') + '.';
-    $('error').textContent = '';
-  } catch (error) {
-    $('defaultMachine').value = selectedDefaultMachine || 'c64';
-    $('error').textContent = 'Cannot save default computer: ' + error.message;
-  } finally { busy = false; }
+const machine = $('defaultMachine').value;
+await acquire();
+try {
+const ack = await api('/default-machine', {method:'POST',
+body:new URLSearchParams({machine})});
+if (last) render({...last, defaultMachine:ack.defaultMachine});
+$('deckMessage').textContent = 'Default PRG computer: ' +
+(ack.defaultMachine === 'c16' ? 'C16 / Plus/4' : 'C64') + '.';
+$('error').textContent = '';
+} catch (error) {
+$('defaultMachine').value = selectedDefaultMachine || 'c64';
+$('error').textContent = 'Cannot save default computer: ' + error.message;
+} finally { busy = false; }
 };
-
 $('file').onchange = event => { selectedFile = event.target.files[0] || null; selectedFilesText(); updateFormatControls(); $('machine').value = selectedDefaultMachine || 'c64'; };
 $('indexFile').onchange = event => { selectedIdx = event.target.files[0] || null; selectedFilesText(); };
 $('clearIndex').onclick = () => { selectedIdx = null; $('indexFile').value = ''; selectedFilesText(); };
@@ -808,33 +775,31 @@ const dropzone = $('dropzone');
 dropzone.ondragover = event => { event.preventDefault(); dropzone.classList.add('over'); };
 dropzone.ondragleave = () => dropzone.classList.remove('over');
 dropzone.ondrop = event => {
-  event.preventDefault(); dropzone.classList.remove('over');
-  for (const file of event.dataTransfer.files) {
-    if (/\.(tap|prg)$/i.test(file.name)) selectedFile = file;
-    else if (/\.idx$/i.test(file.name)) selectedIdx = file;
-  }
-  selectedFilesText(); updateFormatControls();
-  $('machine').value = selectedDefaultMachine || 'c64';
+event.preventDefault(); dropzone.classList.remove('over');
+for (const file of event.dataTransfer.files) {
+if (/\.(tap|prg)$/i.test(file.name)) selectedFile = file;
+else if (/\.idx$/i.test(file.name)) selectedIdx = file;
+}
+selectedFilesText(); updateFormatControls();
+$('machine').value = selectedDefaultMachine || 'c64';
 };
 selectedFilesText(); updateFormatControls();
-
 if (preview) {
-  $('previewPanel').hidden = false;
-  $('wifiLink').hidden = true;
-  mock.gpioDisabled = true;
-  mock.motorOn = true;
-  $('motorToggle').onclick = () => { mock.motorOn = !mock.motorOn; updateMock(); render({...mock}); };
-  $('saveMock').onclick = () => { mock.writeEnabled = true;
-    mock.writeStatus = 'header_verified_no_action'; mock.writeMachine = 'c64';
-    mock.writeName = 'ESP:TEST';
-    mock.writeType = 1; mock.writeStart = 0x0801; mock.writeEnd = 0x0810;
-    mock.writeHeaders++; render({...mock}); };
+$('previewPanel').hidden = false;
+if ($('networkCard')) $('networkCard').hidden = true;
+mock.gpioDisabled = true;
+mock.motorOn = true;
+$('motorToggle').onclick = () => { mock.motorOn = !mock.motorOn; updateMock(); render({...mock}); };
+$('saveMock').onclick = () => { mock.writeEnabled = true;
+mock.writeStatus = 'header_verified_no_action'; mock.writeMachine = 'c64';
+mock.writeName = 'ESP:TEST';
+mock.writeType = 1; mock.writeStart = 0x0801; mock.writeEnd = 0x0810;
+mock.writeHeaders++; render({...mock}); };
 }
 async function loop() {
-  await step();
-  setTimeout(loop, source && source.offset < source.logicalSize ?
-    (last?.playing ? 80 : 250) : 350);
+await step();
+setTimeout(loop, source && source.offset < source.logicalSize ?
+(last?.playing ? 80 : 250) : 350);
 }
 loop();
-</script></html>
-)PAGE";
+</script></html>)PAGE";

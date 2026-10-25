@@ -1,6 +1,6 @@
 #pragma once
 
-// Optional OTA secret, set only when the selected flash layout supports OTA.
-// Copy to local_ota.h and use the same value for ESPSETTE_OTA_PASSWORD
-// in the environment when running scripts/ota.sh.
-#define ESPSETTE_OTA_PASSWORD ""
+// Optional. Firmware enables open OTA by default (trusted LAN).
+// Copy to local_ota.h only if you want a password; then also export the same
+// value as ESPSETTE_OTA_PASSWORD when running `make ota`.
+// #define ESPSETTE_OTA_PASSWORD "changeme"

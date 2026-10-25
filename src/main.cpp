@@ -202,7 +202,7 @@ uint32_t softPlayLastUs = 0;
 #endif
 
 // Downsampled READ levels for the web quasi-oscilloscope (newest at the end).
-static constexpr uint16_t SCOPE_LEN = 192;
+static constexpr uint16_t SCOPE_LEN = 128;
 static constexpr uint8_t SCOPE_EVERY_N_BITS = 16; // ~130 µs/sample at C64 rate
 static uint8_t scopeBuf[SCOPE_LEN];
 static uint16_t scopePos = 0;
@@ -760,8 +760,6 @@ void setupWebserver() {
 
 void initializeOTA() {
   if (!networkReady) return;
-#if defined(ESPSETTE_OTA_PASSWORD)
-  if (ESPSETTE_OTA_PASSWORD[0] == '\0') return;
   ArduinoOTA.onStart([]() {
     debugI("* OTA: Start");
   });
@@ -773,19 +771,15 @@ void initializeOTA() {
     debugV("*OTA: Progress: %u%%\r", percent);
   });
   ArduinoOTA.onError([](ota_error_t error) {
-    debugE("*OTA: Error[%u]: ", error);
-    if (error == OTA_AUTH_ERROR) debugE("Auth Failed");
-    else if (error == OTA_BEGIN_ERROR) debugE("Begin Failed");
-    else if (error == OTA_CONNECT_ERROR) debugE("Connect Failed");
-    else if (error == OTA_RECEIVE_ERROR) debugE("Receive Failed");
-    else if (error == OTA_END_ERROR) debugE("End Failed");
+    debugE("*OTA: Error[%u]", error);
   });
   ArduinoOTA.setHostname(networkConfig.hostname().c_str());
-  ArduinoOTA.setPassword(ESPSETTE_OTA_PASSWORD);
-  // Begin
+#if defined(ESPSETTE_OTA_PASSWORD)
+  if (ESPSETTE_OTA_PASSWORD[0] != '\0')
+    ArduinoOTA.setPassword(ESPSETTE_OTA_PASSWORD);
+#endif
   ArduinoOTA.begin();
   otaReady = true;
-#endif
 }
 
 void setupDebug() {
@@ -1190,6 +1184,7 @@ void handleState() {
   doc["writeHeaders"] = writeDecoder.receivedCount();
   doc["writeErrors"] = writeDecoder.errorCount();
   doc["writeOverflows"] = writeDecoder.overflowCount();
+  doc["otaReady"] = otaReady;
   {
     char scopeStr[SCOPE_LEN + 1];
     const uint16_t n = scopeFilled;

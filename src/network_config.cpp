@@ -86,21 +86,38 @@ void NetworkConfig::onSaveParams() {
   if (validHostname(value)) saveHostname(value);
 }
 
-void NetworkConfig::openConfigPortal() {
-  if (motorBusy()) {
-    server_.send(503, "text/plain", "Open Wi-Fi settings after MOTOR stops.");
-    return;
-  }
-  server_.send(200, "text/html; charset=utf-8",
-               F("<!doctype html><meta charset='utf-8'><meta name='viewport' "
-                 "content='width=device-width,initial-scale=1'>"
-                 "<p>Clearing saved Wi-Fi and restarting into the setup access "
-                 "point. Join <strong>espsette-…</strong> and open "
-                 "http://192.168.4.1/ (captive portal).</p>"));
+void NetworkConfig::resetWifiAndReboot() {
+  server_.send_P(200, PSTR("text/html"),
+                 PSTR("<!doctype html><meta charset=utf-8><p>Clearing Wi-Fi; "
+                      "join espsette-… AP at http://192.168.4.1/</p>"));
   delay(800);
-  // Avoid fighting ESP8266WebServer on :80 — reboot into autoConnect portal.
   wifiManager_.resetSettings();
   ESP.restart();
+}
+
+void NetworkConfig::handleWifiGet() {
+  // GET is confirm-only; wiping requires POST. OTA is make ota, not this URL.
+  server_.send_P(200, PSTR("text/html"),
+                 PSTR("<!doctype html><meta charset=utf-8><title>Wi-Fi</title>"
+                      "<p>OTA = <code>make ota</code> (keeps Wi-Fi). "
+                      "Form forgets saved network only.</p>"
+                      "<form method=POST action=/wifi>"
+                      "<input type=hidden name=confirm value=1>"
+                      "<button>Forget Wi-Fi / setup AP</button></form>"
+                      "<p><a href=/>Back</a></p>"));
+}
+
+void NetworkConfig::handleWifiPost() {
+  if (motorBusy()) {
+    server_.send(503, "text/plain", "Reconfigure Wi-Fi after MOTOR stops.");
+    return;
+  }
+  if (server_.arg("confirm") != "1") {
+    server_.sendHeader("Location", "/wifi");
+    server_.send(303, "text/plain", "");
+    return;
+  }
+  resetWifiAndReboot();
 }
 
 void NetworkConfig::begin() {
@@ -142,8 +159,8 @@ void NetworkConfig::begin() {
   onSaveParams();
   WiFi.hostname(hostname_);
 
-  server_.on("/wifi", HTTP_GET, [this]() { openConfigPortal(); });
-  server_.on("/wifi", HTTP_POST, [this]() { openConfigPortal(); });
+  server_.on("/wifi", HTTP_GET, [this]() { handleWifiGet(); });
+  server_.on("/wifi", HTTP_POST, [this]() { handleWifiPost(); });
 #endif
 }
 
