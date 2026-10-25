@@ -5,18 +5,24 @@ import vm from 'node:vm';
 const html = readFileSync(new URL('../web/player.html', import.meta.url), 'utf8');
 const portal = readFileSync(new URL('../src/network_config.cpp', import.meta.url), 'utf8');
 assert.match(html, /<html lang="en">/);
-assert.match(portal, /html lang='en'/);
+assert.match(portal, /Forget Wi-Fi/);
 assert.doesNotMatch(html + portal, /[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/);
 const script = html.split('<script>')[1].split('</script>')[0];
 const elements = new Map();
 function element() {
   return {
     files: [], paused: true, hidden: false, textContent: '',
+    width: 640, height: 72,
     classList: {add(){}, remove(){}, toggle(){}},
     replaceChildren(){this.children = []}, append(child){(this.children ||= []).push(child)},
     play(){this.paused = false; return Promise.resolve()},
     pause(){this.paused = true}, removeAttribute(){},
-    setAttribute(name, value){(this.attributes ||= {})[name] = value}, load(){}
+    setAttribute(name, value){(this.attributes ||= {})[name] = value}, load(){},
+    getContext() {
+      return {clearRect(){}, fillRect(){}, beginPath(){}, moveTo(){}, lineTo(){}, stroke(){},
+        fillStyle:'', strokeStyle:'', lineWidth:1};
+    },
+    scrollIntoView() {}
   };
 }
 const context = vm.createContext({
@@ -30,9 +36,24 @@ const context = vm.createContext({
   location: {protocol:'file:', search:''},
   URLSearchParams, FormData, Blob, URL, Date, Math, Number, String, Set, Map,
   Uint8Array, Promise, Error, console,
-  setTimeout() {} // The initial mock UI tick runs once; no background loop.
+  setTimeout(fn) {
+    if (typeof fn !== 'function') return 0;
+    // Skip the page poll loop; still resolve acquire/demo delay promises.
+    try {
+      if (Function.prototype.toString.call(fn).includes('await step')) return 0;
+    } catch (_) {}
+    Promise.resolve().then(fn);
+    return 0;
+  }
 });
 vm.runInContext(script, context);
+// Preview mode forces soft MOTOR on; unit tests need an editable (MOTOR off) deck.
+vm.runInContext('mock.motorOn = false; mock.gpioDisabled = false;', context);
+for (let i = 0; i < 32; i++) {
+  await Promise.resolve();
+  if (!vm.runInContext('busy', context)) break;
+}
+vm.runInContext('busy = false;', context);
 
 const index = {size: 130, text: async () =>
   '# start\n0x14 First file\n025 Second file\n25 Third file\n; ignored\n\' ignored too\n22 Inside long pulse\n'};
@@ -275,4 +296,9 @@ vm.runInContext("document.getElementById('saveMock').onclick()", context);
 assert.match(elements.get('writeDetail').textContent, /ESP:TEST/);
 vm.runInContext("mock.writeMachine = 'c16'; render({...mock})", context);
 assert.match(elements.get('writeDetail').textContent, /C16\/Plus4/);
+vm.runInContext("mock.tapeState = 'loaded'; mock.fileName = 'game.tap'; mock.machine = 'c16'; mock.sourceType = 'tap'; render({...mock})", context);
+assert.match(elements.get('loaded').textContent, /game\.tap/);
+assert.match(elements.get('loaded').textContent, /C16/);
+vm.runInContext("mock.machine = 'c64'; render({...mock})", context);
+assert.match(elements.get('loaded').textContent, /C64/);
 console.log('IDX/TAP, VICE counter, English UI, session recovery and WRITE preview OK');

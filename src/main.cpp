@@ -233,6 +233,8 @@ static bool stopPlaybackForEdit() {
 #if ESPSETTE_GPIO_DISABLED
   playedBaseCycles += (uint64_t)generatedTapBits * CYCLES_PER_BIT;
   generatedTapBits = 0;
+  if (tapeSource.kind() == TapeSource::Kind::STREAMED)
+    tapeSource.releaseBefore(player.decoder.offset);
   state = State::WAITING;
   return true;
 #else
@@ -248,6 +250,8 @@ static void pausePlaybackNow() {
 #if ESPSETTE_GPIO_DISABLED
   playedBaseCycles += (uint64_t)generatedTapBits * CYCLES_PER_BIT;
   generatedTapBits = 0;
+  if (tapeSource.kind() == TapeSource::Kind::STREAMED)
+    tapeSource.releaseBefore(player.decoder.offset);
   state = State::WAITING;
 #else
   noInterrupts();
@@ -636,6 +640,9 @@ void pumpTapeSoft() {
     }
     ++generatedTapBits;
   }
+  // Same ring contract as I2S: free consumed TAP bytes so HTTP can refill.
+  if (tapeSource.kind() == TapeSource::Kind::STREAMED)
+    tapeSource.releaseBefore(player.decoder.offset);
 }
 #endif
 

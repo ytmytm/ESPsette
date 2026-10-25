@@ -279,7 +279,13 @@ $('deckMessage').textContent = s.sensePressed ?
 'PLAY + MOTOR: tape running.' :
 'PLAY pressed; waiting for MOTOR.') :
 'STOP released PLAY. Tape paused until PLAY + MOTOR.';
-$('loaded').textContent = s.tapeState === 'loaded' ? (s.fileName || 'Loaded') : 'Ejected';
+if (s.tapeState === 'loaded') {
+const machineLabel = s.machine === 'c16' ? 'C16' : s.machine === 'c64' ? 'C64' : '';
+$('loaded').textContent = (s.fileName || 'Loaded') +
+(machineLabel ? ' · ' + machineLabel : '');
+} else {
+$('loaded').textContent = 'Ejected';
+}
 $('motor').textContent = s.motorOn ?
 (s.gpioDisabled ? 'On (soft)' : 'On') : 'Off';
 $('autoPlay').checked = !!s.autoPlay;

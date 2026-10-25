@@ -14,7 +14,11 @@ c++ -std=c++17 -Isrc tests/write_decoder_test.cpp src/write_decoder.cpp -o /tmp/
 /tmp/espsette-write-test
 c++ -std=c++17 -Itests/support -Isrc tests/prg_vectors_test.cpp src/prg_encoder.cpp src/tape_source.cpp -o /tmp/espsette-prg-test
 /tmp/espsette-prg-test
+c++ -std=c++17 -Itests/support -Isrc tests/tape_source_ring_test.cpp src/tape_source.cpp -o /tmp/espsette-ring-test
+/tmp/espsette-ring-test
 ```
+
+`tape_source_ring_test.cpp` checks that `releaseBefore` frees the 8 KB stream ring after the playhead advances (required for soft GPIO playback as well as I2S).
 
 `prg_vectors_test.cpp` porównuje każdy impuls produkcyjnego generatora C16 i C64 z niezależną sekwencją bloków. Dla C16 dodatkowo porównuje czasy z impulsem testowym Pi1551 z tolerancją dla wartości cykli wybranych przez WAV-PRG; dla C64 używa tej samej struktury bitów oraz długości 384/536/680 cykli. `write_decoder_test.cpp` sprawdza też błędną parzystość i sumę XOR dla obu maszyn. `player_index.mjs` odtwarza przypadki IDX z Pi1551, sprawdza nagłówki C64 i C16 v1/v2, granice rekordów, ucięte i zerowe impulsy, fazę półokresu po skoku, skoki REW/FF według licznika VICE/Pi1551, autoplay, domyślny komputer i PLAY/STOP w lokalnej symulacji oraz uzgodnienie offsetu po utraconej odpowiedzi HTTP. Nie testuje przebiegu I2S na pinie READ.
 
