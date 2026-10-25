@@ -1,12 +1,11 @@
 #include "tape_source.h"
 
+#include <pgmspace.h>
 #include <string.h>
 
 namespace {
 uint8_t flashByte(const uint8_t* address) {
-  const uint32_t word = *reinterpret_cast<const uint32_t*>(
-      reinterpret_cast<uintptr_t>(address) & ~3U);
-  return reinterpret_cast<const uint8_t*>(&word)[reinterpret_cast<uintptr_t>(address) & 3U];
+  return pgm_read_byte(address);
 }
 }  // namespace
 

@@ -21,6 +21,9 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <ArduinoOTA.h>
+#if ESPSETTE_WIFI_DISABLED
+#include <user_interface.h>
+#endif
 #include "network_config.h"
 #include "tape_source.h"
 #include "prg_encoder.h"
@@ -28,6 +31,7 @@
 #include "player_page.h"
 #include <ArduinoJson.h>
 #include <LittleFS.h>
+#include <pgmspace.h>
 #include <string.h>
 
 #include <core_esp8266_i2s.h>
@@ -39,7 +43,9 @@
 #ifndef ESPSETTE_GPIO_DISABLED
 #define ESPSETTE_GPIO_DISABLED 0
 #endif
-
+#ifndef ESPSETTE_WIFI_DISABLED
+#define ESPSETTE_WIFI_DISABLED 0
+#endif
 #if ESPSETTE_GPIO_DISABLED
 // Bench / USB-serial: leave tape GPIOs alone; player UI uses soft sense only.
 static bool softSensePressed = false;
@@ -147,8 +153,7 @@ uint32_t maxLoopUs = 0;
 uint32_t maxHttpUs = 0;
 
 static inline uint8_t readRomByte(const uint8_t* addr) {
-  uint32_t bytes = *(const uint32_t*)((uintptr_t)addr & ~3U);
-  return ((const uint8_t*)&bytes)[(uintptr_t)addr & 3U];
+  return pgm_read_byte(addr);
 }
 
 struct DecoderState {
@@ -241,25 +246,48 @@ bool validateTap() {
   }
   if (dataSize != draxcaught_tap_len - 20) return false;
   tapEnd = draxcaught_tap_len;
-  uint32_t cursor = 20;
+  // Do not scan all ~250 KB of PROGMEM at boot: even with yield() the
+  // software WDT still fired and produced a tight reset loop. Cycle totals
+  // for the embedded demo are filled in during playback instead.
   totalTapeCycles = 0;
-  while (cursor < tapEnd) {
-    uint8_t value = readRomByte(draxcaught_tap + cursor);
-    if (value != 0) {
-      totalTapeCycles += (uint32_t)value * 8;
-      ++cursor;
-    } else {
-      if (tapEnd - cursor < 4) return false;
-      uint32_t cycles = (uint32_t)readRomByte(draxcaught_tap + cursor + 1) |
-                        ((uint32_t)readRomByte(draxcaught_tap + cursor + 2) << 8) |
-                        ((uint32_t)readRomByte(draxcaught_tap + cursor + 3) << 16);
-      if (cycles == 0) return false;
-      totalTapeCycles += cycles;
-      cursor += 4;
-    }
-  }
-  reportedTotalCycles = totalTapeCycles;
+  reportedTotalCycles = 0;
   return true;
+}
+
+static bool pendingDemoInsert = false;
+static bool demoInsertFailed = false;
+
+static void insertEmbeddedDemo() {
+  // Keep this off the HTTP stack: PROGMEM reads thrash ICACHE and must yield
+  // so the Wi-Fi/soft WDT keep running.
+  ESP.wdtFeed();
+  yield();
+  sourceFormat = SourceFormat::TAP;
+  sourceClockHz = C64_CLOCK_HZ;
+  tapHalfWaves = false;
+  tapeSource.useEmbedded(draxcaught_tap, draxcaught_tap_len);
+  tapeName = "draxcaught (demo)";
+  playedBaseCycles = 0;
+  playbackComplete = false;
+  playerError = nullptr;
+  ESP.wdtFeed();
+  yield();
+  resetPlayer(20);
+  ESP.wdtFeed();
+  yield();
+  const bool ok = validateTap();
+  ESP.wdtFeed();
+  yield();
+  tapeLoaded = ok;
+  setSensePressed(autoPlay && tapeLoaded);
+  state = ok ? State::WAITING : State::ERROR;
+  if (!ok) {
+    playerError = "invalid_demo_tap";
+    tapeSource.eject();
+    demoInsertFailed = true;
+  }
+  debugI("Embedded demo %s; TAP bytes=%lu", ok ? "loaded" : "invalid",
+         (unsigned long)tapEnd);
 }
 
 void idleReadPin() {
@@ -633,7 +661,26 @@ void setupDebug() {
 uint32_t lastcall;
 uint8_t lastMotor = 0;
 
+#if ESPSETTE_WIFI_DISABLED
+// Linking ESP8266WiFi replaces the core's weak disable with a no-op that leaves
+// RF on. Override it (needs -Wl,--allow-multiple-definition in platformio.ini).
+extern "C" void __disableWiFiAtBootTime(void) {
+  wifi_set_opmode_current(NULL_MODE);
+  wifi_fpm_set_sleep_type(MODEM_SLEEP_T);
+  wifi_fpm_open();
+  wifi_fpm_do_sleep(0xFFFFFFF);
+}
+#endif
+
 void setup() {
+#if ESPSETTE_GPIO_DISABLED
+  // Keep UART0 so bench can see a boot line at the ROM baud rate.
+  Serial.begin(74880);
+  delay(50);
+  Serial.println();
+  Serial.printf_P(PSTR("espsette boot gpio_dis=%d wifi_dis=%d\r\n"),
+                  (int)ESPSETTE_GPIO_DISABLED, (int)ESPSETTE_WIFI_DISABLED);
+#endif
   setupPins();
   setupNetwork();
   File autoPlayFile = LittleFS.open("/autoplay.cfg", "r");
@@ -650,24 +697,16 @@ void setup() {
     }
     machineFile.close();
   }
+#if !ESPSETTE_WIFI_DISABLED
   initializeOTA();
   setupDebug();
   setupWebserver();
-  sourceFormat = SourceFormat::TAP;
-  sourceClockHz = C64_CLOCK_HZ;
-  tapHalfWaves = false;
-  tapeSource.useEmbedded(draxcaught_tap, draxcaught_tap_len);
-  resetPlayer(20);
-  if (!validateTap()) {
-    state = State::ERROR;
-    playerError = "invalid_demo_tap";
-    tapeSource.eject();
-    debugE("Invalid embedded C64 PAL TAP v1");
-  } else {
-    state = State::WAITING;
-    tapeLoaded = true;
-  }
-  setSensePressed(autoPlay && tapeLoaded); // Embedded demo inserted at boot.
+#endif
+  // Do not touch the ~250 KB PROGMEM demo in setup() — ICACHE thrash + WDT.
+  // Demo is inserted from loop() after /demo (or auto-queued once below).
+  state = State::WAITING;
+  tapeLoaded = false;
+  setSensePressed(false);
 #if ESPSETTE_GPIO_DISABLED
   lastMotor = LOW;
 #else
@@ -681,6 +720,9 @@ void setup() {
 #endif
   lastcall = millis();
   debugI("setup completed; TAP bytes=%lu", (unsigned long)tapEnd);
+#if ESPSETTE_GPIO_DISABLED
+  Serial.println(F("espsette setup done"));
+#endif
 }
 
 void debugGPIOs() {
@@ -694,6 +736,20 @@ void debugGPIOs() {
 }
 
 void loop() {
+#if ESPSETTE_WIFI_DISABLED
+  {
+    static uint32_t lastHb;
+    const uint32_t now = millis();
+    if ((uint32_t)(now - lastHb) >= 1000) {
+      lastHb = now;
+      Serial.printf_P(PSTR("espsette hb %lu\r\n"), (unsigned long)now);
+    }
+  }
+#endif
+  if (pendingDemoInsert) {
+    pendingDemoInsert = false;
+    insertEmbeddedDemo();
+  }
   const uint32_t loopStartUs = micros();
   const uint32_t timeBeginLoop = millis();
   const uint8_t motor = motorIsOn() ? HIGH : LOW;
@@ -743,16 +799,18 @@ void loop() {
     }
   }
 
+#if !ESPSETTE_WIFI_DISABLED
   if (otaReady && state != State::STREAMING && state != State::DRAINING) ArduinoOTA.handle();
   const uint32_t httpStartUs = micros();
   HTTPServer.handleClient();
   const uint32_t httpElapsedUs = micros() - httpStartUs;
   if (httpElapsedUs > maxHttpUs) maxHttpUs = httpElapsedUs;
+  networkConfig.handle(motor == HIGH);
+  if (networkReady) Debug.handle();
+#endif
 #if ESPSETTE_WRITE_CAPTURE
   drainWriteCapture();
 #endif
-  networkConfig.handle(motor == HIGH);
-  if (networkReady) Debug.handle();
   yield();
   if ((uint32_t)(millis() - lastcall) >= 10000) {
     lastcall = millis();
@@ -771,11 +829,6 @@ void loop() {
 //// web
 
 void handleRoot() {
-  if (networkConfig.apActive()) {
-    HTTPServer.sendHeader("Location", "/wifi");
-    HTTPServer.send(302, "text/plain", "");
-    return;
-  }
   handlePlayer();
 }
 
@@ -789,13 +842,8 @@ void handlePlayer() {
 }
 
 void handleNotFound() {
-     if (networkConfig.apActive()) {
-       HTTPServer.sendHeader("Location", "/wifi");
-       HTTPServer.send(302, "text/plain", "");
-       return;
-     }
-     HTTPServer.send(404, "text/plain", "File Not Found\n");
- }
+  HTTPServer.send(404, "text/plain", "File Not Found\n");
+}
 
 // The session protocol uses short requests. HTTPUpload buffers at most 2048
 // bytes; the browser deliberately sends at most MAX_HTTP_CHUNK per request.
@@ -877,7 +925,9 @@ static uint32_t currentRunBits() {
 void handleState() {
   StaticJsonDocument<1024> doc;
   const bool motorOn = motorIsOn();
-  doc["tapeState"] = tapeLoaded ? "loaded" : "ejected";
+  doc["tapeState"] = pendingDemoInsert ? "loading"
+      : (demoInsertFailed && !tapeLoaded) ? "error"
+      : (tapeLoaded ? "loaded" : "ejected");
   doc["sourceType"] = sourceFormat == SourceFormat::PRG ? "prg" : "tap";
   doc["machine"] = sourceClockHz == C16_CLOCK_HZ ? "c16" : "c64";
   doc["clockHz"] = sourceClockHz;
@@ -1211,18 +1261,16 @@ void handleDemo() {
     HTTPServer.send(409, "text/plain", "Stop MOTOR before inserting the demo");
     return;
   }
-  sourceFormat = SourceFormat::TAP;
-  sourceClockHz = C64_CLOCK_HZ;
-  tapHalfWaves = false;
-  tapeSource.useEmbedded(draxcaught_tap, draxcaught_tap_len);
-  tapeName = "draxcaught (demo)";
-  playedBaseCycles = 0;
-  playbackComplete = false;
-  playerError = nullptr;
-  resetPlayer(20);
-  tapeLoaded = validateTap();
-  setSensePressed(autoPlay && tapeLoaded);
-  state = tapeLoaded ? State::WAITING : State::ERROR;
-  HTTPServer.send(tapeLoaded ? 200 : 500, "application/json",
-                  tapeLoaded ? "{\"tapeState\":\"loaded\"}" : "{\"error\":\"invalid_demo\"}");
+  if (state == State::STREAMING || state == State::DRAINING) {
+    HTTPServer.send(409, "text/plain", "Stop playback before inserting the demo");
+    return;
+  }
+  if (pendingDemoInsert) {
+    HTTPServer.send(202, "application/json", "{\"tapeState\":\"loading\"}");
+    return;
+  }
+  demoInsertFailed = false;
+  pendingDemoInsert = true;
+  // Finish in loop() so this handler returns quickly and Wi-Fi stays alive.
+  HTTPServer.send(202, "application/json", "{\"tapeState\":\"loading\"}");
 }

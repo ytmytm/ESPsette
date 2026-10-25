@@ -536,8 +536,25 @@ $('deckEject').onclick = async () => {
 };
 $('demo').onclick = async () => {
   await acquire();
-  try { await api('/demo', {method:'POST'}); counterOriginCycles = 0; source = null; showIndex([]); $('error').textContent = ''; }
-  catch (error) { $('error').textContent = error.message; }
+  try {
+    await api('/demo', {method:'POST'});
+    counterOriginCycles = 0; source = null; showIndex([]);
+    $('error').textContent = '';
+    $('deckMessage').textContent = 'Loading embedded demo…';
+    // Demo insert runs in the ESP loop (not inside HTTP) to avoid WDT/Wi-Fi drops.
+    for (let i = 0; i < 100; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      const s = await api('/state');
+      render(s);
+      if (s.tapeState === 'loaded') {
+        $('deckMessage').textContent = 'Demo tape loaded.';
+        break;
+      }
+      if (s.tapeState === 'error') {
+        throw new Error(s.error || 'demo failed');
+      }
+    }
+  } catch (error) { $('error').textContent = error.message; }
   finally { busy = false; }
 };
 
