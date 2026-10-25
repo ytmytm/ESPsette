@@ -31,6 +31,7 @@
 #include "player_page.h"
 #include <ArduinoJson.h>
 #include <LittleFS.h>
+#include <math.h>
 #include <pgmspace.h>
 #include <string.h>
 
@@ -47,18 +48,21 @@
 #define ESPSETTE_WIFI_DISABLED 0
 #endif
 #if ESPSETTE_GPIO_DISABLED
-// Bench / USB-serial: leave tape GPIOs alone; player UI uses soft sense only.
+// Bench / USB-serial: leave tape GPIOs alone; soft sense + always-on motor so
+// the deck animation, counter, and READ scope can be exercised without C64.
 static bool softSensePressed = false;
 
 static inline void setSensePressed(bool pressed) { softSensePressed = pressed; }
 static inline bool senseIsPressed() { return softSensePressed; }
-static inline bool motorIsOn() { return false; }
+static inline bool motorIsOn() { return true; }
+static inline bool motorBlocksEdit() { return false; }
 #else
 static inline void setSensePressed(bool pressed) {
   digitalWrite(PIN_SENSE, pressed ? LOW : HIGH);
 }
 static inline bool senseIsPressed() { return digitalRead(PIN_SENSE) == LOW; }
 static inline bool motorIsOn() { return digitalRead(PIN_MOTOR) == HIGH; }
+static inline bool motorBlocksEdit() { return motorIsOn(); }
 #endif
 
 RemoteDebug Debug;
@@ -188,6 +192,43 @@ volatile bool motorFell = false;
 uint32_t scheduledWords = 0; // Includes idle padding.
 uint32_t generatedTapBits = 0;
 uint32_t realBitRate = 0;
+#if ESPSETTE_GPIO_DISABLED
+uint32_t softPlayLastUs = 0;
+#endif
+
+// Downsampled READ levels for the web quasi-oscilloscope (newest at the end).
+static constexpr uint16_t SCOPE_LEN = 192;
+static constexpr uint8_t SCOPE_EVERY_N_BITS = 16; // ~130 µs/sample at C64 rate
+static uint8_t scopeBuf[SCOPE_LEN];
+static uint16_t scopePos = 0;
+static uint16_t scopeFilled = 0;
+static uint8_t scopeBitSkip = 0;
+
+static void scopePush(uint8_t bit) {
+  if (++scopeBitSkip < SCOPE_EVERY_N_BITS) return;
+  scopeBitSkip = 0;
+  scopeBuf[scopePos] = bit ? 1 : 0;
+  scopePos = (scopePos + 1) % SCOPE_LEN;
+  if (scopeFilled < SCOPE_LEN) ++scopeFilled;
+}
+
+static void scopeClear() {
+  scopePos = 0;
+  scopeFilled = 0;
+  scopeBitSkip = 0;
+}
+
+static bool stopPlaybackForEdit() {
+  if (state != State::STREAMING && state != State::DRAINING) return true;
+#if ESPSETTE_GPIO_DISABLED
+  playedBaseCycles += (uint64_t)generatedTapBits * CYCLES_PER_BIT;
+  generatedTapBits = 0;
+  state = State::WAITING;
+  return true;
+#else
+  return false;
+#endif
+}
 
 void handleRoot();
 void handlePlayer();
@@ -195,6 +236,7 @@ void handleNotFound();
 void handleState();
 void handleSession();
 void handleSeek();
+void handleNav();
 void handleChunk();
 void handleChunkUpload();
 void handleEject();
@@ -376,12 +418,6 @@ void pauseTape() {
 }
 
 void startTape() {
-#if ESPSETTE_GPIO_DISABLED
-  state = State::ERROR;
-  playerError = "gpio_disabled";
-  debugE("Tape GPIO disabled; I2S not started");
-  return;
-#endif
   if (playbackComplete) {
     playedBaseCycles = 0;
     playbackComplete = false;
@@ -398,9 +434,19 @@ void startTape() {
   scheduledWords = 0;
   generatedTapBits = 0;
   runStartDecoder = player.decoder;
+  scopeClear();
+  realBitRate = sourceClockHz / CYCLES_PER_BIT;
+#if ESPSETTE_GPIO_DISABLED
+  // Soft READ stream: advance the decoder on wall time for counter/scope UI.
+  softPlayLastUs = micros();
+  state = State::STREAMING;
+  debugI("Start soft tape at %lu; %lu bits/s",
+         (unsigned long)player.decoder.offset, (unsigned long)realBitRate);
+  return;
+#else
   // This rate is remembered by the core and applied during i2s_begin(),
   // before the first (otherwise fast) DMA descriptor can finish.
-  i2s_set_rate(sourceClockHz / CYCLES_PER_BIT / 32);
+  i2s_set_rate(realBitRate / 32);
 #ifdef I2S_HAS_BEGIN_RXTX_DRIVE_CLOCKS
   if (!i2s_rxtxdrive_begin(false, true, false, false)) {
     state = State::ERROR;
@@ -416,6 +462,7 @@ void startTape() {
   state = State::STREAMING;
   debugI("Start tape at %lu; I2S %lu bits/s",
          (unsigned long)player.decoder.offset, (unsigned long)realBitRate);
+#endif
 }
 
 bool loadPulse() {
@@ -497,11 +544,43 @@ bool nextTapeBit(uint8_t &bit) {
   ++player.decoder.pulseIndex;
   if (tapHalfWaves && player.decoder.pulseIndex == player.decoder.pulseTicks)
     player.decoder.halfWaveLevel ^= 1;
+  scopePush(bit);
   return true;
 }
 
+#if ESPSETTE_GPIO_DISABLED
+void pumpTapeSoft() {
+  if (state != State::STREAMING && state != State::DRAINING) return;
+  const uint32_t now = micros();
+  uint32_t elapsedUs = now - softPlayLastUs;
+  softPlayLastUs = now;
+  if (elapsedUs > 40000UL) elapsedUs = 40000UL; // Cap catch-up after HTTP stalls.
+  if (realBitRate == 0) return;
+  uint32_t wantBits = (uint32_t)(((uint64_t)elapsedUs * realBitRate) / 1000000ULL);
+  if (wantBits > 4096) wantBits = 4096;
+  for (uint32_t i = 0; i < wantBits; ++i) {
+    uint8_t bit;
+    if (!nextTapeBit(bit)) {
+      if (state == State::ERROR) return;
+      state = State::FINISHED;
+      playbackComplete = true;
+      if (totalTapeCycles) playedBaseCycles = totalTapeCycles;
+      else playedBaseCycles += (uint64_t)generatedTapBits * CYCLES_PER_BIT;
+      generatedTapBits = 0;
+      debugI("Soft TAP completed");
+      return;
+    }
+    ++generatedTapBits;
+  }
+}
+#endif
+
 void pumpTape() {
   if (state != State::STREAMING && state != State::DRAINING) return;
+#if ESPSETTE_GPIO_DISABLED
+  pumpTapeSoft();
+  return;
+#endif
   if (state == State::STREAMING && dmaUnderrun) {
     stopI2S();
     state = State::ERROR;
@@ -609,6 +688,7 @@ void setupWebserver() {
   HTTPServer.on("/state", HTTP_GET, handleState);
   HTTPServer.on("/session", HTTP_POST, handleSession);
   HTTPServer.on("/seek", HTTP_POST, handleSeek);
+  HTTPServer.on("/nav", HTTP_POST, handleNav);
   HTTPServer.on("/chunk", HTTP_POST, handleChunk, handleChunkUpload);
   HTTPServer.on("/eject", HTTP_POST, handleEject);
   HTTPServer.on("/sense", HTTP_POST, handleSense);
@@ -769,6 +849,9 @@ void loop() {
   }
 
   if (state == State::FINISHED) {
+#if ESPSETTE_GPIO_DISABLED
+    // Soft motor never falls; leave FINISHED until /nav, eject, or new tape.
+#else
     if (motor == LOW) {
       if (tapeSource.kind() == TapeSource::Kind::STREAMED) {
         tapeSource.eject();
@@ -778,6 +861,7 @@ void loop() {
       resetPlayer(20);
       state = State::WAITING;
     }
+#endif
   } else if (state == State::ERROR && motor == LOW &&
              tapeSource.kind() == TapeSource::Kind::STREAMED) {
     tapeSource.eject();
@@ -786,6 +870,9 @@ void loop() {
   } else if (state == State::WAITING) {
     if (motor == HIGH && tapeLoaded) startTape();
   } else if (state == State::STREAMING || state == State::DRAINING) {
+#if ESPSETTE_GPIO_DISABLED
+    pumpTape();
+#else
     if (motor == LOW) {
       if (!motorFell) { // Also handle a missed edge during startup.
         noInterrupts();
@@ -797,6 +884,7 @@ void loop() {
     } else {
       pumpTape();
     }
+#endif
   }
 
 #if !ESPSETTE_WIFI_DISABLED
@@ -833,10 +921,13 @@ void handleRoot() {
 }
 
 void handlePlayer() {
+#if !ESPSETTE_GPIO_DISABLED
+  // Serving the PROGMEM page while I2S drains can thrash ICACHE on ESP-01.
   if (state == State::STREAMING || state == State::DRAINING) {
     HTTPServer.send(503, "text/plain", "Open the player before LOAD");
     return;
   }
+#endif
   HTTPServer.sendHeader("Cache-Control", "no-store");
   HTTPServer.send_P(200, "text/html; charset=utf-8", PLAYER_PAGE);
 }
@@ -910,6 +1001,9 @@ static bool validStreamHeader(const uint8_t header[20], uint32_t size) {
 
 static uint32_t currentRunBits() {
   if (state != State::STREAMING && state != State::DRAINING) return 0;
+#if ESPSETTE_GPIO_DISABLED
+  return generatedTapBits;
+#else
   noInterrupts();
   const uint32_t callbacks = dmaCallbacks;
   const uint32_t lastCallbackUs = lastDmaCallbackUs;
@@ -920,10 +1014,63 @@ static uint32_t currentRunBits() {
                                           realBitRate) / 1000000ULL));
   return min(generatedTapBits,
              (callbacks - DMA_BUFFERS) * DMA_WORDS * 32 + within);
+#endif
+}
+
+// VICE / Pi1551 datasette counter model (same constants as the player page).
+static uint32_t tapeCounterAtCycles(uint64_t cycles, uint32_t clockHz) {
+  if (clockHz == 0) return 0;
+  const double seconds = (double)cycles / (double)clockHz;
+  const double d = 1.27e-5, r = 1.07e-2, v = 4.76e-2, g = 0.525;
+  const double turns = sqrt((r / d) * (r / d) + seconds * v / (d * 3.141592653589793));
+  if (turns <= r / d) return 0;
+  return (uint32_t)(g * (turns - r / d));
+}
+
+static uint64_t cyclesAtTapeCounter(uint32_t counter, uint32_t clockHz) {
+  const double d = 1.27e-5, r = 1.07e-2, v = 4.76e-2, g = 0.525;
+  const double turns = (double)counter / g + r / d;
+  const double seconds = (turns * turns - (r / d) * (r / d)) * d * 3.141592653589793 / v;
+  if (seconds <= 0) return 0;
+  return (uint64_t)(seconds * (double)clockHz + 0.5);
+}
+
+// Walk TAP records until accumulated cycles reach target; yields for WDT/Wi-Fi.
+static bool scanTapToCycles(uint64_t targetCycles, uint32_t& outOffset,
+                            uint64_t& outCycles) {
+  uint32_t offset = 20;
+  uint64_t acc = 0;
+  uint16_t steps = 0;
+  while (offset < tapEnd && acc < targetCycles) {
+    uint8_t value;
+    if (!tapeSource.read(offset, value)) return false;
+    ++offset;
+    uint32_t cycles;
+    if (value != 0) {
+      cycles = (uint32_t)value * 8;
+    } else {
+      if (tapEnd - offset < 3) return false;
+      uint8_t lo, mid, hi;
+      if (!tapeSource.read(offset, lo) || !tapeSource.read(offset + 1, mid) ||
+          !tapeSource.read(offset + 2, hi))
+        return false;
+      offset += 3;
+      cycles = (uint32_t)lo | ((uint32_t)mid << 8) | ((uint32_t)hi << 16);
+    }
+    if (cycles == 0) return false;
+    acc += cycles;
+    if ((++steps & 63) == 0) {
+      ESP.wdtFeed();
+      yield();
+    }
+  }
+  outOffset = offset;
+  outCycles = acc;
+  return true;
 }
 
 void handleState() {
-  StaticJsonDocument<1024> doc;
+  StaticJsonDocument<1536> doc;
   const bool motorOn = motorIsOn();
   doc["tapeState"] = pendingDemoInsert ? "loading"
       : (demoInsertFailed && !tapeLoaded) ? "error"
@@ -980,6 +1127,17 @@ void handleState() {
   doc["writeHeaders"] = writeDecoder.receivedCount();
   doc["writeErrors"] = writeDecoder.errorCount();
   doc["writeOverflows"] = writeDecoder.overflowCount();
+  {
+    char scopeStr[SCOPE_LEN + 1];
+    const uint16_t n = scopeFilled;
+    for (uint16_t i = 0; i < n; ++i) {
+      const uint16_t idx = (scopePos + SCOPE_LEN - n + i) % SCOPE_LEN;
+      scopeStr[i] = scopeBuf[idx] ? '1' : '0';
+    }
+    scopeStr[n] = '\0';
+    doc["scope"] = scopeStr;
+    doc["scopeHz"] = realBitRate ? realBitRate / SCOPE_EVERY_N_BITS : 0;
+  }
   if (doc.overflowed()) {
     HTTPServer.send(500, "application/json", "{\"error\":\"state_overflow\"}");
     return;
@@ -994,8 +1152,7 @@ void handleSession() {
   uint32_t fileSize;
   uint64_t cycles = 0;
   uint8_t prefix[20] = {};
-  if (motorIsOn() ||
-      state == State::STREAMING || state == State::DRAINING) {
+  if (motorBlocksEdit() || !stopPlaybackForEdit()) {
     HTTPServer.send(409, "text/plain", "Stop MOTOR before changing the tape");
     return;
   }
@@ -1086,11 +1243,67 @@ void handleSession() {
   HTTPServer.send(201, "application/json", response);
 }
 
+void handleNav() {
+  if (motorBlocksEdit() || !stopPlaybackForEdit()) {
+    HTTPServer.send(409, "text/plain", "Stop MOTOR before seeking");
+    return;
+  }
+  if (!tapeLoaded || sourceFormat != SourceFormat::TAP || tapEnd <= 20) {
+    HTTPServer.send(400, "text/plain", "No TAP loaded");
+    return;
+  }
+  const String dirArg = HTTPServer.arg("dir");
+  const int dir = dirArg == "1" ? 1 : dirArg == "-1" ? -1 : 0;
+  if (dir == 0) {
+    HTTPServer.send(400, "text/plain", "dir must be 1 or -1");
+    return;
+  }
+  const uint64_t played = playedBaseCycles;
+  const uint32_t counter = tapeCounterAtCycles(played, sourceClockHz);
+  uint32_t targetCounter;
+  if (dir > 0) {
+    targetCounter = (counter / 10U) * 10U + 10U;
+  } else if (counter % 10U == 0) {
+    targetCounter = counter >= 10U ? counter - 10U : 0;
+  } else {
+    targetCounter = (counter / 10U) * 10U;
+  }
+  const uint64_t targetCycles = cyclesAtTapeCounter(targetCounter, sourceClockHz);
+  uint32_t offset = 20;
+  uint64_t atCycles = 0;
+  if (targetCycles > 0) {
+    if (!scanTapToCycles(targetCycles, offset, atCycles)) {
+      HTTPServer.send(500, "text/plain", "TAP scan failed");
+      return;
+    }
+  }
+  if (tapeSource.kind() == TapeSource::Kind::STREAMED) {
+    if (!tapeSource.seek(offset, tapeSource.sessionId())) {
+      HTTPServer.send(409, "text/plain",
+                      "Streamed TAP window missed that offset; use IDX/timeline FF");
+      return;
+    }
+    tapeLoaded = tapeSource.bufferedBytes() >= 4096 ||
+                 tapeSource.nextOffset() >= tapEnd;
+  }
+  playedBaseCycles = atCycles;
+  playbackComplete = false;
+  playerError = nullptr;
+  state = State::WAITING;
+  resetPlayer(offset);
+  StaticJsonDocument<192> reply;
+  reply["offset"] = offset;
+  reply["playedCycles"] = (double)atCycles;
+  reply["tapeState"] = tapeLoaded ? "loaded" : "ejected";
+  String response;
+  serializeJson(reply, response);
+  HTTPServer.send(200, "application/json", response);
+}
+
 void handleSeek() {
   uint32_t id, offset, phase;
   uint64_t remainingCycles;
-  if (motorIsOn() ||
-      state == State::STREAMING || state == State::DRAINING) {
+  if (motorBlocksEdit() || !stopPlaybackForEdit()) {
     HTTPServer.send(409, "text/plain", "Stop MOTOR before seeking");
     return;
   }
@@ -1190,7 +1403,7 @@ void handleSense() {
 }
 
 void handleAutoPlay() {
-  if (motorIsOn()) {
+  if (motorBlocksEdit()) {
     HTTPServer.send(409, "application/json", "{\"error\":\"motor_on\"}");
     return;
   }
@@ -1238,7 +1451,7 @@ void handleDefaultMachine() {
 }
 
 void handleEject() {
-  if (motorIsOn()) {
+  if (motorBlocksEdit() || !stopPlaybackForEdit()) {
     HTTPServer.send(409, "text/plain", "Stop MOTOR before ejecting");
     return;
   }
@@ -1251,18 +1464,15 @@ void handleEject() {
   playedBaseCycles = 0;
   playbackComplete = false;
   playerError = nullptr;
+  scopeClear();
   state = State::WAITING;
   resetPlayer(20);
   HTTPServer.send(200, "application/json", "{\"tapeState\":\"ejected\"}");
 }
 
 void handleDemo() {
-  if (motorIsOn()) {
+  if (motorBlocksEdit() || !stopPlaybackForEdit()) {
     HTTPServer.send(409, "text/plain", "Stop MOTOR before inserting the demo");
-    return;
-  }
-  if (state == State::STREAMING || state == State::DRAINING) {
-    HTTPServer.send(409, "text/plain", "Stop playback before inserting the demo");
     return;
   }
   if (pendingDemoInsert) {

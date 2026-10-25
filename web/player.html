@@ -19,10 +19,13 @@ main{max-width:760px;margin:auto;padding:18px}h1{font-size:1.6rem;margin:0 0 4px
 .card{background:#202832;border:1px solid #36414b;border-radius:12px;padding:16px;margin-top:18px}
 label{display:block;margin:12px 0}input[type=file],select{display:block;width:100%;margin-top:8px}select{font:inherit;padding:10px;background:#111923;color:#fff;border:1px solid #566472;border-radius:8px}.drop{border:2px dashed #687786;border-radius:10px;padding:18px;text-align:center;color:#b9c7d3}.drop.over{border-color:#e2b94d;background:#39414a}button{font:inherit;border:0;border-radius:8px;background:#d5a43a;color:#17191a;padding:10px 15px;margin:4px 5px 4px 0;font-weight:700}button.secondary{background:#414e5b;color:#fff}button:disabled{opacity:.45}a{color:#9fcfff}
 .stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.stats div{background:#131a22;border-radius:7px;padding:12px}.stats b{display:block;font-size:1.2rem;overflow-wrap:anywhere}small{color:#a4b3bf}#error{color:#ffaaa6;min-height:1.3em}
+.scope-wrap{margin-top:14px;background:#0c1117;border:1px solid #2a3440;border-radius:8px;padding:10px 10px 8px}
+.scope-wrap canvas{display:block;width:100%;height:72px;image-rendering:pixelated}
+.scope-wrap small{display:block;margin-top:6px}
 </style>
 <main><h1>espsette</h1><p>Tape over Wi-Fi · C64 / C16 PAL</p>
 <div id="deck" class="deck"><div class="deck-top"><span>DATASETTE</span><output id="counter" class="counter" aria-label="Tape counter 000"><span class="counter-digit"><span id="counterStrip0" class="counter-strip"><span id="counterOld0">0</span><span id="counterNext0">0</span></span></span><span class="counter-digit"><span id="counterStrip1" class="counter-strip"><span id="counterOld1">0</span><span id="counterNext1">0</span></span></span><span class="counter-digit"><span id="counterStrip2" class="counter-strip"><span id="counterOld2">0</span><span id="counterNext2">0</span></span></span></output></div><div class="window"><video id="windowVideo" muted loop playsinline></video><div class="cassette"><div class="reel"></div><div class="reel"></div></div></div><div class="keys" role="group" aria-label="Datasette controls"><button id="rewind" class="key" type="button" aria-label="Previous tape position">◀◀<br>REW</button><button id="stop" class="key" type="button" aria-label="Release PLAY on SENSE">■<br>STOP</button><button id="play" class="key pressed" type="button" aria-label="Press PLAY on SENSE">▶<br>PLAY</button><button id="fastForward" class="key" type="button" aria-label="Next tape position">▶▶<br>FF</button><button id="deckEject" class="key" type="button" aria-label="Eject tape">⏏<br>EJECT</button></div><p id="deckMessage" role="status" aria-live="polite"></p><label class="autoplay"><input id="autoPlay" type="checkbox" checked> Autoplay when tape is inserted</label></div>
-<section class="card"><div class="stats"><div><small>Tape</small><b id="loaded">—</b></div><div><small>Motor</small><b id="motor">—</b></div><div><small>Played</small><b id="played">—</b></div><div><small>ESP buffer</small><b id="buffer">—</b></div><div><small>Signal remaining</small><b id="remaining">—</b></div><div><small>WRITE / SAVE</small><b id="writeStatus">—</b></div></div><p id="writeDetail"></p><p id="phase">Connecting…</p><p id="transport"></p><p id="error"></p><details id="debugPanel" class="debug"><summary>Debug / ESP state</summary><p id="diagnostics"></p><pre id="debugJson"></pre></details></section>
+<section class="card"><div class="stats"><div><small>Tape</small><b id="loaded">—</b></div><div><small>Motor</small><b id="motor">—</b></div><div><small>Played</small><b id="played">—</b></div><div><small>ESP buffer</small><b id="buffer">—</b></div><div><small>Signal remaining</small><b id="remaining">—</b></div><div><small>WRITE / SAVE</small><b id="writeStatus">—</b></div></div><div class="scope-wrap"><canvas id="scope" width="640" height="72" aria-label="READ waveform"></canvas><small id="scopeLabel">READ · waiting for playback</small></div><p id="writeDetail"></p><p id="phase">Connecting…</p><p id="transport"></p><p id="error"></p><details id="debugPanel" class="debug"><summary>Debug / ESP state</summary><p id="diagnostics"></p><pre id="debugJson"></pre></details></section>
 <section class="card"><label>Default computer for PRG<select id="defaultMachine"><option value="c64">C64</option><option value="c16">C16 / Plus/4 PAL</option></select></label><p>A TAP identifies its computer in the header. The built-in demo is for C64.</p></section>
 <section class="card"><div id="dropzone" class="drop">Drop a TAP or PRG; optionally add an IDX for TAP</div><p id="selectedFiles"></p><label>C64 / C16 PAL TAP v1–v2 or PRG<input id="file" type="file" accept=".tap,.prg"></label><div id="indexPicker"><label>IDX index (optional for TAP)<input id="indexFile" type="file" accept=".idx,text/plain"></label><button id="clearIndex" class="secondary">Clear IDX selection</button></div><div id="prgOptions" hidden><label>Computer<select id="machine"><option value="c64">C64</option><option value="c16">C16 / Plus/4 PAL</option></select></label><label>Prepend turbo loader<select id="turbo"><option value="0">No — standard LOAD</option><option value="1" disabled>Yes — coming later</option></select></label><label>Tape name<input id="programName" maxlength="16" placeholder="PROGRAM"></label></div><button id="load">Insert tape</button><button id="demo" class="secondary">Demo tape</button><div id="indexControls" hidden><label>IDX position<select id="idxPositions"></select></label><button id="seek" class="secondary">Jump to position</button><p id="indexInfo"></p></div><p>The file stays in this tab. Keep the browser open during LOAD; when the ESP buffer is full, the next chunk waits without keeping an HTTP request open.</p><label>Optional video in the window<input id="previewVideoFile" type="file" accept="video/mp4,video/webm"></label><p>You can use a locally downloaded <a href="https://pixabay.com/videos/tape-recorder-music-stale-nostalgic-118790/" target="_blank" rel="noopener">tape recorder video from Pixabay</a>. The video stays in the browser and pauses when MOTOR stops.</p><a id="wifiLink" href="/wifi">Wi-Fi settings</a></section><section id="previewPanel" class="card" hidden><h2>Local preview</h2><p>Simulation without an ESP-01. Select a TAP or PRG and toggle MOTOR to check the animation, buffer and page layout.</p><button id="motorToggle" class="secondary">MOTOR on/off</button><button id="saveMock" class="secondary">Simulate SAVE</button></section></main>
 <script>
@@ -38,11 +41,54 @@ let mockType = 'tap';
 const mock = {tapeState:'loaded', sourceType:'tap', machine:'c64', clockHz:985248, fileName:'draxcaught (demo)', motorOn:false,
   sensePressed:true, autoPlay:true, defaultMachine:'c64', playing:false, phase:'idle', playedCycles:0,
   totalCycles:117000000, bufferedMillis:null, fileOffsetReceived:0,
-  freeBytes:8192, sessionId:0, logicalSize:0, error:null, writeEnabled:false,
+  freeBytes:8192, sessionId:0, logicalSize:0, error:null, writeEnabled:false, gpioDisabled:false,
   freeHeap:32000, maxFreeBlock:24000, maxLoopUs:0, maxHttpUs:0,
   i2sUnderruns:0, sourceUnderruns:0, uploadErrors:0,
   writeStatus:'idle', writeMachine:'unknown', writeName:'', writeType:0, writeStart:0, writeEnd:0,
-  writeHeaders:0, writeErrors:0, writeOverflows:0};
+  writeHeaders:0, writeErrors:0, writeOverflows:0, scope:'', scopeHz:0};
+let mockScopeLevel = 0;
+
+function drawScope(s) {
+  const canvas = $('scope');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.fillStyle = '#0c1117';
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = '#1e2a36';
+  ctx.beginPath();
+  ctx.moveTo(0, h / 2);
+  ctx.lineTo(w, h / 2);
+  ctx.stroke();
+  const bits = typeof s.scope === 'string' ? s.scope : '';
+  if (!bits.length) {
+    $('scopeLabel').textContent = 'READ · waiting for playback';
+    return;
+  }
+  const mid = h * 0.55, amp = h * 0.32;
+  ctx.strokeStyle = '#7dcea0';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < bits.length; i++) {
+    const x = (i / Math.max(1, bits.length - 1)) * (w - 1);
+    const y = bits[i] === '1' ? mid - amp : mid + amp;
+    if (i === 0) ctx.moveTo(x, y);
+    else {
+      const prevY = bits[i - 1] === '1' ? mid - amp : mid + amp;
+      ctx.lineTo(x, prevY);
+      ctx.lineTo(x, y);
+    }
+  }
+  ctx.stroke();
+  const hz = s.scopeHz || 0;
+  $('scopeLabel').textContent = hz ?
+    'READ · ~' + Math.round(hz / 1000) + ' kSa/s · ' + bits.length + ' samples' :
+    'READ · ' + bits.length + ' samples';
+}
+
+function motorBlocksTransport(s) {
+  return !!s?.motorOn && !s?.gpioDisabled;
+}
 
 function updateMock() {
   const now = Date.now(), seconds = Math.min(1, (now - mockTick) / 1000);
@@ -54,8 +100,16 @@ function updateMock() {
       mock.playedCycles + Math.round(seconds * mock.clockHz));
     if (!mockDemo && mockBytes === 0 && mock.fileOffsetReceived < mockSize) {
       mock.error = 'buffer_underrun'; mock.phase = 'error';
-    } else if (mock.playedCycles >= mock.totalCycles) mock.phase = 'done';
+    } else     if (mock.playedCycles >= mock.totalCycles) mock.phase = 'done';
     else mock.phase = 'data';
+    let wave = mock.scope || '';
+    const samples = Math.max(1, Math.min(24, Math.round(seconds * 80)));
+    for (let i = 0; i < samples; i++) {
+      if (Math.random() < 0.18) mockScopeLevel ^= 1;
+      wave += mockScopeLevel ? '1' : '0';
+    }
+    mock.scope = wave.slice(-192);
+    mock.scopeHz = 5000;
   } else if (mock.playedCycles && mock.phase !== 'error' && mock.phase !== 'done') {
     mock.phase = 'paused';
   }
@@ -134,13 +188,24 @@ async function mockApi(path, options = {}) {
     mock.sessionId = 0; mock.fileOffsetReceived = 0; mock.sensePressed = false; source = null;
     return {tapeState:'ejected'};
   }
+  if (path === '/nav') {
+    if (mock.motorOn && !mock.gpioDisabled) throw new Error('Stop MOTOR');
+    const dir = Number(options.body?.get('dir'));
+    if (dir !== 1 && dir !== -1) throw new Error('dir');
+    const counter = tapeCounterAtSeconds(mock.playedCycles / mock.clockHz);
+    const target = dir > 0 ? Math.floor(counter / 10) * 10 + 10 :
+      (counter % 10 === 0 ? Math.max(0, counter - 10) : Math.floor(counter / 10) * 10);
+    mock.playedCycles = secondsAtTapeCounter(target) * mock.clockHz;
+    mock.scope = '';
+    return {offset:20, playedCycles:mock.playedCycles, tapeState:mock.tapeState};
+  }
   if (path === '/demo') {
     if (mock.motorOn) throw new Error('Stop MOTOR');
     mock.tapeState = 'loaded'; mock.fileName = 'draxcaught (demo)';
     mockDemo = true; mockType = 'tap'; mock.sourceType = 'tap';
     mock.machine = 'c64'; mock.clockHz = 985248;
     mock.sessionId = 0; mock.logicalSize = 0; mock.fileOffsetReceived = 0;
-    mock.playedCycles = 0; mock.sensePressed = mock.autoPlay;
+    mock.playedCycles = 0; mock.sensePressed = mock.autoPlay; mock.scope = '';
     mock.totalCycles = 117000000; mock.phase = 'idle'; mock.error = null;
     return {tapeState:'loaded'};
   }
@@ -207,21 +272,24 @@ function showTapeCounter(raw) {
 function render(s) {
   last = s;
   const playing = !!s.playing;
+  const blocked = motorBlocksTransport(s);
+  const canServerNav = s.tapeState === 'loaded' && s.sourceType === 'tap';
   $('deck').classList.toggle('playing', playing);
   $('deck').classList.toggle('ejected', s.tapeState === 'ejected');
   $('play').classList.toggle('pressed', !!s.sensePressed);
   $('stop').classList.toggle('pressed', !s.sensePressed);
   $('play').setAttribute('aria-pressed', String(!!s.sensePressed));
   $('stop').setAttribute('aria-pressed', String(!s.sensePressed));
-  $('rewind').disabled = !!s.motorOn || !source &&
-    (s.tapeState !== 'loaded' || s.sessionId !== 0);
-  $('fastForward').disabled = !!s.motorOn || !navigationTarget(1);
-  $('deckEject').disabled = !!s.motorOn || s.tapeState === 'ejected' && !s.sessionId;
+  $('rewind').disabled = blocked || (!source &&
+    (s.tapeState !== 'loaded' || s.sessionId !== 0) && !canServerNav);
+  $('fastForward').disabled = blocked || !(navigationTarget(1) || canServerNav);
+  $('deckEject').disabled = blocked || s.tapeState === 'ejected' && !s.sessionId;
   if (!$('deckMessage').textContent)
     $('deckMessage').textContent = s.sensePressed ?
       'PLAY pressed. The computer controls MOTOR.' : 'STOP released SENSE.';
   $('loaded').textContent = s.tapeState === 'loaded' ? (s.fileName || 'Loaded') : 'Ejected';
-  $('motor').textContent = s.motorOn ? 'On' : 'Off';
+  $('motor').textContent = s.motorOn ?
+    (s.gpioDisabled ? 'On (soft)' : 'On') : 'Off';
   $('autoPlay').checked = !!s.autoPlay;
   if (s.defaultMachine === 'c64' || s.defaultMachine === 'c16') {
     $('defaultMachine').value = s.defaultMachine;
@@ -264,8 +332,9 @@ function render(s) {
       ' · errors: ' + s.writeErrors + ' · overflows: ' + s.writeOverflows :
       'GPIO2/WRITE requires protected hardware and a WRITE profile.');
   if (s.error) $('error').textContent = 'Player error: ' + s.error;
-  $('seek').disabled = !!s.motorOn || !source || source.type !== 'tap' ||
+  $('seek').disabled = blocked || !source || source.type !== 'tap' ||
     source.id !== s.sessionId;
+  drawScope(s);
   const video = $('windowVideo');
   if (videoUrl && playing && video.paused) video.play().catch(() => {});
   if ((!playing || s.tapeState === 'ejected') && !video.paused) video.pause();
@@ -470,7 +539,7 @@ async function step() {
 $('load').onclick = async () => {
   const file = selectedFile || $('file').files[0];
   if (!file) { $('error').textContent = 'Select a TAP or PRG'; return; }
-  if (last?.motorOn) { $('error').textContent = 'Stop MOTOR'; return; }
+  if (motorBlocksTransport(last)) { $('error').textContent = 'Stop MOTOR'; return; }
   await acquire();
   try {
     const isPrg = /\.prg$/i.test(file.name);
@@ -535,6 +604,7 @@ $('deckEject').onclick = async () => {
   finally { busy = false; }
 };
 $('demo').onclick = async () => {
+  $('deck').scrollIntoView({behavior: 'smooth', block: 'start'});
   await acquire();
   try {
     await api('/demo', {method:'POST'});
@@ -548,6 +618,7 @@ $('demo').onclick = async () => {
       render(s);
       if (s.tapeState === 'loaded') {
         $('deckMessage').textContent = 'Demo tape loaded.';
+        $('deck').scrollIntoView({behavior: 'smooth', block: 'start'});
         break;
       }
       if (s.tapeState === 'error') {
@@ -558,8 +629,20 @@ $('demo').onclick = async () => {
   finally { busy = false; }
 };
 
+async function serverNav(dir) {
+  await acquire();
+  try {
+    await api('/nav', {method:'POST', body:new URLSearchParams({dir:String(dir)})});
+    counterOriginCycles = 0;
+    $('error').textContent = '';
+    $('deckMessage').textContent = dir > 0 ? 'Fast-forwarded.' : 'Rewound.';
+  } catch (error) {
+    $('error').textContent = 'Cannot seek: ' + error.message;
+  } finally { busy = false; }
+}
+
 async function seekTo(entry) {
-  if (!source || last?.motorOn) {
+  if (!source || motorBlocksTransport(last)) {
     $('error').textContent = 'Select a TAP and stop MOTOR';
     return;
   }
@@ -592,7 +675,7 @@ $('seek').onclick = async () => {
 };
 
 $('rewind').onclick = async () => {
-  if (last?.motorOn) return;
+  if (motorBlocksTransport(last)) return;
   if (!source && last?.tapeState === 'loaded' && last.sessionId === 0) {
     await acquire();
     try {
@@ -605,8 +688,13 @@ $('rewind').onclick = async () => {
     } finally { busy = false; }
     return;
   }
+  if (source?.type === 'tap') {
+    const prev = navigationTarget(-1);
+    if (prev) return seekTo(prev);
+  }
+  if (!source && last?.tapeState === 'loaded' && last.sourceType === 'tap')
+    return serverNav(-1);
   if (!source) return;
-  if (source.type === 'tap') return seekTo(navigationTarget(-1));
   await acquire();
   try {
     const ack = await api('/session', {method:'POST', body:source.sessionBody});
@@ -622,9 +710,13 @@ $('rewind').onclick = async () => {
 };
 
 $('fastForward').onclick = async () => {
-  if (!source || source.type !== 'tap' || last?.motorOn) return;
-  const next = navigationTarget(1);
-  if (next) await seekTo(next);
+  if (motorBlocksTransport(last)) return;
+  if (source?.type === 'tap') {
+    const next = navigationTarget(1);
+    if (next) return seekTo(next);
+  }
+  if (last?.tapeState === 'loaded' && last.sourceType === 'tap')
+    return serverNav(1);
 };
 
 async function setSense(pressed) {
