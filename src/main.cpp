@@ -48,13 +48,14 @@
 #define ESPSETTE_WIFI_DISABLED 0
 #endif
 #if ESPSETTE_GPIO_DISABLED
-// Bench / USB-serial: leave tape GPIOs alone; soft sense + always-on motor so
-// the deck animation, counter, and READ scope can be exercised without C64.
+// Bench: soft SENSE via PLAY/STOP; soft MOTOR stays on (as if the C64 asserted
+// it). Tape only runs while both motor and PLAY are active.
 static bool softSensePressed = false;
+static bool softMotorOn = true;
 
 static inline void setSensePressed(bool pressed) { softSensePressed = pressed; }
 static inline bool senseIsPressed() { return softSensePressed; }
-static inline bool motorIsOn() { return true; }
+static inline bool motorIsOn() { return softMotorOn; }
 static inline bool motorBlocksEdit() { return false; }
 #else
 static inline void setSensePressed(bool pressed) {
@@ -64,6 +65,10 @@ static inline bool senseIsPressed() { return digitalRead(PIN_SENSE) == LOW; }
 static inline bool motorIsOn() { return digitalRead(PIN_MOTOR) == HIGH; }
 static inline bool motorBlocksEdit() { return motorIsOn(); }
 #endif
+
+static inline bool tapeShouldRun() {
+  return motorIsOn() && senseIsPressed();
+}
 
 RemoteDebug Debug;
 ESP8266WebServer HTTPServer(80);
@@ -230,6 +235,24 @@ static bool stopPlaybackForEdit() {
 #endif
 }
 
+void pauseTape();
+
+// Pause READ output at the current position (MOTOR off or PLAY released).
+static void pausePlaybackNow() {
+  if (state != State::STREAMING && state != State::DRAINING) return;
+#if ESPSETTE_GPIO_DISABLED
+  playedBaseCycles += (uint64_t)generatedTapBits * CYCLES_PER_BIT;
+  generatedTapBits = 0;
+  state = State::WAITING;
+#else
+  noInterrupts();
+  motorFallCallbacks = dmaCallbacks;
+  motorFallElapsedUs = lastDmaCallbackUs ? micros() - lastDmaCallbackUs : 0;
+  interrupts();
+  pauseTape();
+#endif
+}
+
 void handleRoot();
 void handlePlayer();
 void handleNotFound();
@@ -288,11 +311,41 @@ bool validateTap() {
   }
   if (dataSize != draxcaught_tap_len - 20) return false;
   tapEnd = draxcaught_tap_len;
-  // Do not scan all ~250 KB of PROGMEM at boot: even with yield() the
-  // software WDT still fired and produced a tight reset loop. Cycle totals
-  // for the embedded demo are filled in during playback instead.
   totalTapeCycles = 0;
   reportedTotalCycles = 0;
+  return true;
+}
+
+// Full PROGMEM walk only from the deferred demo path (never from setup/HTTP).
+static bool scanEmbeddedTotalCycles() {
+  uint32_t offset = 20;
+  uint64_t acc = 0;
+  uint16_t steps = 0;
+  while (offset < tapEnd) {
+    uint8_t value;
+    if (!tapeSource.read(offset, value)) return false;
+    ++offset;
+    uint32_t cycles;
+    if (value != 0) {
+      cycles = (uint32_t)value * 8;
+    } else {
+      if (tapEnd - offset < 3) return false;
+      uint8_t lo, mid, hi;
+      if (!tapeSource.read(offset, lo) || !tapeSource.read(offset + 1, mid) ||
+          !tapeSource.read(offset + 2, hi))
+        return false;
+      offset += 3;
+      cycles = (uint32_t)lo | ((uint32_t)mid << 8) | ((uint32_t)hi << 16);
+    }
+    if (cycles == 0) return false;
+    acc += cycles;
+    if ((++steps & 127) == 0) {
+      ESP.wdtFeed();
+      yield();
+    }
+  }
+  totalTapeCycles = acc;
+  reportedTotalCycles = acc;
   return true;
 }
 
@@ -317,9 +370,14 @@ static void insertEmbeddedDemo() {
   resetPlayer(20);
   ESP.wdtFeed();
   yield();
-  const bool ok = validateTap();
+  bool ok = validateTap();
   ESP.wdtFeed();
   yield();
+  if (ok) {
+    ok = scanEmbeddedTotalCycles();
+    ESP.wdtFeed();
+    yield();
+  }
   tapeLoaded = ok;
   setSensePressed(autoPlay && tapeLoaded);
   state = ok ? State::WAITING : State::ERROR;
@@ -328,8 +386,9 @@ static void insertEmbeddedDemo() {
     tapeSource.eject();
     demoInsertFailed = true;
   }
-  debugI("Embedded demo %s; TAP bytes=%lu", ok ? "loaded" : "invalid",
-         (unsigned long)tapEnd);
+  debugI("Embedded demo %s; TAP bytes=%lu cycles=%lu",
+         ok ? "loaded" : "invalid", (unsigned long)tapEnd,
+         (unsigned long)reportedTotalCycles);
 }
 
 void idleReadPin() {
@@ -849,42 +908,37 @@ void loop() {
   }
 
   if (state == State::FINISHED) {
-#if ESPSETTE_GPIO_DISABLED
-    // Soft motor never falls; leave FINISHED until /nav, eject, or new tape.
-#else
-    if (motor == LOW) {
-      if (tapeSource.kind() == TapeSource::Kind::STREAMED) {
+    // After end of tape, release PLAY (or MOTOR) before a fresh run from the start.
+    if (!tapeShouldRun()) {
+      if (tapeSource.kind() == TapeSource::Kind::STREAMED && !motorIsOn()) {
         tapeSource.eject();
         tapeLoaded = false;
         tapEnd = 0;
       }
       resetPlayer(20);
+      playedBaseCycles = 0;
+      playbackComplete = false;
       state = State::WAITING;
     }
-#endif
-  } else if (state == State::ERROR && motor == LOW &&
+  } else if (state == State::ERROR && !motorIsOn() &&
              tapeSource.kind() == TapeSource::Kind::STREAMED) {
     tapeSource.eject();
     tapeLoaded = false;
     tapEnd = 0;
   } else if (state == State::WAITING) {
-    if (motor == HIGH && tapeLoaded) startTape();
+    if (tapeShouldRun() && tapeLoaded) startTape();
   } else if (state == State::STREAMING || state == State::DRAINING) {
-#if ESPSETTE_GPIO_DISABLED
-    pumpTape();
-#else
-    if (motor == LOW) {
-      if (!motorFell) { // Also handle a missed edge during startup.
+    if (!tapeShouldRun()) {
+      if (motor == LOW && !motorFell) {
         noInterrupts();
         motorFallCallbacks = dmaCallbacks;
-        motorFallElapsedUs = micros() - lastDmaCallbackUs;
+        motorFallElapsedUs = lastDmaCallbackUs ? micros() - lastDmaCallbackUs : 0;
         interrupts();
       }
-      pauseTape();
+      pausePlaybackNow();
     } else {
       pumpTape();
     }
-#endif
   }
 
 #if !ESPSETTE_WIFI_DISABLED
@@ -1084,7 +1138,7 @@ void handleState() {
   doc["gpioDisabled"] = bool(ESPSETTE_GPIO_DISABLED);
   doc["autoPlay"] = autoPlay;
   doc["defaultMachine"] = defaultC16 ? "c16" : "c64";
-  doc["playing"] = motorOn && tapeLoaded &&
+  doc["playing"] = motorOn && senseIsPressed() && tapeLoaded &&
       (state == State::STREAMING || state == State::DRAINING);
   const char* phase = "idle";
   if (state == State::STREAMING || state == State::DRAINING)
@@ -1092,7 +1146,7 @@ void handleState() {
             player.decoder.prgPulseIndex < prgEncoder.dataStartPulse() ? "header" : "data";
   else if (state == State::FINISHED || playbackComplete) phase = "done";
   else if (state == State::ERROR) phase = "error";
-  else if (playedBaseCycles != 0 && !motorOn)
+  else if (playedBaseCycles != 0 && !tapeShouldRun())
     phase = sourceFormat == SourceFormat::PRG &&
             player.decoder.prgPulseIndex >= prgEncoder.dataStartPulse() ?
             "headerPause" : "paused";
@@ -1103,12 +1157,21 @@ void handleState() {
   if (reportedTotalCycles) doc["totalCycles"] = (double)reportedTotalCycles;
   else doc["totalCycles"] = nullptr;
   doc["bufferedMillis"] = nullptr; // TAP bytes have variable pulse durations.
-  doc["fileOffsetReceived"] = tapeSource.kind() == TapeSource::Kind::STREAMED ?
-      tapeSource.nextOffset() : 0;
-  doc["freeBytes"] = tapeSource.freeBytes();
+  doc["embedded"] = tapeSource.kind() == TapeSource::Kind::EMBEDDED;
+  if (tapeSource.kind() == TapeSource::Kind::STREAMED) {
+    doc["fileOffsetReceived"] = tapeSource.nextOffset();
+    doc["freeBytes"] = tapeSource.freeBytes();
+    doc["logicalSize"] = tapeSource.size();
+  } else if (tapeSource.kind() == TapeSource::Kind::EMBEDDED) {
+    doc["fileOffsetReceived"] = tapEnd;
+    doc["freeBytes"] = 0;
+    doc["logicalSize"] = tapEnd;
+  } else {
+    doc["fileOffsetReceived"] = 0;
+    doc["freeBytes"] = tapeSource.freeBytes();
+    doc["logicalSize"] = 0;
+  }
   doc["sessionId"] = tapeSource.sessionId();
-  doc["logicalSize"] = tapeSource.kind() == TapeSource::Kind::STREAMED ?
-      tapeSource.size() : 0;
   doc["freeHeap"] = ESP.getFreeHeap();
   doc["maxFreeBlock"] = ESP.getMaxFreeBlockSize();
   doc["maxLoopUs"] = maxLoopUs;
@@ -1307,15 +1370,40 @@ void handleSeek() {
     HTTPServer.send(409, "text/plain", "Stop MOTOR before seeking");
     return;
   }
+  const bool toEnd = HTTPServer.arg("end") == "1";
   if (sourceFormat != SourceFormat::TAP ||
       !parseDecimal(HTTPServer.arg("sid"), id) ||
       !parseDecimal(HTTPServer.arg("offset"), offset) ||
       !parseDecimal(HTTPServer.arg("phase"), phase) || phase > 1 ||
       (!tapHalfWaves && phase != 0) ||
       !parseDecimal64(HTTPServer.arg("cycles"), remainingCycles) ||
-      remainingCycles == 0 || tapeSource.kind() != TapeSource::Kind::STREAMED ||
-      id != tapeSource.sessionId() || offset < 20 || offset >= tapEnd) {
+      tapeSource.kind() != TapeSource::Kind::STREAMED ||
+      id != tapeSource.sessionId() ||
+      (!toEnd && (remainingCycles == 0 || offset < 20 || offset >= tapEnd)) ||
+      (toEnd && remainingCycles == 0)) {
     HTTPServer.send(400, "text/plain", "Invalid session or TAP offset");
+    return;
+  }
+  if (toEnd) {
+    // IDX/FF past the last marker: park at end of tape (session kept for REW).
+    tapeLoaded = true;
+    totalTapeCycles = remainingCycles;
+    reportedTotalCycles = remainingCycles;
+    playedBaseCycles = remainingCycles;
+    playbackComplete = true;
+    playerError = nullptr;
+    uploadSeen = false;
+    state = State::FINISHED;
+    resetPlayer(tapEnd);
+    StaticJsonDocument<160> reply;
+    reply["sessionId"] = id; // Keep the same session; browser source stays valid.
+    reply["nextOffset"] = tapEnd;
+    reply["freeBytes"] = tapeSource.freeBytes();
+    reply["tapeState"] = "loaded";
+    reply["atEnd"] = true;
+    String response;
+    serializeJson(reply, response);
+    HTTPServer.send(200, "application/json", response);
     return;
   }
   // The browser has scanned the source TAP and checked that this IDX offset
