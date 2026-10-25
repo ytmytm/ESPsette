@@ -304,10 +304,10 @@ $('buffer').textContent = s.embedded ?
 if ($('networkInfo')) {
 $('networkInfo').textContent = location.host +
 (s.gpioDisabled ? ' · GPIO soft' : '');
-$('otaCmd').textContent = 'make ota PROFILE=1m OTA_HOST=' + location.hostname;
+$('otaCmd').textContent = 'make flash PROFILE=1m PORT=/dev/cu.usbserial-…';
 $('otaHint').textContent = s.otaReady ?
-'Stop tape before OTA. No password; Wi-Fi stays unchanged.' :
-'OTA not running (device offline?). Use USB flash for the first image.';
+'Stop tape before OTA. Wi-Fi stays unchanged.' :
+'OTA off while the embedded demo is in the 1MB image — use USB serial flash.';
 }
 $('phase').textContent = 'Phase: ' + s.phase + ' · received ' + s.fileOffsetReceived + ' B';
 if ($('debugPanel').open) $('debugJson').textContent = JSON.stringify(s, null, 2);

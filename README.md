@@ -34,7 +34,7 @@ Firmware ESP-01 do odtwarzania sygnału kasetowego przez port datasette C64 lub 
 
 Programować **tylko zasilaniem 3,3 V**. 5 V na VCC albo na liniach TX/RX zabija ESP8266. Moduł odłączyć od obwodu C64/C16 na czas flashowania.
 
-Gdy brak zapisanej sieci albo połączenie się nie uda, ESP podnosi AP `espsette-XXXXXX` z **captive portal** (WiFiManager): lista sieci, hasło, hostname. Po zapisie łączy się ze STA. **OTA** (`make ota OTA_HOST=<IP>`) nie zmienia Wi-Fi. Strona `/wifi` tylko pokazuje potwierdzenie; kasowanie sieci wymaga osobnego POST. Zwykły `make flash` nie kasuje poświadczeń WM; `erase_flash` tak.
+Gdy brak zapisanej sieci albo połączenie się nie uda, ESP podnosi AP `espsette-XXXXXX` z **captive portal** (WiFiManager): lista sieci, hasło, hostname. Po zapisie łączy się ze STA. Aktualizacje na 1 MB z demo: **`make flash`** (OTA wyłączone). Strona `/wifi` tylko potwierdza kasowanie sieci (POST). `make flash` nie kasuje poświadczeń WM; `erase_flash` tak.
 
 ### Co jest potrzebne
 
@@ -207,23 +207,16 @@ Domyślny profil **nie podłącza przerwania GPIO2**. `PROFILE=1m-write` lub `4m
 
 Wektory generatora PRG i przypadki IDX na podstawie testów Pi1551 opisuje [tests/README.md](tests/README.md).
 
-## Flash layout 1 MB, OTA i brak cache TAP
+## Flash layout 1 MB, brak cache TAP, OTA na później
 
-Profil `PROFILE=1m` **musi** używać `eagle.flash.1m64.ld` (ustawione w `platformio.ini`): ~958 KB na szkic + **64 KB LittleFS**. Domyślny layout PlatformIO dla `esp01_1m` (256 KB FS) zostawia tylko ~762 KB na firmware — po WiFiManagerze, stronie i ArduinoOTA obraz się nie mieści.
+Profil `PROFILE=1m` używa `eagle.flash.1m64.ld` (~958 KB szkic + **64 KB LittleFS**). Domyślne 256 KB FS z PlatformIO zostawia tylko ~762 KB na firmware i nie mieści obecnego obrazu.
 
-To świadomy kompromis:
+Skutki:
 
-- **OTA działa** (`make ota`, domyślnie bez hasła na zaufanej LAN).
-- LittleFS starczy na hostname, autoplay i flagi migracji — **nie** na przechowywanie kaset.
-- Dlatego TAP/PRG **streamujemy ze strony** (plik w karcie przeglądarki → `POST /chunk` do okna 8 KB). Lokalny cache TAP w LittleFS na tym układzie **nie jest planowany** i nie zmieści się obok OTA bez rezygnacji z aktualizacji Wi‑Fi albo bez większego flash (np. 4 MB).
-
-Osadzone demo `draxcaught` siedzi w PROGMEM (w obrazie firmware), nie w LittleFS.
-
-```sh
-make ota PROFILE=1m OTA_HOST=192.168.1.123
-```
-
-Opcjonalne hasło OTA: `include/local_ota.h` + ta sama wartość w `ESPSETTE_OTA_PASSWORD` przy `make ota`. Firmware przyjmuje OTA tylko poza aktywnym odtwarzaniem. Adapter USB-UART zachować do odzyskania. Moduły 512 KB zwykle nie mieszczą tego firmware ani OTA.
+- LittleFS starczy na hostname / autoplay / flagi — **nie** na cache kaset.
+- TAP/PRG **streamujemy ze strony** (plik w przeglądarce → bufor 8 KB). Lokalny cache TAP w LittleFS na 1 MB **nie jest planowany**.
+- Osadzone demo `draxcaught` (~250 KB PROGMEM) siedzi w obrazie firmware. Przy takim rozmiarze ArduinoOTA na 1 MB kończy się `Not Enough Space` (brak miejsca na drugą kopię). Dlatego **`ESPSETTE_OTA=0`** — aktualizacje tylko kablem: `make flash PROFILE=1m PORT=…`.
+- OTA wróci po usunięciu / zewnętrznym demo albo na flashu 4 MB (`PROFILE=4m`, `-DESPSETTE_OTA=1`).
 
 ## Historia i archiwum
 

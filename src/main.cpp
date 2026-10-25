@@ -20,7 +20,12 @@
 
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
+#ifndef ESPSETTE_OTA
+#define ESPSETTE_OTA 0
+#endif
+#if ESPSETTE_OTA
 #include <ArduinoOTA.h>
+#endif
 #if ESPSETTE_WIFI_DISABLED
 #include <user_interface.h>
 #endif
@@ -759,6 +764,10 @@ void setupWebserver() {
 }
 
 void initializeOTA() {
+#if !ESPSETTE_OTA
+  (void)networkReady;
+  otaReady = false;
+#else
   if (!networkReady) return;
   ArduinoOTA.onStart([]() {
     debugI("* OTA: Start");
@@ -780,6 +789,7 @@ void initializeOTA() {
 #endif
   ArduinoOTA.begin();
   otaReady = true;
+#endif
 }
 
 void setupDebug() {
@@ -936,7 +946,9 @@ void loop() {
   }
 
 #if !ESPSETTE_WIFI_DISABLED
+#if ESPSETTE_OTA
   if (otaReady && state != State::STREAMING && state != State::DRAINING) ArduinoOTA.handle();
+#endif
   const uint32_t httpStartUs = micros();
   HTTPServer.handleClient();
   const uint32_t httpElapsedUs = micros() - httpStartUs;
