@@ -6,15 +6,34 @@
 - **WRITE w kodzie:** dekoder standardowego nagłówka `SAVE` C64 i C16/Plus4 automatycznie rozpoznaje maszynę po impulsach i sprawdza synchronizację, parzystość, XOR i zgodność dwóch kopii, a wynik publikuje w `/state` i na stronie. Nie wykonuje żadnej komendy. Fizyczny odbiór GPIO2 jest domyślnie wyłączony; osobne profile `1m-write` i `4m-write` są przeznaczone dopiero dla układu z zabezpieczonym wejściem i poprawnym stanem GPIO2 podczas startu.
 - **Bez potwierdzenia:** tej gałęzi nie kompilowano na WSL zgodnie z ustaleniem. Czas I2S, wznowienie po MOTOR, odbiór WRITE, budżet flash/RAM i skuteczność `LOAD` na C64/C16 wymagają kompilacji na Macu oraz testu fizycznego. Sąsiedni worktree `../espsette/` zachowuje wcześniejszy wariant do pierwszej próby z osadzonym TAP.
 - **Później:** turbo po pomiarach sprzętowych, dalsze dopracowanie grafiki decku i odporność na utratę Wi-Fi. Opcjonalny [film z Pixabay](https://pixabay.com/videos/tape-recorder-music-stale-nostalgic-118790/) pozostaje lokalnie w przeglądarce.
+- **Fallback YADE:** lokalny klon `../YADE-C64` ([arjenv/YADE-C64](https://github.com/arjenv/YADE-C64)) — zob. [niżej](#fallback-yade-c64).
 
 Dalsze sekcje zachowują analizę archiwalnego `esptapuino` i decyzje podjęte później. W akapitach o dawnych propozycjach słowo „powinien” oznacza plan z tamtego etapu; stan wdrożenia określają powyższa lista, [README](README.md) i kod.
 
 | Temat | Gdzie czytać |
 | --- | --- |
 | Aktualne funkcje i ograniczenia | [Stan projektu](#stan-projektu-gałąź-espsetteimplementation), [README](README.md) |
+| Fallback YADE (bit-bang, save, turbo) | [Fallback YADE-C64](#fallback-yade-c64) |
 | Dawny błąd tempa i osadzony TAP | [Przegląd archiwum](#najważniejszy-wniosek-z-przeglądu-archiwalnego-szkicu) |
 | Decyzje o plikach i sieci | [Duży TAP](#decyzja-projektowa-duży-tap-jako-przypadek-podstawowy), [Wi-Fi](#konfiguracja-wi-fi-i-tryb-awaryjny-ap) |
 | Rozwiązania odłożone | [Turbo](ANALIZA_TURBO_TAPECART.md), [sprzęt](kicad/PLAN_POLACZEN.md) |
+
+### Fallback YADE-C64
+
+Ustalenie (2026-10): [YADE-C64](https://github.com/arjenv/YADE-C64) (klon obok espsette: `../YADE-C64`) traktujemy jako **fallback / źródło pomysłów**, nie zamiennik.
+
+| | espsette | YADE |
+| --- | --- | --- |
+| Wyjście READ | **I2S** (ESP-01) | **bit-bang** + `timer1` (NodeMCU) |
+| Pliki | **stream z przeglądarki** (bufor ~8 KB, bez cache TAP w LittleFS) | upload / play z **LittleFS** (~2 MB FS na 4 MB flash) |
+| UI | deck, IDX, licznik, C64/C16 | prostszy panel plików / play / record |
+| Save | dekoder WRITE (opcjonalny profil), bez zapisu TAP | **gotowy Save → TAP** |
+| Turbo | odłożone | **turbo + autofastloader** PRG |
+| Cel sprzętowy | ESP-01 1 MB, C64 **i** C16/Plus4 | NodeMCU, głównie C64 |
+
+**Bit-bang z YADE** możemy przejąć w espsette, **jeśli pomiary pokażą że I2S na GPIO3 działa źle** (tempo, polaryzacja, konflikt z Wi‑Fi). Save i autofastloader — do ewentualnego późniejszego przeniesienia pomysłów, nie do porzucenia streamowania. Na ESP-01 1 MB model „cały TAP w LittleFS” YADE się nie mieści sensownie nawet bez OTA (za mały FS); problemem nie jest sam rozmiar szkicu.
+
+Pokrewny PoC rodowy: lokalny klon `../esp8266-c64-tape-emulator` ([jamarju](https://github.com/jamarju/esp8266-c64-tape-emulator)) — osadzony DRAX TAP, I2S, bez WWW uploadu.
 
 ### Zrobione bez urządzenia
 
