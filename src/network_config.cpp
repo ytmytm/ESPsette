@@ -1,42 +1,18 @@
 #include "network_config.h"
 
-#include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
 #include <LittleFS.h>
 
 #ifndef ESPSETTE_GPIO_DISABLED
 #define ESPSETTE_GPIO_DISABLED 0
 #endif
+#ifndef ESPSETTE_WIFI_DISABLED
+#define ESPSETTE_WIFI_DISABLED 0
+#endif
 
 namespace {
-constexpr char CONFIG_PATH[] = "/config.json";
-constexpr char TEMP_PATH[] = "/config.tmp";
-constexpr char BACKUP_PATH[] = "/config.bak";
-
-bool motorBusy(uint8_t pin) {
-#if ESPSETTE_GPIO_DISABLED
-  (void)pin;
-  return false;
-#else
-  return digitalRead(pin) == HIGH;
-#endif
-}
-
-String escapeHtml(const String& value) {
-  String escaped;
-  escaped.reserve(value.length() + 8);
-  for (size_t i = 0; i < value.length(); ++i) {
-    switch (value[i]) {
-      case '&': escaped += F("&amp;"); break;
-      case '<': escaped += F("&lt;"); break;
-      case '>': escaped += F("&gt;"); break;
-      case '"': escaped += F("&quot;"); break;
-      case '\'': escaped += F("&#39;"); break;
-      default: escaped += value[i]; break;
-    }
-  }
-  return escaped;
-}
+constexpr char HOSTNAME_PATH[] = "/hostname.txt";
+constexpr char MIGRATION_FLAG[] = "/wm_v1";
 
 bool validHostname(const String& value) {
   if (value.length() == 0 || value.length() > 32) return false;
@@ -52,208 +28,126 @@ bool validHostname(const String& value) {
 }  // namespace
 
 NetworkConfig::NetworkConfig(ESP8266WebServer& server, uint8_t motorPin)
-    : server_(server), motorPin_(motorPin) {}
+    : server_(server),
+      motorPin_(motorPin),
+      hostnameParam_("hostname", "Hostname", "espsette", 33) {}
 
-bool NetworkConfig::validate(const Settings& value, String& error) const {
-  if (value.ssid.length() == 0 || value.ssid.length() > 32 || value.password.length() > 63) {
-    error = F("SSID or password has an invalid length.");
-    return false;
-  }
-  if (!validHostname(value.hostname)) {
-    error = F("Hostname: 1–32 ASCII letters, digits or hyphens.");
-    return false;
-  }
-  if (!value.dhcp) {
-    IPAddress address, mask, gateway, dns;
-    if (!address.fromString(value.address) || !mask.fromString(value.mask) ||
-        !gateway.fromString(value.gateway) || !dns.fromString(value.dns) ||
-        address == IPAddress(0, 0, 0, 0) || mask == IPAddress(0, 0, 0, 0)) {
-      error = F("Enter valid IPv4 address, mask, gateway and DNS.");
-      return false;
-    }
-  }
-  return true;
-}
-
-bool NetworkConfig::load() {
-  if (!fsReady_) return false;
-  const char* paths[] = {CONFIG_PATH, BACKUP_PATH};
-  for (const char* path : paths) {
-    File file = LittleFS.open(path, "r");
-    if (!file) continue;
-    if (file.size() > 768) { file.close(); continue; }
-    StaticJsonDocument<768> doc;
-    const DeserializationError result = deserializeJson(doc, file);
-    file.close();
-    if (result || doc["version"] != 1) continue;
-    Settings value;
-    value.ssid = doc["ssid"].as<String>();
-    value.password = doc["password"].as<String>();
-    value.hostname = doc["hostname"].as<String>();
-    value.dhcp = doc["dhcp"] | true;
-    value.address = doc["address"].as<String>();
-    value.mask = doc["mask"].as<String>();
-    value.gateway = doc["gateway"].as<String>();
-    value.dns = doc["dns"].as<String>();
-    String error;
-    if (!validate(value, error)) continue;
-    settings_ = value;
-    hostname_ = value.hostname;
-    return true;
-  }
+bool NetworkConfig::motorBusy() const {
+#if ESPSETTE_GPIO_DISABLED
+  (void)motorPin_;
   return false;
+#else
+  return digitalRead(motorPin_) == HIGH;
+#endif
 }
 
-bool NetworkConfig::save(const Settings& value) {
-  if (!fsReady_) return false;
-  StaticJsonDocument<768> doc;
-  doc["version"] = 1;
-  doc["ssid"] = value.ssid;
-  doc["password"] = value.password;
-  doc["hostname"] = value.hostname;
-  doc["dhcp"] = value.dhcp;
-  doc["address"] = value.address;
-  doc["mask"] = value.mask;
-  doc["gateway"] = value.gateway;
-  doc["dns"] = value.dns;
-  if (doc.overflowed()) return false;
-  LittleFS.remove(TEMP_PATH);
-  File file = LittleFS.open(TEMP_PATH, "w");
-  if (!file) return false;
-  const size_t expected = measureJson(doc);
-  const size_t written = serializeJson(doc, file);
-  file.flush();
-  file.close();
-  if (written != expected) { LittleFS.remove(TEMP_PATH); return false; }
-  const bool hadConfig = LittleFS.exists(CONFIG_PATH);
-  if (hadConfig) {
-    LittleFS.remove(BACKUP_PATH);
-    if (!LittleFS.rename(CONFIG_PATH, BACKUP_PATH)) return false;
-  }
-  if (!LittleFS.rename(TEMP_PATH, CONFIG_PATH)) {
-    if (hadConfig) LittleFS.rename(BACKUP_PATH, CONFIG_PATH);
-    return false;
-  }
-  return true;
-}
-
-bool NetworkConfig::connect() {
-  WiFi.mode(WIFI_STA);
-  WiFi.hostname(hostname_);
-  if (!settings_.dhcp) {
-    IPAddress address, mask, gateway, dns;
-    address.fromString(settings_.address);
-    mask.fromString(settings_.mask);
-    gateway.fromString(settings_.gateway);
-    dns.fromString(settings_.dns);
-    if (!WiFi.config(address, gateway, mask, dns)) return false;
-  }
-  WiFi.begin(settings_.ssid.c_str(), settings_.password.c_str());
-  const uint32_t started = millis();
-  while (WiFi.status() != WL_CONNECTED && (uint32_t)(millis() - started) < 20000) {
-    delay(250);
-  }
-  staConnected_ = WiFi.status() == WL_CONNECTED;
-  return staConnected_;
-}
-
-void NetworkConfig::startAp() {
-  WiFi.disconnect();
-  WiFi.mode(WIFI_AP);
-  char apName[24];
-  snprintf(apName, sizeof(apName), "espsette-%06X", ESP.getChipId());
-  apActive_ = WiFi.softAP(apName);
-  if (apActive_) dnsServer_.start(53, "*", WiFi.softAPIP());
-}
-
-void NetworkConfig::begin() {
-  WiFi.persistent(false);
-  WiFi.mode(WIFI_OFF);
-  fsReady_ = LittleFS.begin();
-  const bool hasConfig = load();
-  if (!hasConfig || !connect()) startAp();
-  server_.on("/wifi", HTTP_GET, [this]() { sendPortal(); });
-  server_.on("/wifi", HTTP_POST, [this]() { receiveSettings(); });
-  server_.on("/retry", HTTP_POST, [this]() { retry(); });
+bool NetworkConfig::apActive() const {
+  return portalRunning_ || (WiFi.getMode() == WIFI_AP) ||
+         (WiFi.getMode() == WIFI_AP_STA && !staConnected_);
 }
 
 String NetworkConfig::address() const {
-  return apActive_ ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
+  if (WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA) {
+    const IPAddress ap = WiFi.softAPIP();
+    if (ap != (uint32_t)0) return ap.toString();
+  }
+  return WiFi.localIP().toString();
 }
 
-void NetworkConfig::sendPortal() {
-  if (motorBusy(motorPin_)) {
-    server_.send(503, "text/plain", "Open settings after MOTOR stops.");
-    return;
-  }
-  String page;
-  page.reserve(2200);
-  page += F("<!doctype html><html lang='en'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>espsette Wi-Fi</title><style>body{font:1rem system-ui;max-width:32rem;margin:2rem auto;padding:0 1rem;background:#16191e;color:#eee}label{display:block;margin:1rem 0}input{box-sizing:border-box;width:100%;padding:.7rem;font:inherit}input[type=checkbox]{width:auto}button{padding:.8rem 1.2rem;font:inherit}a{color:#8ad}</style><h1>espsette — Wi-Fi</h1>");
-  page += apActive_ ? F("<p>Access point mode. The module will restart after saving.</p>") :
-                      F("<p>Connected to the local network. The module will restart after saving.</p>");
-  if (!fsReady_) page += F("<p>LittleFS is unavailable; settings cannot be saved.</p>");
-  page += F("<form method='post' action='/wifi'><label>SSID<input name='ssid' maxlength='32' required value='");
-  page += escapeHtml(settings_.ssid);
-  page += F("'></label><label>Wi-Fi password (leave blank to keep the password for this SSID)<input type='password' name='password' maxlength='63'></label><label>Hostname<input name='hostname' maxlength='32' required value='");
-  page += escapeHtml(hostname_);
-  page += F("'></label><label><input type='checkbox' name='static' value='1'");
-  if (!settings_.dhcp) page += F(" checked");
-  page += F("> Static IPv4 address</label>");
-  const char* labels[] = {"IP address", "Subnet mask", "Gateway", "DNS"};
-  const char* names[] = {"address", "mask", "gateway", "dns"};
-  const String* values[] = {&settings_.address, &settings_.mask, &settings_.gateway, &settings_.dns};
-  for (uint8_t i = 0; i < 4; ++i) {
-    page += F("<label>"); page += labels[i]; page += F("<input name='");
-    page += names[i]; page += F("' value='"); page += escapeHtml(*values[i]);
-    page += F("'></label>");
-  }
-  page += F("<button type='submit'>Save and connect</button></form><form method='post' action='/retry'><button type='submit'>Retry connection</button></form><p><a href='/player'>Open player</a></p></html>");
-  server_.sendHeader("Cache-Control", "no-store");
-  server_.send(200, "text/html; charset=utf-8", page);
+void NetworkConfig::wipeLegacyWifiConfig() {
+  if (!fsReady_) return;
+  LittleFS.remove("/config.json");
+  LittleFS.remove("/config.tmp");
+  LittleFS.remove("/config.bak");
 }
 
-void NetworkConfig::receiveSettings() {
-  if (motorBusy(motorPin_)) {
-    server_.send(409, "text/plain", "Stop MOTOR before changing settings.");
-    return;
-  }
-  Settings value;
-  value.ssid = server_.arg("ssid");
-  value.password = server_.arg("password");
-  if (value.password.length() == 0 && value.ssid == settings_.ssid) value.password = settings_.password;
-  value.hostname = server_.arg("hostname");
-  value.dhcp = !server_.hasArg("static");
-  value.address = server_.arg("address");
-  value.mask = server_.arg("mask");
-  value.gateway = server_.arg("gateway");
-  value.dns = server_.arg("dns");
-  String error;
-  if (!validate(value, error)) {
-    server_.send(400, "text/plain; charset=utf-8", error);
-    return;
-  }
-  if (!save(value)) {
-    server_.send(500, "text/plain; charset=utf-8", "Could not save settings to LittleFS.");
-    return;
-  }
-  settings_ = value;
-  hostname_ = value.hostname;
-  restartPending_ = true;
-  restartAfter_ = millis() + 1500;
-  server_.send(200, "text/html; charset=utf-8", "<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><p>Saved. The module will restart and try to connect to Wi-Fi.</p>");
+void NetworkConfig::loadHostname() {
+  if (!fsReady_ || !LittleFS.exists(HOSTNAME_PATH)) return;
+  File file = LittleFS.open(HOSTNAME_PATH, "r");
+  if (!file) return;
+  String value = file.readString();
+  file.close();
+  value.trim();
+  if (validHostname(value)) hostname_ = value;
 }
 
-void NetworkConfig::retry() {
-  if (motorBusy(motorPin_)) {
-    server_.send(409, "text/plain", "Stop MOTOR before retrying the connection.");
+void NetworkConfig::saveHostname(const String& value) {
+  if (!fsReady_ || !validHostname(value)) return;
+  File file = LittleFS.open(HOSTNAME_PATH, "w");
+  if (!file) return;
+  file.print(value);
+  file.close();
+  hostname_ = value;
+}
+
+void NetworkConfig::onSaveParams() {
+  String value = hostnameParam_.getValue();
+  value.trim();
+  if (validHostname(value)) saveHostname(value);
+}
+
+void NetworkConfig::openConfigPortal() {
+  if (motorBusy()) {
+    server_.send(503, "text/plain", "Open Wi-Fi settings after MOTOR stops.");
     return;
   }
-  restartPending_ = true;
-  restartAfter_ = millis() + 1500;
-  server_.send(200, "text/html; charset=utf-8", "<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><p>The module will restart and retry the connection.</p>");
+  server_.send(200, "text/html; charset=utf-8",
+               F("<!doctype html><meta charset='utf-8'><meta name='viewport' "
+                 "content='width=device-width,initial-scale=1'>"
+                 "<p>Clearing saved Wi-Fi and restarting into the setup access "
+                 "point. Join <strong>espsette-…</strong> and open "
+                 "http://192.168.4.1/ (captive portal).</p>"));
+  delay(800);
+  // Avoid fighting ESP8266WebServer on :80 — reboot into autoConnect portal.
+  wifiManager_.resetSettings();
+  ESP.restart();
+}
+
+void NetworkConfig::begin() {
+#if ESPSETTE_WIFI_DISABLED
+  fsReady_ = false;
+  return;
+#else
+  fsReady_ = LittleFS.begin();
+  wifiManager_.setDebugOutput(false);
+  if (fsReady_ && !LittleFS.exists(MIGRATION_FLAG)) {
+    wipeLegacyWifiConfig();
+    // Force ESPHome-style first-run portal (drop STA saved by old firmware).
+    wifiManager_.resetSettings();
+    File flag = LittleFS.open(MIGRATION_FLAG, "w");
+    if (flag) {
+      flag.print('1');
+      flag.close();
+    }
+  }
+  loadHostname();
+
+  wifiManager_.setHostname(hostname_.c_str());
+  wifiManager_.setConfigPortalTimeout(300);
+  wifiManager_.setConnectTimeout(25);
+  wifiManager_.setConnectRetries(2);
+  wifiManager_.setBreakAfterConfig(true);
+  wifiManager_.setTitle("espsette Wi-Fi");
+  hostnameParam_.setValue(hostname_.c_str(), 32);
+  wifiManager_.addParameter(&hostnameParam_);
+  wifiManager_.setSaveParamsCallback([this]() { onSaveParams(); });
+
+  char apName[24];
+  snprintf(apName, sizeof(apName), "espsette-%06X", ESP.getChipId());
+
+  // Like ESPHome: try saved STA; on failure open captive portal with scan UI.
+  portalRunning_ = true;
+  staConnected_ = wifiManager_.autoConnect(apName);
+  portalRunning_ = false;
+  onSaveParams();
+  WiFi.hostname(hostname_);
+
+  server_.on("/wifi", HTTP_GET, [this]() { openConfigPortal(); });
+  server_.on("/wifi", HTTP_POST, [this]() { openConfigPortal(); });
+#endif
 }
 
 void NetworkConfig::handle(bool motorOn) {
-  if (apActive_) dnsServer_.processNextRequest();
-  if (restartPending_ && !motorOn && (int32_t)(millis() - restartAfter_) >= 0) ESP.restart();
+  (void)motorOn;
+  if (portalRunning_) wifiManager_.process();
 }

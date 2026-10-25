@@ -1,47 +1,35 @@
 #pragma once
 
 #include <Arduino.h>
-#include <DNSServer.h>
 #include <ESP8266WebServer.h>
+#include <WiFiManager.h>
 
+// ESPHome-like onboarding: WiFiManager captive portal (scan + SSID/password),
+// credentials in WM flash storage; hostname in LittleFS.
 class NetworkConfig {
  public:
   NetworkConfig(ESP8266WebServer& server, uint8_t motorPin);
   void begin();
   void handle(bool motorOn);
   bool staConnected() const { return staConnected_; }
-  bool apActive() const { return apActive_; }
+  bool apActive() const;
   const String& hostname() const { return hostname_; }
   String address() const;
-  void sendPortal();
+  void openConfigPortal();
 
  private:
-  struct Settings {
-    String ssid;
-    String password;
-    String hostname;
-    bool dhcp = true;
-    String address;
-    String mask;
-    String gateway;
-    String dns;
-  } settings_;
-
   ESP8266WebServer& server_;
   uint8_t motorPin_;
-  DNSServer dnsServer_;
+  WiFiManager wifiManager_;
+  WiFiManagerParameter hostnameParam_;
   String hostname_ = "espsette";
   bool fsReady_ = false;
   bool staConnected_ = false;
-  bool apActive_ = false;
-  bool restartPending_ = false;
-  uint32_t restartAfter_ = 0;
+  bool portalRunning_ = false;
 
-  bool load();
-  bool save(const Settings& value);
-  bool validate(const Settings& value, String& error) const;
-  bool connect();
-  void startAp();
-  void receiveSettings();
-  void retry();
+  void wipeLegacyWifiConfig();
+  void loadHostname();
+  void saveHostname(const String& value);
+  bool motorBusy() const;
+  void onSaveParams();
 };

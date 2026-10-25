@@ -6,7 +6,7 @@ Firmware ESP-01 do odtwarzania sygnału kasetowego przez port datasette C64 lub 
 
 - `src/main.cpp` zawiera historyczny odtwarzacz TAP z nałożoną poprawką tempa I2S, obsługi MOTOR i kończenia transmisji.
 - `include/draxcaught.h` pozostaje demonstracyjnym TAP. Można też wskazać w przeglądarce duży plik TAP C64 lub C16/Plus4 PAL v1/v2 albo zwykły PRG; strona podaje dane porcjami do bufora 8 KB ESP.
-- Dane Wi-Fi są wprowadzane przez portal AP i zapisywane do LittleFS. Nie są kompilowane do firmware. Ta gałąź implementuje konfigurację Wi-Fi przez portal AP i LittleFS.
+- Dane Wi-Fi wprowadza **WiFiManager** (captive portal jak w ESPHome: skan SSID + hasło). Hostname jest w LittleFS; poświadczenia sieci trzyma WiFiManager.
 - Strumieniowanie TAP, tekstowy IDX w formacie Ultimate 64 i podstawowa strona decku są zaimplementowane w tej gałęzi. Generator standardowej kasety z PRG dla C64 i C16/Plus4 PAL jest zaimplementowany. Dekoder nagłówka SAVE z WRITE jest gotowy w osobnym profilu sprzętowym; turbo pozostaje kolejnym etapem. Strona ma skompresowany obraz kasety, animowane szpulki i pięć klawiszy decku.
 - Domyślny build ma `ESPSETTE_GPIO_DISABLED=1` (Wi-Fi/AP/strona bez sterowania pinami kasety); do C64/C16 wyłączyć tę flagę.
 
@@ -16,7 +16,7 @@ Firmware ESP-01 do odtwarzania sygnału kasetowego przez port datasette C64 lub 
 | --- | --- |
 | `src/main.cpp` | firmware |
 | `include/` | nagłówki i tymczasowy obraz TAP |
-| `src/network_config.*` | portal AP, połączenie STA i konfiguracja LittleFS |
+| `src/network_config.*` | WiFiManager captive portal + hostname w LittleFS |
 | `src/tape_source.*` | ograniczony bufor kasety zasilany porcjami z przeglądarki |
 | `src/prg_encoder.*` | standardowe impulsy kasety C64/C16 generowane z PRG |
 | `src/write_decoder.*` | weryfikacja podwójnego nagłówka `SAVE` C64 i C16/Plus4 bez wykonywania komend |
@@ -34,7 +34,7 @@ Firmware ESP-01 do odtwarzania sygnału kasetowego przez port datasette C64 lub 
 
 Programować **tylko zasilaniem 3,3 V**. 5 V na VCC albo na liniach TX/RX zabija ESP8266. Moduł odłączyć od obwodu C64/C16 na czas flashowania.
 
-Po pierwszym uruchomieniu, gdy nie ma poprawnego `/config.json` albo sieć jest niedostępna, moduł tworzy otwarty AP `espsette-XXXXXX`. Połącz Maca lub telefon z tą siecią i otwórz `http://192.168.4.1/`. Portal pozwala podać SSID, hasło, nazwę hosta i opcjonalnie statyczny adres IPv4. Po zapisie ESP uruchomi się ponownie i spróbuje połączyć z siecią. Jeśli to się nie uda, AP wróci; konfiguracja pozostanie zachowana. Ustawienia można później zmienić pod `/wifi`, a przycisk „Ponów połączenie” ponawia próbę przez restart, gdy MOTOR jest wyłączony.
+Gdy brak zapisanej sieci albo połączenie się nie uda, ESP podnosi AP `espsette-XXXXXX` z **captive portal** (WiFiManager): lista sieci, hasło, hostname. Po zapisie łączy się ze STA. Ponowna konfiguracja: otwórz `/wifi` (czyści zapisane Wi-Fi i restartuje w tryb setup). Zwykły `make flash` nie kasuje poświadczeń WM; `erase_flash` tak.
 
 ### Co jest potrzebne
 
