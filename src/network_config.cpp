@@ -30,7 +30,7 @@ bool validHostname(const String& value) {
 NetworkConfig::NetworkConfig(ESP8266WebServer& server, uint8_t motorPin)
     : server_(server),
       motorPin_(motorPin),
-      hostnameParam_("hostname", "Hostname", "espsette", 33) {}
+      hostnameParam_("hostname", "Hostname", "ESPsette", 33) {}
 
 bool NetworkConfig::motorBusy() const {
 #if ESPSETTE_GPIO_DISABLED
@@ -89,7 +89,7 @@ void NetworkConfig::onSaveParams() {
 void NetworkConfig::resetWifiAndReboot() {
   server_.send_P(200, PSTR("text/html"),
                  PSTR("<!doctype html><meta charset=utf-8><p>Clearing Wi-Fi; "
-                      "join espsette-… AP at http://192.168.4.1/</p>"));
+                      "join ESPsette-… AP at http://192.168.4.1/</p>"));
   delay(800);
   wifiManager_.resetSettings();
   ESP.restart();
@@ -144,13 +144,13 @@ void NetworkConfig::begin() {
   wifiManager_.setConnectTimeout(25);
   wifiManager_.setConnectRetries(2);
   wifiManager_.setBreakAfterConfig(true);
-  wifiManager_.setTitle("espsette Wi-Fi");
+  wifiManager_.setTitle("ESPsette Wi-Fi");
   hostnameParam_.setValue(hostname_.c_str(), 32);
   wifiManager_.addParameter(&hostnameParam_);
   wifiManager_.setSaveParamsCallback([this]() { onSaveParams(); });
 
   char apName[24];
-  snprintf(apName, sizeof(apName), "espsette-%06X", ESP.getChipId());
+  snprintf(apName, sizeof(apName), "ESPsette-%06X", ESP.getChipId());
 
   // Like ESPHome: try saved STA; on failure open captive portal with scan UI.
   portalRunning_ = true;

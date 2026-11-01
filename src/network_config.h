@@ -24,7 +24,7 @@ class NetworkConfig {
   uint8_t motorPin_;
   WiFiManager wifiManager_;
   WiFiManagerParameter hostnameParam_;
-  String hostname_ = "espsette";
+  String hostname_ = "ESPsette";
   bool fsReady_ = false;
   bool staConnected_ = false;
   bool portalRunning_ = false;

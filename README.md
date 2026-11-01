@@ -1,4 +1,4 @@
-# espsette
+# ESPsette
 
 **A Wi-Fi cassette deck for your Commodore, built around an ESP-01.** Open its page, drop a tape file and type `LOAD` on the computer. Your browser streams the file over Wi-Fi; the ESP8266 turns it into timed I2S pulses on the datasette READ line. The computer controls MOTOR, and the page controls the virtual PLAY key through SENSE.
 
@@ -30,7 +30,7 @@ make setup                    # Install project tools once
 make build PROFILE=1m         # Build for a 1 MB ESP-01
 ```
 
-Tools are installed in `tools/`, with Python and PlatformIO packages/caches under `~/.cache/espsette/`. No global PlatformIO installation is required. The default build enables real cassette GPIOs and includes the demo TAP. Build settings are in [platformio.ini](platformio.ini).
+Tools are installed in `tools/`, with Python and PlatformIO packages/caches under `~/.cache/ESPsette/`. No global PlatformIO installation is required. The default build enables real cassette GPIOs and includes the demo TAP. Build settings are in [platformio.ini](platformio.ini).
 
 | Profile | Use |
 | --- | --- |
@@ -73,8 +73,8 @@ OTA is disabled because the 1 MB image with the embedded demo leaves insufficien
 ## Load a tape
 
 1. Connect MOTOR → GPIO0, SENSE ← GPIO1 and READ ← GPIO3 through the interface described in [kicad/WIRING.md](kicad/WIRING.md). C16/Plus/4 needs a 1531 connector or adapter.
-2. On first boot, join `espsette-XXXXXX` and configure Wi-Fi in the captive portal. The device falls back to its AP if the saved network fails. No Wi-Fi credentials are built in.
-3. Open `http://DEVICE_IP/` (find the IP in your router). The default hostname is `espsette`; `.local` resolution is not guaranteed.
+2. On first boot, join `ESPsette-XXXXXX` and configure Wi-Fi in the captive portal. The device falls back to its AP if the saved network fails. No Wi-Fi credentials are built in.
+3. Open `http://DEVICE_IP/` (find the IP in your router). The default hostname is `ESPsette`; `.local` resolution is not guaranteed.
 4. Use the embedded demo, or select/drop a TAP or PRG. For PRG, select C64 or C16/Plus/4 PAL; the ESP generates the tape header and data pulses. For indexed TAP files, select/drop the accompanying Ultimate-style `.idx` too.
 5. Autoplay presses virtual PLAY when a tape is inserted; otherwise press PLAY on the page. Type `LOAD` on the Commodore. Playback starts when MOTOR turns on and pauses whenever MOTOR stops, including after the header.
 

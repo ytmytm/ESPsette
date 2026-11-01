@@ -827,7 +827,7 @@ void setup() {
   Serial.begin(74880);
   delay(50);
   Serial.println();
-  Serial.printf_P(PSTR("espsette boot gpio_dis=%d wifi_dis=%d\r\n"),
+  Serial.printf_P(PSTR("ESPsette boot gpio_dis=%d wifi_dis=%d\r\n"),
                   (int)ESPSETTE_GPIO_DISABLED, (int)ESPSETTE_WIFI_DISABLED);
 #endif
   setupPins();
@@ -870,7 +870,7 @@ void setup() {
   lastcall = millis();
   debugI("setup completed; TAP bytes=%lu", (unsigned long)tapEnd);
 #if ESPSETTE_GPIO_DISABLED
-  Serial.println(F("espsette setup done"));
+  Serial.println(F("ESPsette setup done"));
 #endif
 }
 
@@ -891,7 +891,7 @@ void loop() {
     const uint32_t now = millis();
     if ((uint32_t)(now - lastHb) >= 1000) {
       lastHb = now;
-      Serial.printf_P(PSTR("espsette hb %lu\r\n"), (unsigned long)now);
+      Serial.printf_P(PSTR("ESPsette hb %lu\r\n"), (unsigned long)now);
     }
   }
 #endif

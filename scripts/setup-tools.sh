@@ -10,7 +10,7 @@ if [ ! -x "$uv_bin" ]; then
   UV_UNMANAGED_INSTALL="$project_dir/tools/bin" sh "$project_dir/tools/install-uv.sh"
 fi
 # uv flock fails on NFS without locks (ENOLCK); keep lockable state on local disk
-uv_local="${XDG_CACHE_HOME:-$HOME/.cache}/espsette/uv"
+uv_local="${XDG_CACHE_HOME:-$HOME/.cache}/ESPsette/uv"
 mkdir -p "$uv_local"
 export UV_CACHE_DIR="$uv_local/cache"
 export UV_DATA_DIR="$uv_local/data"

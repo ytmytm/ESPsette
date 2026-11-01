@@ -31,7 +31,7 @@ ESPTOOL := ESPTOOL_CFGFILE="$(CURDIR)/esptool.cfg" ./tools/venv/bin/python -m es
 
 help:
 	@printf '%s\n' \
-		'espsette — ESP-01 tape firmware' \
+		'ESPsette — ESP-01 tape firmware' \
 		'' \
 		'Targets:' \
 		'  make help                          Show this help' \

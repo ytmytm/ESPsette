@@ -8,7 +8,7 @@ if [ ! -x "$pio_bin" ]; then
   exit 1
 fi
 # PlatformIO flock fails on NFS without locks (ENOLCK); keep lockable state on local disk
-pio_local="${XDG_CACHE_HOME:-$HOME/.cache}/espsette/pio"
+pio_local="${XDG_CACHE_HOME:-$HOME/.cache}/ESPsette/pio"
 # Per-worktree workspace so libdeps/build locks stay local and do not collide
 pio_ws="$pio_local/ws/$(basename -- "$project_dir")"
 mkdir -p "$pio_local" "$pio_ws"

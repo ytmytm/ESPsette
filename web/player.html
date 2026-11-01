@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>espsette</title>
+<title>ESPsette</title>
 <style>
 :root{color-scheme:dark;font:16px system-ui}*{box-sizing:border-box}body{margin:0;background:#11151b;color:#edf0f2}
 main{max-width:760px;margin:auto;padding:18px}h1{font-size:1.6rem;margin:0 0 4px}p{line-height:1.45;color:#abb7c3}
@@ -24,7 +24,7 @@ label{display:block;margin:12px 0}input[type=file],select{display:block;width:10
 .scope-wrap small{display:block;margin-top:6px}
 .ota-cmd{background:#111923;padding:12px;border-radius:8px;overflow:auto;font:13px ui-monospace,monospace}
 </style>
-<main><h1>espsette</h1><p>Tape over Wi-Fi · C64 / C16 PAL</p>
+<main><h1>ESPsette</h1><p>Tape over Wi-Fi · C64 / C16 PAL</p>
 <div id="deck" class="deck"><div class="deck-top"><span>DATASETTE</span><output id="counter" class="counter" aria-label="Tape counter 000"><span class="counter-digit"><span id="counterStrip0" class="counter-strip"><span id="counterOld0">0</span><span id="counterNext0">0</span></span></span><span class="counter-digit"><span id="counterStrip1" class="counter-strip"><span id="counterOld1">0</span><span id="counterNext1">0</span></span></span><span class="counter-digit"><span id="counterStrip2" class="counter-strip"><span id="counterOld2">0</span><span id="counterNext2">0</span></span></span></output></div><div class="window"><div class="cassette" id="cassette"><div class="reel" id="reelLeft"></div><div class="reel right" id="reelRight"></div></div></div><div class="keys" role="group" aria-label="Datasette controls"><button id="rewind" class="key" type="button" aria-label="Previous tape position">◀◀<br>REW</button><button id="stop" class="key" type="button" aria-label="Release PLAY on SENSE">■<br>STOP</button><button id="play" class="key pressed" type="button" aria-label="Press PLAY on SENSE">▶<br>PLAY</button><button id="fastForward" class="key" type="button" aria-label="Next tape position">▶▶<br>FF</button><button id="deckEject" class="key" type="button" aria-label="Eject tape">⏏<br>EJECT</button></div><p id="deckMessage" role="status" aria-live="polite"></p><label class="autoplay"><input id="autoPlay" type="checkbox" checked> Autoplay when tape is inserted</label></div>
 <section class="card"><div class="stats"><div><small>Tape</small><b id="loaded">—</b></div><div><small>Motor</small><b id="motor">—</b></div><div><small>Played</small><b id="played">—</b></div><div><small>ESP buffer</small><b id="buffer">—</b></div><div><small>Signal remaining</small><b id="remaining">—</b></div><div><small>WRITE / SAVE</small><b id="writeStatus">—</b></div></div><div class="scope-wrap"><canvas id="scope" width="640" height="72" aria-label="READ waveform"></canvas><small id="scopeLabel">READ · waiting for playback</small></div><p id="writeDetail"></p><p id="phase">Connecting…</p><p id="transport"></p><p id="error"></p><details id="debugPanel" class="debug"><summary>Debug / ESP state</summary><p id="diagnostics"></p><pre id="debugJson"></pre></details></section>
 <section class="card"><label>Default computer for PRG<select id="defaultMachine"><option value="c64">C64</option><option value="c16">C16 / Plus/4 PAL</option></select></label><p>A TAP identifies its computer in the header. The built-in demo is for C64.</p></section>

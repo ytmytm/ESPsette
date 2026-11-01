@@ -34,7 +34,7 @@ def package(build_dir, output_dir, tag, revision):
     if output_dir.exists() and any(output_dir.iterdir()):
         raise ValueError('Output directory must be empty')
     output_dir.mkdir(parents=True, exist_ok=True)
-    stem = f'espsette-esp01-1m-{tag or "dev"}-{revision[:7]}'
+    stem = f'ESPsette-esp01-1m-{tag or "dev"}-{revision[:7]}'
     for source in sources:
         shutil.copyfile(source, output_dir / (stem + source.suffix))
     metadata = {
@@ -45,7 +45,7 @@ def package(build_dir, output_dir, tag, revision):
     }
     (output_dir / (stem + '.json')).write_text(json.dumps(metadata, indent=2) + '\n')
     (output_dir / 'FLASHING.txt').write_text(
-        'espsette / ESP-01 / 1 MB flash\n\n'
+        'ESPsette / ESP-01 / 1 MB flash\n\n'
         'Disconnect the Commodore interface. Use 3.3 V power and UART logic.\n'
         'While flashing: GPIO0-GND jumper, EN at 3.3 V, common GND,\n'
         'adapter TXD -> ESP RXD, adapter RXD -> ESP TXD, DTR -> RST.\n'
