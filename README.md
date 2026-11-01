@@ -107,3 +107,14 @@ To release, publish a GitHub Release with a tag such as `v2026-11-01` pointing t
 - [ESP8266 boot modes](https://docs.espressif.com/projects/esptool/en/latest/esp8266/advanced-topics/boot-mode-selection.html), [PlatformIO](https://docs.platformio.org/en/latest/platforms/espressif8266.html) and [Arduino OTA](https://arduino-esp8266.readthedocs.io/en/latest/ota_updates/readme.html).
 
 No license has been selected yet.
+
+## Release checklist
+
+- [ ] Choose the release commit and confirm its GitHub Actions tests and firmware build pass.
+- [ ] Download its artifact, verify `SHA256SUMS.txt` and flash the packaged 1 MB `.bin` using `FLASHING.txt`.
+- [ ] Check cold boot/reset with MOTOR stopped, Wi-Fi setup/fallback, and the player page on desktop and phone.
+- [ ] On a real C64, load both the embedded demo and a browser-streamed TAP; check the MOTOR pause after the header, resume and completion.
+- [ ] Test any newly advertised feature on hardware; update the tested/pending table and release notes with the actual results and limitations.
+- [ ] Confirm the wiring and flashing instructions match the tested setup.
+- [ ] Publish a GitHub Release for that commit with a valid `vYYYY-MM-DD` tag and concise release notes.
+- [ ] Wait for the release workflow to pass; confirm the `.bin`, ELF, metadata, `FLASHING.txt` and checksums are attached to the release.
