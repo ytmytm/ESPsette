@@ -85,14 +85,17 @@ Copy the **dual assembly option** from [plus4-tcbm2sd's schematic](https://githu
 
 ## 5. Tape signal map
 
-| Signal | C64 contact pair | ESP-01 | Current firmware / circuit requirement |
-| --- | --- | --- | --- |
-| GND | A / 1 | GND | Common ground |
-| +5 V | B / 2 | Regulator VIN only | Never ESP VCC directly |
-| MOTOR | C / 3 | GPIO0 input | **HIGH = running**, LOW = stopped; voltage conditioning required |
-| READ | D / 4 | GPIO3 I2S output | **Inverting output stage**: ESP LOW → tape READ idle HIGH |
-| WRITE | E / 5 | GPIO2 input | Optional protected 5 V → 3.3 V input; capture disabled by default |
-| SENSE | F / 6 | GPIO1 output | LOW = PLAY pressed; use a compatible output stage |
+| Signal | C64 contact pair | C16 / Plus/4 mini-DIN 7 pin | ESP-01 | Current firmware / circuit requirement |
+| --- | --- | --- | --- | --- |
+| GND | A / 1 | 1, 7 | GND | Common ground |
+| +5 V | B / 2 | 2 | Regulator VIN only | Never ESP VCC directly |
+| MOTOR | C / 3 | 3 | GPIO0 input | **HIGH = running**, LOW = stopped; voltage conditioning required |
+| READ | D / 4 | 4 | GPIO3 I2S output | **Inverting output stage**: ESP LOW → tape READ idle HIGH |
+| WRITE | E / 5 | 5 | GPIO2 input | Optional protected 5 V → 3.3 V input; capture disabled by default |
+| SENSE | F / 6 | 6 | GPIO1 output | LOW = PLAY pressed; use a compatible output stage |
+
+- Mini-DIN numbering checked against **J4** in [Pi1551-HAT's PCB](https://github.com/ytmytm/Pi1551-HAT/blob/pi1551-hat-smd/RPi_Hat.kicad_pcb): pin 7 is tied to GND; shell pads `SH` are unconnected in that reference.
+- Use the connector's numbered contacts; plug mating-face and solder-side views are mirrored. Do not substitute the numbering of Pi1551-HAT's **J5 ribbon header**, which uses a different order.
 
 **Resolve before schematic sign-off:**
 
