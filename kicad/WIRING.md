@@ -42,6 +42,8 @@ Reserve board and enclosure space for **both** tape interfaces:
 
 Check the selected connector's pin numbering, mating face versus solder-side view, cable arrangement and mechanical clearances before transferring the footprint. Provide both connection options, with only one computer connected at a time; do not tie two computers' power outputs together.
 
+**Fallback:** PCB edge contacts are also acceptable: 2 × 6 positions at 3.96 mm pitch, with the correct signal order and opposite contacts paired. This male PCB edge needs a cable or adapter with a female connector to reach the C64's own male tape-port edge. [OpenC64TapePortBreakOut](https://github.com/SukkoPera/OpenC64TapePortBreakOut) provides a `C64-Cassette-Port-Male.kicad_mod` reference. Check board thickness, insertion depth, keying and contact finish against the chosen mating connector before fabrication.
+
 ### C64 connector CAD reference
 
 [SukkoPera/DatassetteAudioAdapter](https://github.com/SukkoPera/DatassetteAudioAdapter) includes the female connector that mates with the computer's tape-port edge:
