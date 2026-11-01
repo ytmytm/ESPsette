@@ -47,6 +47,8 @@ Disconnect the ESP-01 from the Commodore interface. Use **3.3 V power and 3.3 V 
 
 CH340G adapters such as [4tronix USB340G](https://shop.4tronix.co.uk/products/usb340g) have a voltage switch: **select 3.3 V before powering** and verify VCC and signal levels on the actual adapter. Our planned PCB header matches `GND / CTS / VCC / TXD / RXD / DTR`; CTS is unused. **Adapter TXD connects to ESP RXD, and adapter RXD to ESP TXD** (the PCB routes this crossover).
 
+If the CH340 adapter does not appear as a serial port, check its driver. [HobbyComponents CH340 drivers](https://github.com/hobbycomponents/ch340-drivers) provides Windows drivers and notes that Linux usually includes a suitable driver.
+
 **Keep GPIO0 shorted to GND throughout flashing. Connect the adapter's DTR to ESP RST.** These are the connections used by our CH340/wemos.cc setup and [esptool.cfg](esptool.cfg):
 
 | USB-UART / supply | ESP-01 |
