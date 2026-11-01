@@ -1,0 +1,90 @@
+name: Firmware build
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - '.github/workflows/firmware.yml'
+      - 'platformio.ini'
+      - 'requirements-tools.txt'
+      - 'src/**'
+      - 'include/**'
+      - 'web/**'
+      - 'scripts/**'
+      - 'tests/**'
+  pull_request:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      artifact_name: ${{ steps.package.outputs.artifact_name }}
+    steps:
+      - name: Check out firmware
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run host tests
+        run: |
+          node tests/player_index.mjs
+          c++ -std=c++17 -Isrc tests/write_decoder_test.cpp src/write_decoder.cpp -o /tmp/write-test
+          /tmp/write-test
+          c++ -std=c++17 -Itests/support -Isrc tests/prg_vectors_test.cpp src/prg_encoder.cpp src/tape_source.cpp -o /tmp/prg-test
+          /tmp/prg-test
+          c++ -std=c++17 -Itests/support -Isrc tests/tape_source_ring_test.cpp src/tape_source.cpp -o /tmp/ring-test
+          /tmp/ring-test
+          python3 -m unittest discover -s tests -p 'test_firmware_package.py' -v
+
+      - name: Install pinned build tools
+        run: |
+          python3 -m venv tools/venv
+          tools/venv/bin/python -m pip install -r requirements-tools.txt
+
+      - name: Compile the default 1 MB firmware and inspect image
+        run: |
+          tools/venv/bin/python scripts/embed-player.py
+          tools/venv/bin/pio run -e esp01_1m_serial
+          tools/venv/bin/python -m esptool --chip esp8266 image-info .pio/build/esp01_1m_serial/firmware.bin
+
+      - name: Package firmware
+        id: package
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || '' }}
+        run: python3 scripts/package-firmware.py --release-tag "$RELEASE_TAG"
+
+      - name: Upload firmware build artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    if: github.event_name == 'release'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Download the verified firmware build
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+          path: dist
+
+      - name: Attach firmware to the published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" dist/* --clobber

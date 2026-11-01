@@ -41,6 +41,8 @@ Tools are installed in `tools/`, with Python and PlatformIO packages/caches unde
 
 ## Flash over USB-UART
 
+Download the `.bin` from [Releases](https://github.com/ytmytm/ESPsette/releases), or build it locally. Each release includes `FLASHING.txt` with the command for flashing the binary at `0x0`, plus SHA-256 checksums. The released image targets a **1 MB ESP-01** and includes the demo; no separate filesystem image is needed.
+
 Disconnect the ESP-01 from the Commodore interface. Use **3.3 V power and 3.3 V UART logic**, with a supply able to handle Wi-Fi current peaks. On a USB-C Mac, use a suitable adapter for your USB-UART programmer.
 
 **Keep GPIO0 shorted to GND throughout flashing. Connect the adapter's DTR to ESP RST.** These are the connections used by our CH340/wemos.cc setup and [esptool.cfg](esptool.cfg):
@@ -89,6 +91,12 @@ nc DEVICE_IP 23
 Normal firmware has no UART log: GPIO1 and GPIO3 are used for SENSE and READ.
 
 Open [web/player.html](web/player.html) directly in a browser or run `make preview` to try the UI with simulated ESP state. See [tests/README.md](tests/README.md) for host tests and `make help` for build targets.
+
+## CI and releases
+
+GitHub Actions runs host tests and compiles the default 1 MB firmware on code pushes, pull requests and manual runs. Download the package from the run's **Artifacts** section; it contains the `.bin`, debug ELF, build metadata, checksums and flashing instructions.
+
+To release, publish a GitHub Release with a tag such as `v2026-11-01` pointing to the desired commit. The workflow builds that tag and automatically attaches the same files to the release. Tags must use `vYYYY-MM-DD` with a valid calendar date. Pushing a tag alone does not publish a release. Experimental WRITE/OTA profiles are not included.
 
 ## References
 

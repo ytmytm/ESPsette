@@ -6,6 +6,7 @@ Run from the repository root with Node.js and a C++17 compiler:
 
 ```sh
 node tests/player_index.mjs
+python3 -m unittest discover -s tests -p 'test_firmware_package.py' -v
 c++ -std=c++17 -Isrc tests/write_decoder_test.cpp src/write_decoder.cpp -o /tmp/espsette-write-test
 /tmp/espsette-write-test
 c++ -std=c++17 -Itests/support -Isrc tests/prg_vectors_test.cpp src/prg_encoder.cpp src/tape_source.cpp -o /tmp/espsette-prg-test

@@ -13,3 +13,5 @@ ANALIZA_TURBO_TAPECART.md
 kicad/PLAN_POLACZEN.md
 include/local_wifi.h
 include/local_ota.h
+
+dist/
