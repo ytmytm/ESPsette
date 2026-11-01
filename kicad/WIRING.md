@@ -59,18 +59,20 @@ Copy the **dual assembly option** from [plus4-tcbm2sd's schematic](https://githu
 
 **Yes: flash with ESP-01 installed in its socket, with the entire ESPsette board disconnected from C64/C16.** Provide isolation links for cassette circuits that load GPIO0, GPIO1, GPIO2 or GPIO3 during programming. Use `JP_PWR` to select programmer power.
 
-Proposed `J_UART`: **1 × 6, 2.54 mm**, pin 1 marked; names below are from the **adapter's** perspective:
+`J_UART`: **1 × 6, 2.54 mm**, pin 1 at the GND end. Match the CH340G adapter order **GND / CTS / VCC / TXD / RXD / DTR**, as on the [4tronix USB340G](https://shop.4tronix.co.uk/products/usb340g) type identified for this project. Labels below are from the **adapter's** perspective:
 
 | Pin | Header label | Board connection |
 | --- | --- | --- |
 | 1 | GND | Common GND |
-| 2 | 3V3 | Programmer power → `JP_PWR` → `3V3` |
-| 3 | RXD | ESP TXD / GPIO1 → adapter RXD |
+| 2 | CTS / NC | Unconnected pad; no trace to ESP |
+| 3 | VCC / 3V3 ONLY | Programmer power → `JP_PWR` → `3V3` |
 | 4 | TXD | Adapter TXD → ESP RXD / GPIO3 |
-| 5 | CTS / NC | Unconnected pad; no trace to ESP |
+| 5 | RXD | ESP TXD / GPIO1 → adapter RXD |
 | 6 | DTR | ESP RST via a removable link; reserve a series resistor (initial 1 kΩ, verify reset LOW) to limit contention with `SW_RESET` |
 
-- This order is a **project proposal**, not a universal USB-UART pinout. Verify the actual adapter before freezing the PCB for a straight-through cable.
+- **TX/RX are crossed electrically:** adapter TXD → ESP RXD, adapter RXD ← ESP TXD. Route this crossover on the PCB so a pin-for-pin cable can be used without swapping wires again. Mark the header `TXD→ESP_RX` and `RXD←ESP_TX` to avoid ambiguity.
+- Set the adapter's voltage switch to **3.3 V before applying power**. Verify VCC and TXD/DTR HIGH levels; clone behavior may differ. The adapter must also supply enough current for ESP Wi-Fi, or use a separate suitable supply with shared GND and programmer VCC disconnected.
+- Verify pin order and connector orientation on the purchased adapter before PCB manufacture; this is not a universal USB-UART pinout.
 - FTDI-style cables use a different order (`GND, CTS, VCC, TXD, RXD, RTS`); RTS is not DTR. See the [FTDI cable datasheet](https://ftdichip.com/Support/Documents/DataSheets/Cables/DS_TTL-232R_CABLES.pdf).
 - Our [`esptool.cfg`](../esptool.cfg) uses **DTR → RST**, DTR-only reset; RTS and CTS are unused.
 - GPIO1/GPIO3 are UART during flashing and SENSE/READ during operation. No UART application logging in normal use.
