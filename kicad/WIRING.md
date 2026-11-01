@@ -33,6 +33,15 @@ GPIO3's LOW idle state also makes a direct GPIO3-to-READ wire incorrect for the 
 
 For a C16/Plus/4, the electrical signal roles are similar but the physical 1531 connector differs from the C64 edge connector. Confirm its pinout before making an adapter. Only the C64 playback path has been checked on real hardware so far.
 
+## Connector space required on the PCB
+
+Reserve board and enclosure space for **both** tape interfaces:
+
+- **C64:** mating datasette edge connector, **2 × 6 contacts, 3.96 mm (0.156 inch) pitch**. The computer exposes the PCB edge; the device needs the mating connector. The pitch is 3.96 mm, not 3.69 mm; Commodore lists the 1530 connector as “12POL.RM3.96” in its [parts list](https://retroport.de/wp-content/uploads/2018/10/ersatzteilliste_91.pdf).
+- **C16 / Plus/4:** **mini-DIN 7** tape connection. Reuse the connector symbol/footprint and mechanical reference from [Pi1551-III](https://github.com/ytmytm/Pi1551-III) or [Pi1551-HAT](https://github.com/ytmytm/Pi1551-HAT), adapting the signal mapping to ESPsette. Pi1551-HAT's [Conn_DIN_round.pretty](https://github.com/ytmytm/Pi1551-HAT/tree/pi1551-hat-smd/Conn_DIN_round.pretty) contains `Mini_DIN_round_7.kicad_mod`, the `_canned` variant and matching STEP models. Pi1551-III carries the same library under `Pi1551-III Module-rotated/Conn_DIN_round.pretty`.
+
+Check the selected connector's pin numbering, mating face versus solder-side view, cable arrangement and mechanical clearances before transferring the footprint. Provide both connection options, with only one computer connected at a time; do not tie two computers' power outputs together.
+
 ## Before drawing the PCB
 
 - Measure actual GPIO0 and MOTOR levels with MOTOR stopped, running and during reset. Decide on a boot-safe active-HIGH input stage or change firmware polarity together with the circuit.
