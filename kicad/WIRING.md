@@ -42,6 +42,16 @@ Reserve board and enclosure space for **both** tape interfaces:
 
 Check the selected connector's pin numbering, mating face versus solder-side view, cable arrangement and mechanical clearances before transferring the footprint. Provide both connection options, with only one computer connected at a time; do not tie two computers' power outputs together.
 
+### C64 connector CAD reference
+
+[SukkoPera/DatassetteAudioAdapter](https://github.com/SukkoPera/DatassetteAudioAdapter) includes the female connector that mates with the computer's tape-port edge:
+
+- [Footprint: C64-Cassette-Port-Female.kicad_mod](https://github.com/SukkoPera/DatassetteAudioAdapter/blob/master/DatassetteAudioAdapter.pretty/C64-Cassette-Port-Female.kicad_mod), with 3.96 mm contact spacing and pads on both PCB faces.
+- [3D model: c64_datassette_connector.step](https://github.com/SukkoPera/DatassetteAudioAdapter/blob/master/3dModels/c64_datassette_connector.step), already referenced by the footprint using `${KIPRJMOD}`.
+- [Schematic](https://github.com/SukkoPera/DatassetteAudioAdapter/blob/master/DatassetteAudioAdapter.sch): `CN2` / `TAPE_PORT` uses the generic `Connector:Conn_01x06_Male` symbol, also present in [the legacy symbol cache](https://github.com/SukkoPera/DatassetteAudioAdapter/blob/master/DatassetteAudioAdapter-cache.lib). The six signal numbers map to paired contacts on the two PCB faces; the symbol's name does not describe the physical connector gender.
+
+This is a source for later KiCad work; no CAD assets have been imported yet. The upstream README declares **CC BY-NC-SA 4.0** for its design/documentation. Check asset attribution and applicable license terms before copying. Compare the footprint, connector body and mating dimensions with the actual purchased part before using it in ESPsette.
+
 ## Before drawing the PCB
 
 - Measure actual GPIO0 and MOTOR levels with MOTOR stopped, running and during reset. Decide on a boot-safe active-HIGH input stage or change firmware polarity together with the circuit.
