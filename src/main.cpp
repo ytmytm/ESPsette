@@ -802,7 +802,6 @@ void initializeOTA() {
 void setupDebug() {
   if (!networkReady) return;
   Debug.begin(networkConfig.hostname().c_str()); // Initialize the WiFi server
-  //Debug.setPassword("r3m0t0."); // Password on telnet connection ?
   Debug.setResetCmdEnabled(false); // Do not expose remote reset without authentication.
   Debug.showProfiler(true); // Profiler (Good to measure times, to optimize codes)
   Debug.showColors(true); // Colors

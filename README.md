@@ -1,225 +1,95 @@
 # espsette
 
-Firmware ESP-01 do odtwarzania sygnału kasetowego przez port datasette C64 lub C16/Plus4 PAL. Projekt jest w trakcie migracji ze starego szkicu Arduino; [analiza i plan](ANALIZA_PROJEKTU.md) opisują kolejne etapy.
+**A Wi-Fi cassette deck for the Commodore 64, built around an ESP-01.** Drop a TAP or PRG into the page served by the device, type `LOAD` on the computer, and watch the virtual tape run. The browser keeps the file; the ESP8266 accepts small chunks into an 8 KB buffer and turns them into timed pulses with I2S on the datasette **READ** line. The computer controls **MOTOR**, while the page's PLAY/STOP buttons control **SENSE**. No SD card or multi-megabyte flash cache is needed.
 
-## Stan kodu
+![Photographic cassette in the web player](web/assets/cassette.webp)
 
-- `src/main.cpp` zawiera historyczny odtwarzacz TAP z nałożoną poprawką tempa I2S, obsługi MOTOR i kończenia transmisji.
-- `include/draxcaught.h` pozostaje małym demonstracyjnym TAP w PROGMEM. Duże TAP/PRG **tylko ze strony**: przeglądarka trzyma plik i dokłada porcje do bufora 8 KB na ESP (bez cache w LittleFS).
-- Dane Wi-Fi wprowadza **WiFiManager** (captive portal jak w ESPHome: skan SSID + hasło). Hostname / autoplay to drobne pliki w LittleFS; poświadczenia sieci trzyma WiFiManager.
-- Strumieniowanie TAP, tekstowy IDX w formacie Ultimate 64 i podstawowa strona decku są zaimplementowane w tej gałęzi. Generator standardowej kasety z PRG dla C64 i C16/Plus4 PAL jest zaimplementowany. Dekoder nagłówka SAVE z WRITE jest gotowy w osobnym profilu sprzętowym; turbo pozostaje kolejnym etapem. Strona ma skompresowany obraz kasety, animowane szpulki i pięć klawiszy decku.
-- Domyślny build ma `ESPSETTE_GPIO_DISABLED=0` (prawdziwe piny kasety). Do prób tylko USB-serial ustaw `-DESPSETTE_GPIO_DISABLED=1`.
+**Hardware status (1 November 2026):** `LOAD` was confirmed on a real C64 with the embedded demo TAP and with a TAP streamed from a browser. C16/Plus/4, PRG conversion, IDX seeking and WRITE capture have host-side tests but have **not** yet been verified on real hardware.
 
-## Układ katalogów
+## What it does
 
-| Ścieżka | Znaczenie |
-| --- | --- |
-| `src/main.cpp` | firmware |
-| `include/` | nagłówki i tymczasowy obraz TAP |
-| `src/network_config.*` | WiFiManager captive portal + hostname w LittleFS |
-| `src/tape_source.*` | ograniczony bufor kasety zasilany porcjami z przeglądarki |
-| `src/prg_encoder.*` | standardowe impulsy kasety C64/C16 generowane z PRG |
-| `src/write_decoder.*` | weryfikacja podwójnego nagłówka `SAVE` C64 i C16/Plus4 bez wykonywania komend |
-| `web/player.html` | źródło strony i samodzielny podgląd lokalny |
-| `scripts/embed-player.py` | generuje `src/player_page.h` z HTML przed budowaniem |
-| `include/local_ota.h.example` | opcjonalne hasło OTA, bez danych Wi-Fi |
-| `scripts/` | lokalny bootstrap, PlatformIO, `esp_boot_dump.py` |
-| `esptool.cfg` | reset DTR-only dla CH340 (wemos.cc) |
-| `platformio.ini` | przypięta platforma ESP8266, profile flashowania |
-| `tools/` | ignorowane przez Git: `uv`, Python, PlatformIO, pakiety i toolchainy |
-| `~/.cache/espsette/` | lokalny cache `uv` / PlatformIO (poza NFS) |
-| `.pio/` | ignorowane wyniki budowania |
+- Plays C64 and C16/Plus/4 PAL TAP v1/v2. The browser retains large files and feeds the ESP on demand; it pauses uploads when the ring buffer is full, so a stopped C64 motor does not leave one long HTTP request open.
+- Converts a PRG into standard cassette headers and data pulses as it streams. Choose C64 or C16/Plus/4 PAL in the page. The first two PRG bytes give the load address. This path is implemented but awaits hardware validation.
+- Accepts a companion text `.idx` file for TAP. REW/FF jump between indexed positions, or through ten-count counter steps without an index. The displayed three-digit counter estimates *played* tape from emitted pulse time using the VICE/Pi1551 reel model; it is not the number of bytes uploaded.
+- Offers a responsive deck interface with an animated cassette, PLAY, STOP, REW, FF and EJECT, plus a collapsible debug view. Autoplay presses PLAY on insertion by default. A local browser preview is available without firmware or hardware.
+- Reports MOTOR, cassette and buffer state over HTTP and colored RemoteDebug logs on TCP port 23. The normal firmware uses the UART pins for SENSE and READ, so it does not log over serial.
 
-## Flash ESP-01 przez USB-UART 3,3 V (krok po kroku)
+The turbo-loader option is a future feature and is disabled. The optional WRITE header decoder is a separate build profile; it shows decoded SAVE header information on the page and performs no command or save action.
 
-Programować **tylko zasilaniem 3,3 V**. 5 V na VCC albo na liniach TX/RX zabija ESP8266. Moduł odłączyć od obwodu C64/C16 na czas flashowania.
+## Start using it
 
-Gdy brak zapisanej sieci albo połączenie się nie uda, ESP podnosi AP `espsette-XXXXXX` z **captive portal** (WiFiManager): lista sieci, hasło, hostname. Po zapisie łączy się ze STA. Aktualizacje na 1 MB z demo: **`make flash`** (OTA wyłączone). Strona `/wifi` tylko potwierdza kasowanie sieci (POST). `make flash` nie kasuje poświadczeń WM; `erase_flash` tak.
+1. Build and flash an ESP-01 with the [serial flashing steps](#build-and-flash-an-esp-01) below. Use the real GPIO profile (the default).
+2. Connect the module to the C64 datasette port through the signal-conditioning circuit described in [the wiring notes](kicad/WIRING.md). The C16/Plus/4 needs a suitable 1531 connector or adapter.
+3. On first boot, join the `espsette-XXXXXX` access point and open its captive portal. Select your Wi-Fi network. If the saved network later fails, the device returns to its AP. The default hostname is `espsette`, but use the IP shown by your router until name resolution is verified.
+4. Open `http://DEVICE_IP/` on a computer or phone. The embedded demo is inserted after boot; you can replace it by dropping a TAP or PRG onto the page. Keep that page open while streaming a browser file.
+5. Leave autoplay enabled, or press PLAY on the page. On the C64, type `LOAD` and press RETURN. The C64 starts MOTOR; espsette then starts READ pulses. When the C64 stops MOTOR after the header to display the name, playback pauses. It resumes at the same position when MOTOR runs again.
 
-### Co jest potrzebne
+The page is intended for a trusted local network and has no login. Wi-Fi credentials are entered through WiFiManager on the device; none are built into the firmware. The small hostname/autoplay/default-computer settings live in LittleFS. TAP and PRG files do not.
 
-- ESP-01 / ESP-01S
-- adapter USB–UART na **3,3 V** (FTDI / CP2102 / CH340 itd.) albo gotowa przejściówka z gniazdem ESP-01
-- na Macu: przejściówka USB-C jeśli adapter ma USB-A
-- zworka / kabelek do zwarcia **GPIO0–GND** (tryb flash), ewentualnie drugi do **RST–GND** (reset), jeśli adapter nie ma przycisków
+## Build and flash an ESP-01
 
-### Rozkład pinów ESP-01
+Use a USB-to-UART adapter that supplies **3.3 V power and 3.3 V logic**, or a programmer with an ESP-01 socket. Check that its 3.3 V supply can handle Wi-Fi current peaks. A Mac with only USB-C may need a USB-C adapter. For the first setup, install `make` and `curl`; `make setup` puts the virtual environment and PlatformIO launcher under `tools/`, with Python and PlatformIO package caches under `~/.cache/espsette/`. It does not require a global PlatformIO installation. Disconnect the Commodore interface while serial flashing.
 
-Widok **z góry** (antena u góry, 8 pinów u dołu, dwa rzędy po cztery). Lewa kolumna / prawa kolumna:
+With the antenna at the top, looking at the module from above, the ESP-01 pins are:
 
-```
-            ANTENA
-       ┌─────────────────┐
-       │                 │
-       │     ESP-01      │
-       │                 │
-       │  GND      TXD   │  ← rząd bliżej anteny
-       │  GPIO2    CH_PD │
-       │  GPIO0    RST   │
-       │  RXD      VCC   │  ← rząd na krawędzi płytki
-       └─────────────────┘
-            piny w dół
+```text
+            ANTENNA
+       GND       TXD / GPIO1
+       GPIO2     CH_PD / EN
+       GPIO0     RST
+       RXD/GPIO3 VCC / 3.3 V
 ```
 
-To samo w tabeli (kolejność: od anteny do krawędzi):
-
-| Lewa | Prawa |
+| ESP-01 pin | Programmer connection |
 | --- | --- |
-| **GND** | **TXD** (GPIO1) |
-| **GPIO2** | **CH_PD** (EN) |
-| **GPIO0** | **RST** |
-| **RXD** (GPIO3) | **VCC** (3,3 V) |
+| VCC, GND | Regulated 3.3 V and common ground |
+| RXD / GPIO3 | USB-UART TXD |
+| TXD / GPIO1 | USB-UART RXD |
+| CH_PD / EN | 3.3 V for both flash and run |
+| GPIO0 | GND **at reset** for the serial bootloader; release/high at reset to run firmware |
+| GPIO2 | Leave high at reset; do not ground it |
+| RST | Pulse low to reset; on the tested CH340/wemos.cc adapter, connect DTR to RST while flashing |
 
-ESP-01S ma ten sam układ pinów; różnice to głównie LED / antena PCB — nazwy sygnałów się nie zmieniają.
-
-### Rola pinów przy flashu
-
-| Pin ESP-01 | Rola przy flashu |
-| --- | --- |
-| **VCC** | +3,3 V z adaptera (nie 5 V) |
-| **GND** | masa wspólna z adapterem |
-| **RXD** (GPIO3) | ← TXD adaptera USB-UART |
-| **TXD** (GPIO1) | → RXD adaptera USB-UART |
-| **CH_PD** (EN) | na stałe do **3,3 V** (moduł musi być włączony) |
-| **GPIO0** | **GND** = tryb programowania; po flashu odłączyć / puścić w górę = RUN |
-| **GPIO2** | zostawić wolny / podciągnięty w górę; **nie** zwierać do GND przy boocie |
-| **RST** | impuls do **GND** = reset (wejście w tryb wybrany przez GPIO0) |
-
-Krzyżowanie UART: **TX adaptera → RX ESP**, **RX adaptera → TX ESP**. Wspólne GND obowiązkowe.
-
-Zworka flash: **GPIO0 ↔ GND** (lewa kolumna, trzeci pin od anteny). Reset: krótko **RST ↔ GND** (prawa kolumna, trzeci od anteny).
-
-### Zworka FLASH vs RUN
-
-ESP8266 czyta GPIO0 **w momencie resetu**:
-
-1. **Flash:** zworka **GPIO0–GND**, potem impuls RST–GND (albo wyjęcie/włożenie USB).
-2. **Uruchomienie firmware:** zdjąć zworkę z GPIO0 (stan wysoki), znowu RST.
-
-Gotowe programatory ESP-01 często mają przełącznik `FLASH`/`UART` albo przyciski IO0 + RST — to to samo co zworka GPIO0 i reset.
-
-### CH340 bez RTS (sprawdzone na adapterze wemos.cc)
-
-Tani CH340 ma **DTR**, ale zwykle **bez użytecznego RTS**. Działający układ na czas flashu:
-
-| Adapter CH340 | ESP-01 |
-| --- | --- |
-| **GND** | **GPIO0** (zworka trybu programowania; masa wspólna z resztą połączeń) |
-| **TXD** | **RXD** |
-| **RXD** | **TXD** |
-| **VCC** (3,3 V) | **VCC** |
-| **DTR** | **RST** |
-
-**CH_PD** trzymaj na **3,3 V** (na module / do VCC). **GPIO2** nie zwierać do GND. **CTS** / **R/C** zostawić niepodłączone.
-
-`esptool.cfg` pulsuje tylko DTR (polarność dopasowana do tego adaptera). Ładują ją `make flash-id` i `make flash` przez `ESPTOOL_CFGFILE`.
-
-Po wgraniu: **odłączyć GPIO0 od GND**, zresetować (DTR/RST albo USB) — start firmware w trybie RUN.
-
-### Kolejność na stole
-
-1. Połączyć jak w tabeli powyżej (GPIO0–GND, TX↔RX, VCC, DTR–RST, CH_PD→3V3).
-2. Podłączyć USB do Maca; `ls /dev/cu.*` (`cu.usbserial-…` / `cu.wchusbserial-…`).
-3. `make flash-id PORT=/dev/cu.…` albo pełniejszy odczyt `make chip-info PORT=/dev/cu.…` (flash-id, chip-id, MAC, status flash); esptool sam impulsuje RST przez DTR.
-4. `make setup` raz na maszynie, potem `make build PROFILE=1m` (domyślnie z `ESPSETTE_GPIO_DISABLED=0` pod C64/C16; `=1` tylko do benchu USB-serial).
-5. `make flash PROFILE=1m PORT=/dev/cu.…`
-6. Po udanym wgraniu: **zdjąć GPIO0–GND**, **odłączyć DTR–RST** na czas normalnej pracy (inaczej adapter może resetować moduł), zresetować — firmware startuje.
-7. Szukać AP `espsette-XXXXXX` albo IP w LAN i otworzyć portal / player.
-8. Dopiero po sprawdzeniu sieci wkładać ESP-01 w układ z C64/C16 (MOTOR/SENSE/READ); do realnych GPIO ustawić `-DESPSETTE_GPIO_DISABLED=0`.
-
-Diagnostyka boot ROM na USB: `PORT=/dev/cu.… uv run --with pyserial ./scripts/esp_boot_dump.py -n 3` (74880 baud, impuls DTR jak w `esptool.cfg`).
+Check the installed flash size before choosing a profile. For a 1 MB ESP-01 on macOS:
 
 ```sh
 make setup
 ls /dev/cu.*
-make flash-id PORT=/dev/cu.usbserial-XXXX   # albo: make chip-info PORT=...
+make flash-id PORT=/dev/cu.usbserial-XXXX
 make build PROFILE=1m
 make flash PROFILE=1m PORT=/dev/cu.usbserial-XXXX
-# zdjąć GPIO0–GND, odłączyć DTR–RST, reset → RUN / AP
 ```
 
-`make setup` instaluje lokalnie `uv`, Python 3.12 i PlatformIO w `tools/venv`; cache PlatformIO/uv ląduje w `~/.cache/espsette/` (lokalny dysk — NFS bez `flock` psuje build). Nie trzeba globalnego PlatformIO. Potrzebne: `curl`, `make`, internet przy pierwszym setupie, sterownik chipu UART. Lista celów: `make help`.
+Hold GPIO0 low, reset, then run `flash-id` or `flash`. The repository's `esptool.cfg` uses DTR to pulse RST for the tested CH340 adapter. Other adapters may need a manual RST pulse. After flashing, remove the GPIO0-to-GND jumper, disconnect DTR from RST if the adapter holds reset, and reset again to boot the application. `make chip-info PORT=...` gives further read-only chip information. `make help` lists all targets. Espressif documents the [ESP8266 boot straps](https://docs.espressif.com/projects/esptool/en/latest/esp8266/advanced-topics/boot-mode-selection.html) and [3.3 V supply requirements](https://docs.espressif.com/projects/esp-techpedia/en/latest/esp-friends/get-started/try-firmware/try-firmware-hardware/esp8266.html).
 
-Typowe błędy: zasilanie 5 V; brak wspólnego GND; TX/RX nie skrzyżowane; flash bez GPIO0 w LOW; GPIO2 w LOW przy starcie; programowanie przy podłączonym C64.
+The default `PROFILE=1m` uses 64 KB of LittleFS and includes the embedded demo. `PROFILE=4m` supports ESP-01 modules with 4 MB flash; `PROFILE=512k` may not fit the current image. Check the actual chip with `flash-id` first. The firmware's default build flags enable real cassette GPIOs and disable OTA. The 1 MB image with its embedded demo has insufficient free flash for a second OTA image. `make ota` is an experimental build path, **not** an update method for the current default firmware; use serial flashing. A future smaller image or a tested 4 MB profile could enable OTA with `ESPSETTE_OTA=1`.
 
-Profil `PROFILE=512k` tylko kabel i może nie pomieścić binarki. `PROFILE=4m` to profil pamięci „dużego” flash przy tym samym pinoucie ESP-01. Rzeczywisty rozmiar flash: `make flash-id`.
+## Playback, controls and diagnostics
 
-## Piny kasety (C64 / C16)
+The browser sends at most 1024 bytes per `POST /chunk`; the ESP keeps an 8 KB ring. `GET /state` reports loaded/ejected, MOTOR, played position, free buffer space and error counters. If the browser loses a response while its tab remains open, it can reconcile the session and resume at the ESP's offset. Reloading or closing the tab loses the browser's file handle; insert the file again. A sleeping phone may also stop feeding the buffer.
 
-Mapowanie firmware ↔ port datasette. Poziomy 5 V / izolacja / bootstrapping: [kicad/PLAN_POLACZEN.md](kicad/PLAN_POLACZEN.md). Domyślny build ma `ESPSETTE_GPIO_DISABLED=0` i steruje pinami kasety; do benchu bez C64 ustaw `-DESPSETTE_GPIO_DISABLED=1`.
+The TAP parser supports C64 and C16/Plus/4 PAL v1/v2. The optional IDX parser accepts Ultimate 64 style text entries with byte offsets; it does not support Manosoft Princess indexes. Seeking is available while MOTOR is stopped. On a PRG, REW starts a new session of the same file and FF is unavailable. The player cannot tell whether the Commodore decoded the pulses successfully; its counter tracks pulses sent to READ.
 
-| ESP-01 | GPIO | Kierunek | Datasette | Rola |
-| --- | --- | --- | --- | --- |
-| GPIO0 | 0 | ← wejście | **MOTOR** | HIGH = silnik włączony (C64/C16); nie wolno trzymać LOW przy boocie ESP |
-| TXD | 1 | → wyjście | **SENSE** (PLAY) | LOW = wirtualne PLAY wciśnięte; to też UART TX — bez soft-GPIO nie ma logu na USB |
-| GPIO2 | 2 | ← wejście (opcjonalnie) | **WRITE** | tylko profil `1m-write` / `4m-write`; musi być HIGH przy starcie ESP |
-| RXD | 3 | → wyjście I2S | **READ** | impulsy taśmy; w spoczynku kod trzyma GPIO LOW (zakłada odwrócenie tranzystorem) |
-
-Wspólne **GND** z komputerem / zasilaniem. UART programatora na GPIO1/GPIO3 tylko po odłączeniu torów SENSE/READ od portu kasety.
-
-## Pierwsza próba C64 i zdalny debug
-
-Po starcie ESP trzyma SENSE w stanie zwolnionego PLAY podczas konfiguracji Wi-Fi i sprawdzania osadzonego TAP. Po poprawnej walidacji wciska wirtualny PLAY (SENSE niski), jeżeli autoplay jest włączony; w przeciwnym razie czeka na ręczne PLAY na stronie. Wpisanie `LOAD` na C64 uruchamia MOTOR; dopiero wtedy firmware rozpoczyna impulsy READ. Zatrzymanie MOTOR wstrzymuje odtwarzanie i po wznowieniu ma kontynuować z zapamiętanej pozycji.
-
-Po konfiguracji Wi-Fi odczytać jego IP w panelu routera. Na Macu otworzyć `http://ADRES_IP/` — strona pokazuje deck, stan MOTOR, kasetę, odtworzony czas i bufor. W trybie AP portal działa pod `/`, a odtwarzacz pod `/player`. Kolorowe logi RemoteDebug są na porcie TCP 23; przed wpisaniem `LOAD` na C64 połączyć terminal:
-
-Domyślny hostname firmware to `espsette`. Ta sama nazwa jest przekazywana do Wi-Fi, ArduinoOTA i RemoteDebug. Obecny firmware nie uruchamia mDNS, więc `espsette.local` nie jest jeszcze gwarantowanym adresem; do pierwszej próby użyć IP przydzielonego przez router.
+To inspect the live state, expand **Debug / ESP state** in the page or connect to RemoteDebug on the device's IP:
 
 ```sh
-nc ADRES_IP 23
+nc DEVICE_IP 23
 ```
 
-Logowanie przez UART pozostaje wyłączone, bo te piny sterują SENSE i READ. RemoteDebug wysyła zdarzenia tylko do podłączonego klienta, więc wcześniejszych komunikatów startowych nie odtworzy; co 10 sekund pojawia się stan GPIO, a przy próbie ładowania zdarzenia MOTOR i odtwarzacza. Sprawdzić rozpoznanie nagłówka przez C64, przerwę MOTOR po nagłówku, wznowienie i zakończenie odczytu. Jeżeli nie ma strony ani logu, najpierw sprawdzić IP, konfigurację Wi-Fi i czy Mac oraz ESP są w tej samej sieci. Sam TAP można próbować odtwarzać bez Wi-Fi.
+The colored telnet log only reaches connected clients and does not replay messages from before connection. In the default build, UART output is unavailable because GPIO1 and GPIO3 are cassette pins. The optional `1m-write` and `4m-write` profiles enable WRITE header capture on GPIO2, which requires a protected, boot-safe input circuit and is still unverified on hardware.
 
-## Lokalny podgląd strony bez ESP-01
+## Develop without reflashing
 
-Otwórz [web/player.html](web/player.html) bezpośrednio w przeglądarce albo użyj `make preview`. Przy adresie `file://` strona używa symulowanego stanu ESP: można wybrać TAP lub PRG, włączyć/wyłączyć MOTOR, wysunąć kasetę i obserwować wskaźniki. To symulacja interfejsu i przepływu żądań, **nie test sygnału na GPIO ani wydajności Wi-Fi**. Ten sam HTML jest przed budowaniem wstawiany do firmware przez `make embed-web`, więc zmiany UI nie wymagają flashowania, dopóki nie są gotowe do próby na urządzeniu. `make preview` nie wymaga instalacji PlatformIO.
+Open [web/player.html](web/player.html) directly in a browser, or run `make preview`. The page detects `file://` and simulates ESP state, including MOTOR and cassette controls. This checks the interface, not electrical timing or Wi-Fi throughput. `make build` embeds the same page into `src/player_page.h` before compiling.
 
-Opcjonalnie można pobrać [film magnetofonu z Pixabay](https://pixabay.com/videos/tape-recorder-music-stale-nostalgic-118790/) i wskazać go w polu „film w okienku”. Wideo pozostaje lokalnym plikiem przeglądarki; odtwarza się przy `motorOn` i zatrzymuje przy postoju. Nie jest dołączone do repozytorium ani obrazu ESP. Bez filmu strona pokazuje skompresowaną kasetę WebP z animowanymi szpulkami CSS. Obraz pozostaje w `web/assets/` i jest osadzany w HTML przy `make embed-web`; rozmiar binarki wymaga pomiaru na Macu. Strona źródłowa opisuje materiał jako MP4 1920×1080, 50 FPS, dostępny na licencji Pixabay Content License.
+For offline host-side checks, see [tests/README.md](tests/README.md). The firmware is built with the pinned PlatformIO ESP8266 platform and Arduino core in [platformio.ini](platformio.ini). Sources are in `src/`; `include/draxcaught.h` holds the bundled demo TAP. The browser source and assets live in `web/`. KiCad files can be added under `kicad/` after the circuit is captured and checked.
 
-## Klawisze decku i autoplay
+## Tape resources and references
 
-PLAY/STOP ustawiają linię SENSE; nie sterują silnikiem, którym nadal zarządza C64/C16. Autoplay jest domyślnie włączony, zapisuje się w LittleFS i wciska PLAY przy włożeniu TAP/PRG lub demo. Po wyłączeniu autoplay nowa kaseta zaczyna ze zwolnionym SENSE. Domyślny komputer dla PRG (C64 albo C16/Plus4 PAL) także zapisuje się w LittleFS; początkowo jest nim C64. Można go zmienić na stronie bez zmiany już włożonej kasety, a dla pojedynczego PRG wybrać inny komputer w formularzu pliku. Dla TAP komputer wynika z nagłówka, a osadzone demo jest C64. EJECT zwalnia PLAY i wysuwa źródło po zatrzymaniu MOTOR. REW/FF działają przy wyłączonym MOTOR: dla TAP z IDX skaczą do poprzedniej/następnej pozycji, a bez IDX do kolejnych dziesiątek trzycyfrowego licznika; skok trafia na punkt lokalnego indeksu czasu położony na granicy rekordu TAP. Licznik stosuje ten sam model szpuli i zaokrąglenie co Pi1551 (grubość taśmy 12,7 µm, promień piasty 10,7 mm, prędkość taśmy 47,6 mm/s, przełożenie 0,525). Model i stałe pochodzą z VICE. Wskazanie zależy od oszacowanego czasu impulsów faktycznie wysłanych na READ, nie od liczby bajtów przesłanych po Wi-Fi; może różnić się od mechanicznego licznika konkretnego magnetofonu. Dla PRG REW tworzy nową sesję tego samego programu, FF jest niedostępny; dla osadzonego demo REW zaczyna od początku. Rozwijana sekcja „Debug / ESP state” pokazuje surowy `/state` i liczniki diagnostyczne. Komunikaty strony, portalu Wi-Fi, odpowiedzi HTTP i logi RemoteDebug są po angielsku. Panel jest przeznaczony do zaufanej sieci LAN; nie ma logowania.
+- [Ultimate Tape Archive](https://uta.pokefinder.org/) — a possible source of preserved C64 and VIC-20 tapes.
+- [VICE TAP format](https://vice-emu.sourceforge.io/vice_17.html) and [VICE datasette counter model](https://github.com/VICE-Team/svn-mirror/blob/main/vice/src/datasette/datasette.c).
+- [Tapuino](https://github.com/sweetlilmre/tapuino) and [TapuinoNext](https://github.com/sweetlilmre/TapuinoNext) — related cassette projects with different hardware architectures.
+- [Luigi Di Fraia's TAP/IDX notes](https://www.luigidifraia.com/technical-info/#TAP_Index_format_IDX) and [Ultimate 64 index implementation](https://github.com/GideonZ/1541ultimate/blob/master/software/filetypes/filetype_tap.cc).
+- [PlatformIO ESP8266](https://docs.platformio.org/en/latest/platforms/espressif8266.html) and [Arduino ESP8266 OTA guide](https://arduino-esp8266.readthedocs.io/en/latest/ota_updates/readme.html).
 
-[Model licznika VICE](https://github.com/VICE-Team/svn-mirror/blob/main/vice/src/datasette/datasette.h), [implementacja VICE](https://github.com/VICE-Team/svn-mirror/blob/main/vice/src/datasette/datasette.c).
-
-## Strumieniowanie TAP w tej gałęzi
-
-Strona skanuje TAP lokalnie, tworzy sesję przez `POST /session`, a następnie wysyła maksymalnie 1024 bajty na żądanie `POST /chunk` z ID sesji i bezwzględnym offsetem. Można też wskazać towarzyszący `.idx` (lub upuścić TAP i IDX razem): parser przyjmuje do 512 wpisów dziesiętnych, `0x` szesnastkowych i ósemkowych z zerem na początku; odrzuca offsety nagłówka (<20), wartości poza 32 bitami, pozycje spoza TAP oraz wewnątrz rekordu impulsu. `GET /state` zwraca wolne miejsce 8 KB bufora, MOTOR, `loaded/ejected`, postęp nadawania READ, błąd oraz diagnostykę. Przy pełnym buforze przeglądarka nie utrzymuje otwartego uploadu; po pauzie MOTOR dosyła następne porcje. `POST /eject`, `POST /demo` i `POST /seek` działają tylko przy wyłączonym MOTOR. Przeskok IDX opróżnia bufor i zmienia ID sesji; przeglądarka dosyła TAP od wybranego absolutnego offsetu. Po utracie połączenia otwarta karta zachowuje plik i odczytuje `/state`: jeśli ID sesji, typ i rozmiar logiczny są te same, przyjmuje offset ESP jako wiążący i wznawia dosyłanie bez duplikatów. Przy zmianie sesji lub błędzie odtwarzania przestaje dosyłać i wymaga ponownego włożenia pliku. Odświeżenie karty traci uchwyt do pliku; nie ma wtedy automatycznego wznowienia. Sumę cykli z pliku wylicza przeglądarka; ESP używa jej tylko do prezentacji czasu, a nie do sterowania sygnałem.
-
-`/state` podaje także `freeHeap`, `maxFreeBlock`, największy czas pętli i obsługi HTTP w mikrosekundach oraz liczniki niedoborów I2S/źródła i błędów uploadu. Liczniki rosną od startu ESP i służą do diagnozy pierwszych prób; nie potwierdzają poprawności impulsów na READ. Tekstowy plan torów sprzętowych jest w [kicad/PLAN_POLACZEN.md](kicad/PLAN_POLACZEN.md); rysunek KiCad pozostaje odłożony.
-
-Ten transport obsługuje **C64 PAL i C16/Plus4 PAL TAP v1 i v2**. W v1 jeden rekord oznacza pełny okres, a w v2 kolejne półokresy; po skoku IDX przeglądarka przekazuje parzystość liczby poprzednich rekordów, aby zachować poziom sygnału. [Specyfikacja VICE](https://vice-emu.sourceforge.io/vice_17.html) formalnie opisuje C64 TAP v1 i C16 TAP v2; C64 v2 oraz C16 v1 przyjmujemy jako spotykane warianty zgodności. Interpretację v2 niezależnie od sygnatury potwierdza [kod Tapuino](https://github.com/sweetlilmre/tapuino/blob/master/tapuino.c). Plik pozostaje w otwartej karcie przeglądarki; jej uśpienie może opróżnić bufor i zakończyć LOAD błędem. 8 KB bufora i czas obsługi HTTP wymagają pomiaru na prawdziwym ESP-01/C64, szczególnie dla szybkich loaderów. Endpointy są przeznaczone do zaufanej sieci LAN. ESP sprawdza zakres offsetu przeskoku, a granicę rekordu sprawdza przeglądarka podczas skanowania TAP; bez pełnej kopii kasety ESP nie może niezależnie potwierdzić granicy dla dowolnego offsetu. Format Manosoft Princess nie jest obsługiwany. Na modułach 512 KB lub 1 MB może zabraknąć miejsca na połączenie demonstracyjnego TAP, strony, LittleFS i OTA; rozmiar obrazu trzeba zmierzyć podczas kompilacji na Macu.
-
-Po zakończeniu odtwarzania `/state` zachowuje fazę `done` i odtworzony czas także po zatrzymaniu MOTOR; nowa sesja, wysunięcie lub ponowne uruchomienie osadzonej kasety zerują licznik. Odtwarzacz nie wie, czy komputer poprawnie zdekodował dane — to czas wysłanego sygnału READ.
-
-## Standardowy PRG C64 i C16/Plus4 PAL
-
-Wybór `.prg` uruchamia osobną sesję. Dwa pierwsze bajty pliku określają adres ładowania; w polu „Nazwa na kasecie” można ustawić nazwę widoczną na C64. Firmware tworzy nagłówek typu 1, pilot, synchronizację, parzystość, sumy XOR, obie kopie nagłówka i obie kopie danych. Impulsy powstają na bieżąco, bez zapisywania pliku TAP. Przeglądarka czyta dwa razy te same bajty PRG przez `Blob.slice()`; ESP widzi je jako kolejne offsety logiczne, więc nie musi pamiętać całego programu. Po nagłówku C64 może zatrzymać MOTOR, a odtwarzacz zachowuje pozycję do wznowienia.
-
-Obsługiwany jest standardowy `LOAD` na C64 PAL oraz C16/Plus4 PAL bez turbo. PRG musi zawierać co najmniej jeden bajt danych, a adres końcowy mieścić się do `$FFFF`. Wybór C16/Plus4 jest aktywny; opcja loadera turbo pozostaje wyłączona. PRG nie ma pozycji IDX. Implementację przebiegu porównano z [kodem WAV-PRG](https://github.com/fabzzap/wav-prg/blob/master/prg2wav_core/prg2wav_core.c); nadal wymaga kompilacji na Macu i sprawdzenia impulsów oraz ładowania na C64 i C16/Plus4. C16 wymaga odpowiedniego adaptera do portu 1531; to nie jest ten sam fizyczny wtyk co C64.
-
-## Diagnostyczny odbiór WRITE
-
-`src/write_decoder.*` automatycznie rozpoznaje standardowy nagłówek `SAVE` C64 albo C16/Plus4 po długościach impulsów: sekwencję synchronizacji, parzystość bajtów, sumę XOR, znacznik końca i zgodność drugiej kopii. Po poprawnym odbiorze `/state` oraz strona pokazują rozpoznaną maszynę, nazwę, typ, adresy i informację „brak przypisanej akcji”. Dane programu po nagłówku są ignorowane. Firmware nie interpretuje nazwy jako komendy i niczego przez WRITE nie nadaje.
-
-Domyślny profil **nie podłącza przerwania GPIO2**. `PROFILE=1m-write` lub `4m-write` włącza nasłuch dopiero dla płytki, która chroni GPIO2 przed 5 V, gwarantuje wysoki stan przy starcie ESP i odłącza C64 podczas flashowania. Profil wymaga API I2S bez zegara na GPIO2; przy jego braku kompilacja kończy się błędem. Do czasu sprawdzenia schematu i pomiaru nie należy łączyć WRITE C64 bezpośrednio z ESP-01. Strona w zwykłym profilu wyraźnie pokazuje, że nasłuch jest nieaktywny; w lokalnym podglądzie można kliknąć „Symuluj SAVE”, aby obejrzeć prezentację wyniku. Test dekodera obu maszyn dla komputera hosta jest w `tests/write_decoder_test.cpp` i czeka na uruchomienie na Macu. C16 przyjmuje także dwie kopie nagłówka bez osobnego znacznika końca, jak w wektorze Pi1551; C64 używa znacznika długi+krótki. Odstępy między zboczami WRITE trzeba potwierdzić na obu komputerach.
-
-Wektory generatora PRG i przypadki IDX na podstawie testów Pi1551 opisuje [tests/README.md](tests/README.md).
-
-## Flash layout 1 MB, brak cache TAP, OTA na później
-
-Profil `PROFILE=1m` używa `eagle.flash.1m64.ld` (~958 KB szkic + **64 KB LittleFS**). Domyślne 256 KB FS z PlatformIO zostawia tylko ~762 KB na firmware i nie mieści obecnego obrazu.
-
-Skutki:
-
-- LittleFS starczy na hostname / autoplay / flagi — **nie** na cache kaset.
-- TAP/PRG **streamujemy ze strony** (plik w przeglądarce → bufor 8 KB). Lokalny cache TAP w LittleFS na 1 MB **nie jest planowany**.
-- Osadzone demo `draxcaught` (~250 KB PROGMEM) siedzi w obrazie firmware. Przy takim rozmiarze ArduinoOTA na 1 MB kończy się `Not Enough Space` (brak miejsca na drugą kopię). Dlatego **`ESPSETTE_OTA=0`** — aktualizacje tylko kablem: `make flash PROFILE=1m PORT=…`.
-- OTA wróci po usunięciu / zewnętrznym demo albo na flashu 4 MB (`PROFILE=4m`, `-DESPSETTE_OTA=1`).
-
-## Historia i archiwum
-
-Oryginalny projekt znajduje się obok, w `../esptapuino/`, z nienaruszoną historią. **To archiwum zawiera dawne poświadczenia Wi-Fi i nie powinno być publikowane.** Historia `espsette` została przepisana tak, by usunąć definicje poświadczeń ze wszystkich czterech dawnych commitów przy zachowaniu dat autorów i committerów. Ujawnione hasło sieci należy zmienić. Ta gałąź nie używa lokalnego nagłówka z danymi sieci; portal zapisuje je do LittleFS. Otwarty AP i formularz HTTP przesyłają hasło bez szyfrowania radiowego, dlatego pierwszą konfigurację wykonywać tylko w zaufanym otoczeniu. Konfiguracja pod `/wifi` jest przeznaczona do zaufanej sieci LAN.
-
-Źródła dla procesu: [PlatformIO ESP8266](https://docs.platformio.org/en/latest/platforms/espressif8266.html), [esptool](https://docs.espressif.com/projects/esptool/en/latest/esp8266/index.html), [uv: lokalna instalacja](https://docs.astral.sh/uv/reference/installer/), [Arduino ESP8266 OTA](https://arduino-esp8266.readthedocs.io/en/latest/ota_updates/readme.html).
+No license has been selected for this repository yet.

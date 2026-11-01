@@ -1,12 +1,8 @@
-# Testy kasetowe bez ESP-01
+# Host-side cassette tests
 
-Zestaw korzysta z testów projektu Pi1551 jako niezależnego punktu odniesienia:
+These tests exercise the tape encoder, ring buffer, WRITE header decoder, browser player and IDX handling without an ESP-01. Pi1551 test cases were used as an independent reference for C16 pulse lengths, double headers, extended TAP records and Ultimate-style IDX entries. The VICE/Pi1551 interoperability test needs VICE, ROMs and Pi1551 binaries and is not included here.
 
-- `.../Pi1551/Pi1541/tests/tape_native.cpp`: C16 `RecordedBit` i `RecordedByte` z półokresami 240/480/960 µs, dwie kopie nagłówka, przypadki zapisu bez jawnego znacznika końca oraz granice rekordów rozszerzonych.
-- `.../Pi1551/Pi1541/tests/oled_menu_native.cpp`: tekstowe wpisy Ultimate IDX, komentarze, zapisy hex/dec/octal i błędne offsety.
-- `.../Pi1551/Pi1541/tests/test_vice_tape_interop.py`: mocniejszy test VICE↔Pi1551, który zapisuje PRG przez emulator C16 i sprawdza bajty po ponownym `LOAD`. Zależy od zewnętrznego VICE, ROM-ów i binarki Pi1551; nie uruchamia się jako część tego zestawu.
-
-Na Macu, bez ESP-01, można uruchomić:
+Run from the repository root with Node.js and a C++17 compiler:
 
 ```sh
 node tests/player_index.mjs
@@ -18,8 +14,6 @@ c++ -std=c++17 -Itests/support -Isrc tests/tape_source_ring_test.cpp src/tape_so
 /tmp/espsette-ring-test
 ```
 
-`tape_source_ring_test.cpp` checks that `releaseBefore` frees the 8 KB stream ring after the playhead advances (required for soft GPIO playback as well as I2S).
+`prg_vectors_test.cpp` compares every generated C64 and C16 pulse with an independent block sequence. The C16 cases also check pulse durations against the Pi1551 vectors. `write_decoder_test.cpp` covers valid and damaged headers for both computers. `tape_source_ring_test.cpp` checks that consumed bytes are released from the 8 KB streaming ring. `player_index.mjs` covers TAP v1/v2 headers and record boundaries, IDX offsets, counter-based seeking, autoplay, machine defaults, controls and recovery after a lost HTTP response.
 
-`prg_vectors_test.cpp` porównuje każdy impuls produkcyjnego generatora C16 i C64 z niezależną sekwencją bloków. Dla C16 dodatkowo porównuje czasy z impulsem testowym Pi1551 z tolerancją dla wartości cykli wybranych przez WAV-PRG; dla C64 używa tej samej struktury bitów oraz długości 384/536/680 cykli. `write_decoder_test.cpp` sprawdza też błędną parzystość i sumę XOR dla obu maszyn. `player_index.mjs` odtwarza przypadki IDX z Pi1551, sprawdza nagłówki C64 i C16 v1/v2, granice rekordów, ucięte i zerowe impulsy, fazę półokresu po skoku, skoki REW/FF według licznika VICE/Pi1551, autoplay, domyślny komputer i PLAY/STOP w lokalnej symulacji oraz uzgodnienie offsetu po utraconej odpowiedzi HTTP. Nie testuje przebiegu I2S na pinie READ.
-
-Testy nie potwierdzają rzeczywistego tempa I2S, polaryzacji READ/WRITE, opóźnień DMA ani działania `LOAD` na komputerze. Pierwsza kompilacja firmware i test sprzętowy pozostają osobnym krokiem na Macu.
+These are host-side tests. They do not measure I2S timing, electrical polarity, DMA delays or decoding by a physical computer. The real C64 has been tested with the embedded TAP and browser TAP; the other paths still need hardware checks.

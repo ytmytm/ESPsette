@@ -38,7 +38,7 @@ help:
 		'  make setup                         Install local uv/Python/PlatformIO tools' \
 		'  make build [PROFILE=1m] [VERBOSE=1] Compile (PROFILE: 512k|1m|4m)' \
 		'  make flash PORT=... [PROFILE=1m]   Serial upload (download-mode wiring)' \
-		'  make ota OTA_HOST=... [PROFILE=1m] Wi-Fi OTA (needs password in image)' \
+		'  make ota OTA_HOST=... [PROFILE=1m] Experimental; disabled in default firmware' \
 		'  make flash-id PORT=...             SPI flash manufacturer / size' \
 		'  make chip-info PORT=...            flash-id + chip-id + MAC + flash status' \
 		'' \
@@ -50,8 +50,7 @@ help:
 		'  make setup' \
 		'  make chip-info PORT=/dev/cu.usbserial-XXXX' \
 		'  make build PROFILE=1m' \
-		'  make flash PROFILE=1m PORT=/dev/cu.usbserial-XXXX' \
-		'  make ota PROFILE=1m OTA_HOST=192.168.1.50'
+		'  make flash PROFILE=1m PORT=/dev/cu.usbserial-XXXX'
 
 setup:
 	./scripts/setup-tools.sh

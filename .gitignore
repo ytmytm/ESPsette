@@ -7,5 +7,9 @@ __pycache__/
 .env
 .env.*
 !.env.example
+.aws/
+ANALIZA_PROJEKTU.md
+ANALIZA_TURBO_TAPECART.md
+kicad/PLAN_POLACZEN.md
 include/local_wifi.h
 include/local_ota.h
