@@ -15,15 +15,24 @@ Status: connection plan for a future KiCad design. C64 embedded/browser TAP play
 
 ## 2. Power and decoupling
 
+Copy the **dual assembly option** from [plus4-tcbm2sd's schematic](https://github.com/ytmytm/plus4-tcbm2sd/blob/main/tcbm2sd/tcbm2sd.kicad_sch): reserve both sets of footprints on the same PCB, connected to the same `+5V`, `REG_3V3` and GND nets. **Populate either A or B, never both regulators.**
+
+| Assembly option | Parts / footprints |
+| --- | --- |
+| A — ready-made module | AMS1117-3.3 / HW764-style module on a 3-pin header; verify VIN/GND/VOUT order and module outline |
+| B — direct SMD assembly | AMS1117-3.3 in SOT-223 + input and output capacitors; TCBM2SD uses U3 and C6/C7, **2 × 10 µF tantalum, 0805** |
+
+- SMD connections: `+5V → VIN`, `VOUT → REG_3V3`, GND common; input capacitor `+5V → GND`, output capacitor `REG_3V3 → GND`, positive terminals on their respective rails.
+- Preserve the reference circuit/layout approach, but verify capacitor values/ESR, voltage ratings and thermal copper for the actual regulator and ESP Wi-Fi load. The TCBM2SD BOM is the starting point, not an ESP load test.
+- Local ESP bypass and bulk capacitors below are required provisions for **either** assembly option; they do not replace the regulator's input/output capacitors.
+
 | Item | Connection / requirement |
 | --- | --- |
-| 3.3 V regulator module | AMS1117-3.3 / HW764-style module, as used in [plus4-tcbm2sd](https://github.com/ytmytm/plus4-tcbm2sd/blob/main/HardwareFirmware.md#power-33v); input from +5 V, output to `3V3`, common GND |
-| Module mounting | Reserve module outline and 3-pin mounting header; verify actual VIN/GND/VOUT order and module dimensions |
+| Reference BOM | [TCBM2SD power options](https://github.com/ytmytm/plus4-tcbm2sd/blob/main/HardwareFirmware.md#power-33v); retain both module and SMD mounting options |
 | Supply capability | Design for at least 500 mA available to the ESP rail; verify regulator temperature and computer-port current budget during Wi-Fi activity |
 | `C_BULK` | Reserve space for **100–470 µF**, initial choice **220 µF**, rated ≥6.3 V; positive to `3V3`, negative to GND, close to the ESP socket |
 | Local bypass | 100 nF ceramic + 10 µF between `3V3` and GND at the socket, short connections |
-| Regulator capacitors | Retain the module's required input/output capacitors; choose added capacitance/ESR compatible with the actual regulator |
-| Supply selection | Select **regulator output OR programmer 3.3 V**, e.g. a 3-pin `JP_PWR`; never connect the two outputs together |
+| Supply selection | `JP_PWR`: select **REG_3V3 OR programmer 3.3 V** to feed `3V3`; never connect the two outputs together |
 
 - A bulk capacitor supports transients; it does not compensate for an undersized supply. Measure the rail at the ESP during AP/STA traffic and playback.
 - When powered directly by the programmer, isolate the regulator output to avoid reverse feeding it.
