@@ -1,6 +1,6 @@
 # ESPsette hardware plan
 
-Status: connection plan for a future KiCad design. C64 embedded/browser TAP playback tested; component values and PCB layout still need verification.
+Status: KiCad schematic in progress. Hardware decisions confirmed by the author on 2026-11-02 are recorded in [PLAN_POLACZEN.md](PLAN_POLACZEN.md). The author reports successful physical tests of the selected MOTOR topology and direct READ connection with the current firmware on 2026-11-01. These decisions supersede the earlier alternative circuits.
 
 ## 1. ESP-01 and CAD assets
 
@@ -11,31 +11,31 @@ Status: connection plan for a future KiCad design. C64 embedded/browser TAP play
   - [`ESP8266.pretty/ESP-01.kicad_mod`](https://github.com/jdunmire/kicad-ESP8266/blob/master/ESP8266.pretty/ESP-01.kicad_mod).
 - 3D models: [RoboticsBrno/semafor/hw](https://github.com/RoboticsBrno/semafor/tree/master/hw): `ESP-01-fixed v3.step` and `ESP-01-detachable v2.step` (repository declares MIT).
 - Check model origin, rotation, socket height and actual module dimensions. Do not mix pin numbering from different libraries. The RoboticsBrno board uses a custom footprint; use its STEP as a mechanical reference, not as a drop-in socket footprint.
-- Imported assets must retain their applicable licenses/attribution. No CAD assets have been imported yet.
+- Imported assets must retain their applicable licenses/attribution. The referenced custom assets are now available in the project-local `ESPsette` libraries; see [libraries/README.md](libraries/README.md) for inventory, source revisions, licenses and remaining mechanical checks.
 
 ## 2. Power and decoupling
 
-Copy the **dual assembly option** from [plus4-tcbm2sd's schematic](https://github.com/ytmytm/plus4-tcbm2sd/blob/main/tcbm2sd/tcbm2sd.kicad_sch): reserve both sets of footprints on the same PCB, connected to the same `+5V`, `REG_3V3` and GND nets. **Populate either A or B, never both regulators.**
+Copy the **dual assembly option** from [plus4-tcbm2sd's schematic](https://github.com/ytmytm/plus4-tcbm2sd/blob/main/tcbm2sd/tcbm2sd.kicad_sch): reserve both sets of footprints on the same PCB, connected to the same `+5V`, `3V3` and GND nets. **Populate either A or B, never both regulators.**
 
 | Assembly option | Parts / footprints |
 | --- | --- |
 | A — ready-made module | AMS1117-3.3 / HW764-style module on a 3-pin header; verify VIN/GND/VOUT order and module outline |
-| B — direct SMD assembly | AMS1117-3.3 in SOT-223 + input and output capacitors; TCBM2SD uses U3 and C6/C7, **2 × 10 µF tantalum, 0805** |
+| B — direct SMD assembly | AMS1117-3.3 in SOT-223 + input and output capacitors; TCBM2SD uses U3 and C6/C7, **2 × 10 µF tantalum; copied footprints are EIA-3216-12 Kemet-S HandSolder** |
 
-- SMD connections: `+5V → VIN`, `VOUT → REG_3V3`, GND common; input capacitor `+5V → GND`, output capacitor `REG_3V3 → GND`, positive terminals on their respective rails.
+- SMD connections: `+5V → VIN`, `VOUT → 3V3`, GND common; input capacitor `+5V → GND`, output capacitor `3V3 → GND`, positive terminals on their respective rails.
 - Preserve the reference circuit/layout approach, but verify capacitor values/ESR, voltage ratings and thermal copper for the actual regulator and ESP Wi-Fi load. The TCBM2SD BOM is the starting point, not an ESP load test.
-- Local ESP bypass and bulk capacitors below are required provisions for **either** assembly option; they do not replace the regulator's input/output capacitors.
+- Keep regulator input/output capacitors C6/C7 and bulk capacitor C1. The author explicitly decided to omit the separate local 100 nF + 10 µF ESP bypass pair.
 
 | Item | Connection / requirement |
 | --- | --- |
 | Reference BOM | [TCBM2SD power options](https://github.com/ytmytm/plus4-tcbm2sd/blob/main/HardwareFirmware.md#power-33v); retain both module and SMD mounting options |
 | Supply capability | Design for at least 500 mA available to the ESP rail; verify regulator temperature and computer-port current budget during Wi-Fi activity |
-| `C_BULK` | Reserve space for **100–470 µF**, initial choice **220 µF**, rated ≥6.3 V; positive to `3V3`, negative to GND, close to the ESP socket |
-| Local bypass | 100 nF ceramic + 10 µF between `3V3` and GND at the socket, short connections |
-| Supply selection | `JP_PWR`: select **REG_3V3 OR programmer 3.3 V** to feed `3V3`; never connect the two outputs together |
+| `C_BULK` | Reserve space for **100–470 µF**, current schematic **100 µF**, rated ≥6.3 V; positive to `3V3`, negative to GND, close to the ESP socket |
+| Local bypass | Separate 100 nF + 10 µF pair omitted by explicit project decision |
+| Programmer supply | UART pin 3 connects directly to `3V3` and powers the ESP during flashing; no supply-selection jumper |
 
 - A bulk capacitor supports transients; it does not compensate for an undersized supply. Measure the rail at the ESP during AP/STA traffic and playback.
-- When powered directly by the programmer, isolate the regulator output to avoid reverse feeding it.
+- Programmer 3.3 V, ESP VCC and the regulator output share the same `3V3` net. No regulator-output isolation is fitted. During programming the board is disconnected from C64/C16; the programmer is removed before reconnecting the computer.
 - Never feed 5 V into ESP VCC or GPIO. Some adapters marked “3.3 V” only change UART logic and still supply 5 V on VCC; measure first.
 - References: [Espressif power guidance](https://docs.espressif.com/projects/esp-techpedia/en/latest/esp-friends/get-started/try-firmware/try-firmware-hardware/esp8266.html), [power troubleshooting](https://docs.espressif.com/projects/esptool/en/latest/esp8266/troubleshooting.html).
 
@@ -43,12 +43,12 @@ Copy the **dual assembly option** from [plus4-tcbm2sd's schematic](https://githu
 
 | Net / component | Connection |
 | --- | --- |
-| EN / CH_PD | Pull up to `3V3`, e.g. 10 kΩ; remain HIGH in RUN and FLASH |
-| RST | Pull up to `3V3`, e.g. 10 kΩ |
+| EN / CH_PD | Direct connection to `3V3` |
+| RST | RESET button and direct programmer DTR connection; no external pull-up |
 | `SW_RESET` | Normally open momentary switch: **RST → GND** |
-| GPIO0 | Pull up to `3V3`, e.g. 10 kΩ; MOTOR circuit must not defeat the selected boot mode |
+| GPIO0 | 4N35 emitter (pin 4) and 10 kΩ pull-down to GND; retain the tested active-HIGH MOTOR topology |
 | `JP_FLASH` | Removable jumper: **GPIO0 → GND**; open = RUN, closed at reset = serial bootloader |
-| GPIO2 | Pull up to `3V3`, e.g. 10 kΩ; optional WRITE circuitry must allow HIGH during reset |
+| GPIO2 | Direct WRITE connection; no external pull-up |
 
 - GPIO0 is sampled during reset: LOW selects the bootloader, HIGH selects normal execution. It need not stay LOW after entering the bootloader.
 - **Use a jumper for our DTR-reset workflow:** leave `JP_FLASH` closed during flashing so every reset re-enters the bootloader. Remove it and reset to RUN.
@@ -57,7 +57,7 @@ Copy the **dual assembly option** from [plus4-tcbm2sd's schematic](https://githu
 
 ## 4. Programming header and in-circuit flashing
 
-**Yes: flash with ESP-01 installed in its socket, with the entire ESPsette board disconnected from C64/C16.** Provide isolation links for cassette circuits that load GPIO0, GPIO1, GPIO2 or GPIO3 during programming. Use `JP_PWR` to select programmer power.
+**Flash with ESP-01 installed in its socket, with the entire ESPsette board disconnected from C64/C16.** The programmer is always removed afterward, and RESET is not pressed while it is connected. No cassette isolation jumpers, DTR disconnect jumper or DTR series resistor are planned. UART pin 3 supplies the ESP directly through the shared 3V3 rail; no supply-selection jumper is fitted.
 
 `J_UART`: **1 × 6, 2.54 mm**, pin 1 at the GND end. Match the CH340G adapter order **GND / CTS / VCC / TXD / RXD / DTR**, as on the [4tronix USB340G](https://shop.4tronix.co.uk/products/usb340g) type identified for this project. Labels below are from the **adapter's** perspective:
 
@@ -65,10 +65,10 @@ Copy the **dual assembly option** from [plus4-tcbm2sd's schematic](https://githu
 | --- | --- | --- |
 | 1 | GND | Common GND |
 | 2 | CTS / NC | Unconnected pad; no trace to ESP |
-| 3 | VCC / 3V3 ONLY | Programmer power → `JP_PWR` → `3V3` |
+| 3 | VCC / 3V3 ONLY | Programmer 3.3 V → `3V3` directly → ESP VCC |
 | 4 | TXD | Adapter TXD → ESP RXD / GPIO3 |
 | 5 | RXD | ESP TXD / GPIO1 → adapter RXD |
-| 6 | DTR | ESP RST via a removable link; reserve a series resistor (initial 1 kΩ, verify reset LOW) to limit contention with `SW_RESET` |
+| 6 | DTR | Direct connection to ESP RST; no removable link or series resistor under the agreed programming workflow |
 
 - **TX/RX are crossed electrically:** adapter TXD → ESP RXD, adapter RXD ← ESP TXD. Route this crossover on the PCB so a pin-for-pin cable can be used without swapping wires again. Mark the header `TXD→ESP_RX` and `RXD←ESP_TX` to avoid ambiguity.
 - Set the adapter's voltage switch to **3.3 V before applying power**. Verify VCC and TXD/DTR HIGH levels; clone behavior may differ. The adapter must also supply enough current for ESP Wi-Fi, or use a separate suitable supply with shared GND and programmer VCC disconnected.
@@ -79,9 +79,9 @@ Copy the **dual assembly option** from [plus4-tcbm2sd's schematic](https://githu
 
 | Step | Action |
 | --- | --- |
-| FLASH | Disconnect Commodore; isolate conflicting cassette circuits; select programmer power; close `JP_FLASH`; connect UART/DTR |
+| FLASH | Disconnect Commodore; close `JP_FLASH`; connect the 3.3 V programmer and UART/DTR |
 | Upload | `make flash PROFILE=1m PORT=...` (DTR pulses RST); without DTR, pulse `SW_RESET` manually with FLASH closed |
-| RUN | Open `JP_FLASH`; disconnect programmer/DTR; restore signal links and correct supply; reset |
+| RUN | Disconnect programmer; open `JP_FLASH`; reconnect the computer supply; follow the tested startup procedure |
 
 ## 5. Tape signal map
 
@@ -90,20 +90,19 @@ Copy the **dual assembly option** from [plus4-tcbm2sd's schematic](https://githu
 | GND | A / 1 | 1, 7 | GND | Common ground |
 | +5 V | B / 2 | 2 | Regulator VIN only | Never ESP VCC directly |
 | MOTOR | C / 3 | 3 | GPIO0 input | **HIGH = running**, LOW = stopped; voltage conditioning required |
-| READ | D / 4 | 4 | GPIO3 I2S output | **Inverting output stage**: ESP LOW → tape READ idle HIGH |
-| WRITE | E / 5 | 5 | GPIO2 input | Optional protected 5 V → 3.3 V input; capture disabled by default |
-| SENSE | F / 6 | 6 | GPIO1 output | LOW = PLAY pressed; use a compatible output stage |
+| READ | D / 4 | 4 | GPIO3 I2S output | Direct connection, no inverter; author reports successful tests with current firmware |
+| WRITE | E / 5 | 5 | GPIO2 input | Direct connection selected by author; no external pull-up; capture disabled by default |
+| SENSE | F / 6 | 6 | GPIO1 output | Direct connection with 10 kΩ pull-up to 3V3; LOW = PLAY pressed |
 
 - Mini-DIN numbering checked against **J4** in [Pi1551-HAT's PCB](https://github.com/ytmytm/Pi1551-HAT/blob/pi1551-hat-smd/RPi_Hat.kicad_pcb): pin 7 is tied to GND; shell pads `SH` are unconnected in that reference.
 - Use the connector's numbered contacts; plug mating-face and solder-side views are mirrored. Do not substitute the numbering of Pi1551-HAT's **J5 ribbon header**, which uses a different order.
 
-**Resolve before schematic sign-off:**
+**Selected hardware, confirmed by the author on 2026-11-02:**
 
-- Current prototype notes: 4N35 LED fed from MOTOR through 470 Ω; collector at 3V3, emitter at GPIO0, 10 kΩ pull-down. This matches active-HIGH firmware but holds GPIO0 LOW with MOTOR stopped, preventing normal boot at reset. Check LED current at measured MOTOR voltage; MOTOR is not a 5 V logic output.
-- Proposed alternative: 4N35 collector at GPIO0, emitter at GND, 10 kΩ pull-up. Boot-safe with MOTOR off, but requires **active-LOW MOTOR firmware and a RISING pause interrupt**. Do not combine it with unchanged firmware.
-- Capture the actual READ inverter and SENSE circuit, values and measured levels. No direct exposure of ESP pins to 5 V pull-ups.
-- WRITE: protect GPIO2 and its reset HIGH. Future bidirectional turbo needs direction control compatible with C64 actively driving both HIGH and LOW; current firmware only listens.
-- Optional buffered SENSE/READ/WRITE indicators; stretch READ/WRITE pulses for visibility without changing tape timing.
+- MOTOR: LED fed through 470 Ω; 4N35 pin 5 → 3V3, pin 4 → GPIO0, 10 kΩ pull-down to GND. Retain active-HIGH detection and the existing FALLING pause interrupt. The author reports this topology worked with the current firmware in physical tests on 2026-11-01. The former proposal to swap collector/emitter connections and use a pull-up is withdrawn.
+- READ: GPIO3 directly to cassette READ. No inverting transistor and no firmware polarity change requested; the author confirmed this connection worked with the current firmware in the same hardware tests. The firmware comment assuming an external transistor is outdated for this design.
+- No external RST/GPIO2 pull-ups and no separate local 100 nF + 10 µF ESP bypass pair, by explicit project decision.
+- SENSE: direct GPIO1 connection with 10 kΩ pull-up; WRITE: direct GPIO2 connection.
 
 ## 6. Tape connectors and CAD references
 

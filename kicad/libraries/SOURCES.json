@@ -1,0 +1,154 @@
+[
+  {
+    "repository": "https://github.com/jdunmire/kicad-ESP8266",
+    "commit": "1f3d2c6e49285d4ab4976efc04913bd3974290c1",
+    "source": "ESP8266.pretty/ESP-01.kicad_mod",
+    "source_sha256": "2a1b252aee2129038a120ceb0fdec8db78ddad8750fe29bb8abd6cc98eb091a2",
+    "destination": "libraries/ESPsette.pretty/ESP-01.kicad_mod",
+    "changes": "project-relative 3D paths and local library IDs; geometry and pad numbering unchanged"
+  },
+  {
+    "repository": "https://github.com/SukkoPera/DatassetteAudioAdapter",
+    "commit": "0f78a0ea0310f3e92838e92e41ba0a2129a7f212",
+    "source": "DatassetteAudioAdapter.pretty/C64-Cassette-Port-Female.kicad_mod",
+    "source_sha256": "9ecdf6377734d0b42684459a1f363b24725fa6ad1d40f80622e6ad37704d3729",
+    "destination": "libraries/ESPsette.pretty/C64-Cassette-Port-Female.kicad_mod",
+    "changes": "project-relative 3D paths and local library IDs; geometry and pad numbering unchanged"
+  },
+  {
+    "repository": "https://github.com/SukkoPera/OpenC64TapePortBreakOut",
+    "commit": "79f067f673931f12dc33e70cf7613f132f2bb40f",
+    "source": "C64TapePortBreakOut.pretty/C64-Cassette-Port-Male.kicad_mod",
+    "source_sha256": "321270b453d372f46f7cce59eb79ce4527d7b12b4da20786a11ad81b374010fc",
+    "destination": "libraries/ESPsette.pretty/C64-Cassette-Port-Male.kicad_mod",
+    "changes": "project-relative 3D paths and local library IDs; geometry and pad numbering unchanged"
+  },
+  {
+    "repository": "https://github.com/ytmytm/Pi1551-HAT",
+    "commit": "5246ebebcfc91eb4141b1a95fa31ffb65021f272",
+    "source": "Conn_DIN_round.pretty/Mini_DIN_round_7.kicad_mod",
+    "source_sha256": "6368538e07b7ed2b29a874d1d2c9da21bbc1bbecb4c5c3d30a5dd751841c2a14",
+    "destination": "libraries/ESPsette.pretty/Mini_DIN_round_7.kicad_mod",
+    "changes": "project-relative 3D paths and local library IDs; geometry and pad numbering unchanged"
+  },
+  {
+    "repository": "https://github.com/ytmytm/Pi1551-HAT",
+    "commit": "5246ebebcfc91eb4141b1a95fa31ffb65021f272",
+    "source": "Conn_DIN_round.pretty/Mini_DIN_round_7_canned.kicad_mod",
+    "source_sha256": "5485c2f9464380931d8be78c47c25160a3a1c7ab4ace81bcc8fd1b02382408cd",
+    "destination": "libraries/ESPsette.pretty/Mini_DIN_round_7_canned.kicad_mod",
+    "changes": "project-relative 3D paths and local library IDs; geometry and pad numbering unchanged"
+  },
+  {
+    "repository": "https://github.com/SukkoPera/DatassetteAudioAdapter",
+    "commit": "0f78a0ea0310f3e92838e92e41ba0a2129a7f212",
+    "source": "3dModels/c64_datassette_connector.step",
+    "source_sha256": "1c03085f1129ac54550539ec0e1ae3f46c2c67f8abf5fe9bf3ef606ea61a2125",
+    "destination": "libraries/ESPsette.3dshapes/c64_datassette_connector.step",
+    "changes": "none"
+  },
+  {
+    "repository": "https://github.com/ytmytm/Pi1551-HAT",
+    "commit": "5246ebebcfc91eb4141b1a95fa31ffb65021f272",
+    "source": "Conn_DIN_round.pretty/Conn_Mini_DIN_round_7.stp",
+    "source_sha256": "37039a22d320638008c87742b667c7a2a76e94107d599f1dc72f5458dd30f136",
+    "destination": "libraries/ESPsette.3dshapes/Conn_Mini_DIN_round_7.stp",
+    "changes": "none"
+  },
+  {
+    "repository": "https://github.com/ytmytm/Pi1551-HAT",
+    "commit": "5246ebebcfc91eb4141b1a95fa31ffb65021f272",
+    "source": "Conn_DIN_round.pretty/Conn_Mini_DIN_round_7_canned.stp",
+    "source_sha256": "44f36383e55036c4a2c44daa7b12dbebfb250510a6fb53c6e299b3ffde31e1c1",
+    "destination": "libraries/ESPsette.3dshapes/Conn_Mini_DIN_round_7_canned.stp",
+    "changes": "none"
+  },
+  {
+    "repository": "https://github.com/RoboticsBrno/semafor",
+    "commit": "f9f63e74fec38cb75c7eab39352022d63e622854",
+    "source": "hw/ESP-01-fixed v3.step",
+    "source_sha256": "428d09cdc9a3b1673457a5089cb607594aa5dde2a3dda139feef9ebce90f23fe",
+    "destination": "libraries/ESPsette.3dshapes/ESP-01-fixed v3.step",
+    "changes": "none"
+  },
+  {
+    "repository": "https://github.com/RoboticsBrno/semafor",
+    "commit": "f9f63e74fec38cb75c7eab39352022d63e622854",
+    "source": "hw/ESP-01-detachable v2.step",
+    "source_sha256": "f839a4ca00121d00e523c86e6309c26cbb9def1c4c96e92925404113994f33df",
+    "destination": "libraries/ESPsette.3dshapes/ESP-01-detachable v2.step",
+    "changes": "none"
+  },
+  {
+    "repository": "https://github.com/jdunmire/kicad-ESP8266",
+    "commit": "1f3d2c6e49285d4ab4976efc04913bd3974290c1",
+    "source": "LICENSE.md",
+    "source_sha256": "bfd8b61d356cff76764a64b0767494f3b29c742bfe652d8266b7b24f07cfa618",
+    "destination": "libraries/licenses/kicad-ESP8266-LICENSE.md",
+    "changes": "none"
+  },
+  {
+    "repository": "https://github.com/SukkoPera/DatassetteAudioAdapter",
+    "commit": "0f78a0ea0310f3e92838e92e41ba0a2129a7f212",
+    "source": "README.md",
+    "source_sha256": "b51a566b7dce5ad1e068fb4cdc65531e6a9f67e0cc5390553956657bb1a524ec",
+    "destination": "libraries/licenses/DatassetteAudioAdapter-README.md",
+    "changes": "none"
+  },
+  {
+    "repository": "https://github.com/SukkoPera/OpenC64TapePortBreakOut",
+    "commit": "79f067f673931f12dc33e70cf7613f132f2bb40f",
+    "source": "README.md",
+    "source_sha256": "f1b8d2049419a8a9932f337712ae8d949be188a1671ae7551f697e116a49e0c7",
+    "destination": "libraries/licenses/OpenC64TapePortBreakOut-README.md",
+    "changes": "none"
+  },
+  {
+    "repository": "https://github.com/ytmytm/Pi1551-HAT",
+    "commit": "5246ebebcfc91eb4141b1a95fa31ffb65021f272",
+    "source": "RPi_Hat.LICENSE",
+    "source_sha256": "723a04eef5202498fb9574f8b5944ab28cb2854958d2258b1756de2b4ad2ae0f",
+    "destination": "libraries/licenses/Pi1551-HAT-RPi_Hat.LICENSE",
+    "changes": "none"
+  },
+  {
+    "repository": "https://github.com/RoboticsBrno/semafor",
+    "commit": "f9f63e74fec38cb75c7eab39352022d63e622854",
+    "source": "LICENSE",
+    "source_sha256": "7394f46546c190838b37b68fd998d882ca3168e4098dde80c0a4e1a2089ae9e1",
+    "destination": "libraries/licenses/semafor-LICENSE",
+    "changes": "none"
+  },
+  {
+    "repository": "https://github.com/jdunmire/kicad-ESP8266",
+    "commit": "1f3d2c6e49285d4ab4976efc04913bd3974290c1",
+    "source": "ESP8266.lib",
+    "source_sha256": "16bae6a5803803c786e309a675e4dd9f4dde982f16cd6a023b8745b7588b919d",
+    "destination": "libraries/ESPsette.kicad_sym",
+    "changes": "extracted ESP-01v090 as ESP-01v090; converted mil to mm; assigned local footprint"
+  },
+  {
+    "repository": "https://github.com/SukkoPera/DatassetteAudioAdapter",
+    "commit": "0f78a0ea0310f3e92838e92e41ba0a2129a7f212",
+    "source": "DatassetteAudioAdapter-cache.lib",
+    "source_sha256": "48a0c6c9961d0cc331007dac80e5f76f3dfeea758304690e4fe002c238c4ca63",
+    "destination": "libraries/ESPsette.kicad_sym",
+    "changes": "extracted Connector_Conn_01x06_Male as C64_TAPE_PORT; converted mil to mm; assigned local footprint"
+  },
+  {
+    "repository": "https://github.com/ytmytm/Pi1551-HAT",
+    "commit": "5246ebebcfc91eb4141b1a95fa31ffb65021f272",
+    "source": "RPi_Hat.kicad_sch",
+    "source_sha256": "a7d0db490e99f3d252f313bfe30b07980fdd8f37f42c7804ac674d75dff3b5ea",
+    "destination": "libraries/ESPsette.kicad_sym",
+    "changes": "extracted Connector:Mini-DIN-7 as Mini_DIN_7; assigned local footprint"
+  },
+  {
+    "repository": "https://github.com/ytmytm/Pi1551-HAT",
+    "commit": "5246ebebcfc91eb4141b1a95fa31ffb65021f272",
+    "source": "RPi_Hat.kicad_sch",
+    "source_sha256": "a7d0db490e99f3d252f313bfe30b07980fdd8f37f42c7804ac674d75dff3b5ea",
+    "destination": "libraries/ESPsette.kicad_sym",
+    "changes": "extracted Connector:Mini-DIN-7 as Mini_DIN_7_canned; assigned local footprint"
+  }
+]

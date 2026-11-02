@@ -21,6 +21,18 @@ Hardware tests on **1 November 2026**:
 | Turbo loader | Not implemented |
 | OTA updates | Disabled in the default firmware; use serial flashing |
 
+## Hardware
+
+The [KiCad project](kicad/espsette.kicad_pro) includes the schematic, routed PCB and project-local libraries. See the [wiring notes](kicad/WIRING.md) and [connection plan](kicad/PLAN_POLACZEN.md) for the selected circuit.
+
+- [Schematic PDF](kicad/plots/espsette.pdf)
+- [Gerber and drill files](kicad/gerbers/)
+- [Local symbols, footprints and 3D models](kicad/libraries/README.md)
+
+![ESPsette PCB — top view](media/01.pcbtop.png)
+
+![ESPsette PCB — side view](media/02.pcbside.png)
+
 ## Build
 
 Requires `make`, `curl` and internet access for the initial tool download. On macOS, install the Command Line Tools if needed (`xcode-select --install`). Run from the repository root:

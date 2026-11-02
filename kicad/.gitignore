@@ -3,3 +3,12 @@
 *.lck
 *-backups/
 *.bak
+
+# Editor locks, caches and temporary files.
+~*.lck
+fp-info-cache
+*.kicad_sch-bak
+*.kicad_pcb-bak
+*.kicad_pro-bak
+*.tmp
+*~

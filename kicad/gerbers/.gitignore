@@ -1,2 +1,15 @@
+# Keep manufacturing exports; ignore other generated files.
 *
 !.gitignore
+!*.gbr
+!*.gbl
+!*.gbs
+!*.gbp
+!*.gbo
+!*.gm1
+!*.gtl
+!*.gts
+!*.gtp
+!*.gto
+!*.drl
+!*.gbrjob

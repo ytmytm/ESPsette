@@ -1,2 +1,4 @@
+# Keep schematic PDF plots.
 *
 !.gitignore
+!*.pdf

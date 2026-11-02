@@ -1,0 +1,4 @@
+(sym_lib_table
+ (version 7)
+ (lib (name "ESPsette")(type "KiCad")(uri "${KIPRJMOD}/libraries/ESPsette.kicad_sym")(options "")(descr "ESPsette project-local symbols"))
+)
