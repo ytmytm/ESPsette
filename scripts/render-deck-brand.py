@@ -5,7 +5,11 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('font', type=Path, help='Path to MicrogrammaDBolExt Regular.ttf')
+parser.add_argument(
+    'font', nargs='?', type=Path,
+    default=Path('/mnt/batibat/Maciejdev/c128-front/MicrogrammaDBolExt Regular.ttf'),
+    help='Path to MicrogrammaDBolExt Regular.ttf (default: %(default)s)',
+)
 args = parser.parse_args()
 scale = 4
 font = ImageFont.truetype(str(args.font), 26 * scale)
