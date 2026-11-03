@@ -25,7 +25,10 @@ function element() {
     scrollIntoView() {}
   };
 }
+const previewStorage = new Map();
 const context = vm.createContext({
+  localStorage: {getItem:key => previewStorage.get(key) ?? null,
+    setItem:(key, value) => previewStorage.set(key, String(value))},
   document: {
     getElementById(id) {
       if (!elements.has(id)) elements.set(id, element());
@@ -148,6 +151,21 @@ assert.equal(elements.get('counterNext2').textContent, '2');
 vm.runInContext('showTapeCounter(999); showTapeCounter(1000)', context);
 assert.equal(elements.get('counter').attributes['aria-label'], 'Tape counter 000');
 
+// Every changed digit rolls upward, including multi-count seeks and carries.
+vm.runInContext('showTapeCounter(8); showTapeCounter(12)', context);
+assert.equal(elements.get('counterOld1').textContent, '0');
+assert.equal(elements.get('counterNext1').textContent, '1');
+assert.equal(elements.get('counterOld2').textContent, '8');
+assert.equal(elements.get('counterNext2').textContent, '2');
+vm.runInContext('showTapeCounter(12)', context);
+assert.equal(elements.get('counterOld2').textContent, '8'); // Polling must not reset an ongoing roll.
+assert.equal(elements.get('counterNext2').textContent, '2');
+vm.runInContext("renderVfd('1:23 / 4:56')", context);
+assert.equal(elements.get('played').textContent, '1:23 / 4:56');
+assert.equal(elements.get('vfdDigits').children.length, 9);
+assert.equal(elements.get('vfdDigits').children[0].children.length, 35);
+assert.equal(elements.get('vfdDigits').children[4].className, 'vfd-glyph vfd-slash');
+
 for (const payload of [[0, 0x10, 0], [0, 0, 0, 0]]) {
   context.badTape = new Blob([new Uint8Array(20), Uint8Array.from(payload)]);
   await assert.rejects(vm.runInContext('scanTape(badTape)', context),
@@ -254,9 +272,7 @@ assert.equal(vm.runInContext('mock.autoPlay', context), true);
 vm.runInContext("document.getElementById('defaultMachine').value = 'c16'", context);
 await vm.runInContext("document.getElementById('defaultMachine').onchange()", context);
 assert.equal(vm.runInContext('mock.defaultMachine', context), 'c16');
-assert.equal(elements.get('machine').value, 'c16');
-vm.runInContext("document.getElementById('machine').value = 'c64'; render({...mock})", context);
-assert.equal(elements.get('machine').value, 'c64'); // A PRG may override the default.
+assert.equal(previewStorage.get('espsette.preview.machine'), 'c16');
 await assert.rejects(vm.runInContext("mockApi('/default-machine', {body:new URLSearchParams({machine:'vic20'})})", context));
 const resume = await vm.runInContext(
   `mockApi('/session', {body:new URLSearchParams({type:'tap', size:'26',
@@ -298,7 +314,99 @@ vm.runInContext("mock.writeMachine = 'c16'; render({...mock})", context);
 assert.match(elements.get('writeDetail').textContent, /C16\/Plus4/);
 vm.runInContext("mock.tapeState = 'loaded'; mock.fileName = 'game.tap'; mock.machine = 'c16'; mock.sourceType = 'tap'; render({...mock})", context);
 assert.match(elements.get('loaded').textContent, /game\.tap/);
-assert.match(elements.get('loaded').textContent, /C16/);
+assert.equal(elements.get('machineLabel').textContent, 'C16');
+assert.equal(elements.get('standardPAL').attributes['data-active'], 'true');
+assert.equal(elements.get('standardNTSC').attributes['data-active'], 'false');
+assert.equal(elements.get('machineC16').attributes['data-active'], 'true');
+assert.equal(elements.get('machineC64').attributes['data-active'], 'false');
 vm.runInContext("mock.machine = 'c64'; render({...mock})", context);
-assert.match(elements.get('loaded').textContent, /C64/);
+assert.equal(elements.get('machineLabel').textContent, 'C64');
+assert.equal(elements.get('machineC64').attributes['data-active'], 'true');
+assert.equal(elements.get('machineC16').attributes['data-active'], 'false');
+// Choosing a TAP inserts it immediately; IDX can be attached and removed
+// without replacing the session or rewinding playback.
+const uiHeader = new Uint8Array(20);
+uiHeader.set(new TextEncoder().encode('C64-TAPE-RAW'));
+uiHeader[12] = 2;
+uiHeader[16] = 6;
+context.uiTape = new Blob([uiHeader, Uint8Array.of(0x2f, 0, 0x10, 0, 0, 0x42)]);
+context.uiTape.name = 'ui.tap';
+context.uiIndex = {name:'ui.idx', size:20, text:async () => '20 Start\n25 Next'};
+vm.runInContext('mock.motorOn = false; mock.gpioDisabled = false; render({...mock})', context);
+await vm.runInContext('chooseFiles([uiTape])', context);
+await vm.runInContext('step()', context);
+assert.equal(vm.runInContext('source.file', context), context.uiTape);
+assert.equal(elements.get('selectedFiles').hidden, true);
+assert.match(elements.get('loaded').textContent, /ui.tap/);
+const uiSession = vm.runInContext('source.id', context);
+const uiOffset = vm.runInContext('source.offset', context);
+await vm.runInContext('attachIndex(uiIndex)', context);
+assert.equal(vm.runInContext('source.id', context), uiSession);
+assert.equal(vm.runInContext('source.offset', context), uiOffset);
+assert.equal(vm.runInContext('source.indexEntries.length', context), 2);
+assert.equal(vm.runInContext('source.indexEntries[1].phase', context), 0);
+assert.equal(elements.get('indexName').textContent, 'ui.idx');
+assert.equal(elements.get('indexControls').hidden, false);
+context.uiBadIndex = {name:'bad.idx', size:10, text:async () => '22 Inside pulse'};
+await vm.runInContext('attachIndex(uiBadIndex)', context);
+assert.match(elements.get('error').textContent, /Cannot attach index/);
+assert.equal(vm.runInContext('source.indexEntries.length', context), 2);
+assert.equal(elements.get('indexName').textContent, 'ui.idx');
+await vm.runInContext("document.getElementById('clearIndex').onclick()", context);
+assert.equal(vm.runInContext('source.indexEntries.length', context), 0);
+assert.equal(elements.get('indexControls').hidden, true);
+assert.equal(elements.get('clearIndex').hidden, true);
+await vm.runInContext('chooseFiles([uiTape, uiIndex])', context);
+assert.equal(vm.runInContext('source.indexEntries.length', context), 2);
+// Replacing the tape discards the previous tape's optional index.
+await vm.runInContext('chooseFiles([uiTape])', context);
+assert.equal(vm.runInContext('selectedIdx', context), null);
+assert.equal(vm.runInContext('source.indexEntries.length', context), 0);
+// PRG uses the saved computer and filename, and is inserted immediately.
+context.uiPrg = new Blob([Uint8Array.of(1, 8, 42)]);
+context.uiPrg.name = 'program.PRG';
+await vm.runInContext('chooseFiles([uiPrg])', context);
+assert.equal(vm.runInContext('source.type', context), 'prg');
+assert.equal(vm.runInContext('mock.machine', context), 'c16');
+assert.equal(vm.runInContext('mock.fileName', context), 'program');
+assert.equal(elements.get('indexPicker').hidden, true);
+assert.equal(elements.get('selectedFiles').hidden, true);
+// Both orders of TAP + IDX work. Only the first supported tape is used.
+await vm.runInContext('chooseFiles([uiIndex, uiTape])', context);
+assert.equal(vm.runInContext('source.indexEntries.length', context), 2);
+await vm.runInContext('chooseFiles([uiPrg, uiTape, uiIndex])', context);
+assert.equal(vm.runInContext('source.file', context), context.uiPrg);
+assert.equal(vm.runInContext('selectedIdx', context), null);
+await vm.runInContext('chooseFiles([uiTape, uiPrg, uiIndex])', context);
+assert.equal(vm.runInContext('source.file', context), context.uiTape);
+assert.equal(vm.runInContext('source.indexEntries.length', context), 2);
+// Demo must replace the file while preview's soft MOTOR is on.
+vm.runInContext('mock.motorOn = true; mock.gpioDisabled = true; render({...mock})', context);
+await vm.runInContext("document.getElementById('demo').onclick()", context);
+assert.match(elements.get('loaded').textContent, /draxcaught \(demo\)/);
+assert.equal(vm.runInContext('source', context), null);
+assert.equal(vm.runInContext('selectedFile', context), null);
+assert.equal(elements.get('error').textContent, '');
+assert.equal(elements.get('bufferIcon').attributes['data-active'], 'false');
+vm.runInContext('mock.embedded = false; mock.sessionId = 1; mock.freeBytes = 4096; render({...mock})', context);
+assert.equal(elements.get('bufferIcon').attributes['data-active'], 'true');
+assert.equal(elements.get('bufferIcon').attributes['data-level'], '4');
+vm.runInContext('mock.freeBytes = 0; render({...mock})', context);
+assert.equal(elements.get('bufferIcon').attributes['data-level'], '8');
+// Real MOTOR still blocks editing; the error belongs to playback status.
+vm.runInContext('mock.gpioDisabled = false; render({...mock})', context);
+await vm.runInContext("document.getElementById('demo').onclick()", context);
+assert.match(elements.get('error').textContent, /Stop MOTOR/);
+assert.match(html, /class="playback-status"[^>]*>[\s\S]*?id="error"/);
+vm.runInContext('mock.motorOn = false; render({...mock})', context);
+await vm.runInContext("document.getElementById('deckEject').onclick()", context);
+assert.equal(vm.runInContext('selectedFile', context), null);
+assert.equal(elements.get('loaded').textContent, 'Ejected');
+assert.equal(elements.get('selectedFiles').hidden, true);
+// Preview settings survive reloading the page; real hardware uses LittleFS.
+await vm.runInContext("mockApi('/autoplay', {body:new URLSearchParams({enabled:'0'})})", context);
+const reloaded = vm.createContext({...context});
+vm.runInContext(script, reloaded);
+assert.equal(vm.runInContext('mock.defaultMachine', reloaded), 'c16');
+assert.equal(vm.runInContext('mock.autoPlay', reloaded), false);
 console.log('IDX/TAP, VICE counter, English UI, session recovery and WRITE preview OK');

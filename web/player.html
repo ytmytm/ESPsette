@@ -2,41 +2,107 @@
 <html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ESPsette</title>
 <style>
+@font-face {
+  font-family: 'Caveat';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(assets/fonts/caveat-latin-ext-400.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Caveat';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(assets/fonts/caveat-latin-400.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 :root{color-scheme:dark;font:16px system-ui}*{box-sizing:border-box}body{margin:0;background:#11151b;color:#edf0f2}
-main{max-width:760px;margin:auto;padding:18px}h1{font-size:1.6rem;margin:0 0 4px}p{line-height:1.45;color:#abb7c3}
+main{max-width:760px;margin:auto;padding:18px}p{line-height:1.45;color:#abb7c3}
 .deck{background:linear-gradient(135deg,#373d44,#1d232b 58%,#353d42);border:3px solid #60666b;border-radius:20px;padding:20px;box-shadow:0 22px 45px #0008,inset 0 2px 4px #ffffff33}
-.deck-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;color:#b9c2c7;font-size:.75rem;font-weight:700;letter-spacing:.18em}.counter{display:flex;gap:2px;padding:3px 5px;background:linear-gradient(#65645e,#c2bdad 25%,#948f81 80%,#3d3b36);border:2px solid #222326;border-radius:4px;box-shadow:inset 0 2px 5px #0009,0 1px 1px #ffffff50;font:700 1.45rem/1.15 ui-monospace,monospace;color:#101010;font-variant-numeric:tabular-nums}.counter-digit{display:block;width:.69em;height:1.15em;overflow:hidden;background:linear-gradient(#aaa69a,#e4dfcf 35%,#e2ddce 65%,#928e84);border:1px solid #5f5c53;border-radius:2px;text-align:center;box-shadow:inset 0 1px 2px #0005}.counter-strip{display:block}.counter-strip span{display:block;height:1.15em}.counter-strip.rolling{animation:counter-roll .42s ease-out both}@keyframes counter-roll{from{transform:translateY(0)}to{transform:translateY(-50%)}}
-.window{height:clamp(190px,34vw,275px);border:10px solid #141a20;border-radius:12px;background:linear-gradient(145deg,#090c10,#20252c);box-shadow:inset 0 5px 15px #000;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+.deck-bottom{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;margin-top:15px}.deck-left{display:flex;align-items:center;gap:24px;min-width:0;justify-self:start}.deck-info{min-width:0;max-width:100%;text-align:center;justify-self:center}.deck-right{display:flex;align-items:center;gap:12px;justify-self:end}.counter{display:flex;gap:2px;padding:3px 5px;background:linear-gradient(#65645e,#c2bdad 25%,#948f81 80%,#3d3b36);border:2px solid #222326;border-radius:4px;box-shadow:inset 0 2px 5px #0009,0 1px 1px #ffffff50;font:700 1.45rem/1.15 ui-monospace,monospace;color:#101010;font-variant-numeric:tabular-nums}.counter-digit{display:block;width:.69em;height:1.15em;overflow:hidden;background:linear-gradient(#aaa69a,#e4dfcf 35%,#e2ddce 65%,#928e84);border:1px solid #5f5c53;border-radius:2px;text-align:center;box-shadow:inset 0 1px 2px #0005}.counter-strip{display:block;height:2.3em;will-change:transform}.counter-strip span{display:block;height:1.15em}.counter-strip.rolling{animation:counter-roll .7s cubic-bezier(.22,.65,.25,1) both}@keyframes counter-roll{from{transform:translateY(0)}to{transform:translateY(-1.15em)}}
+.window{height:clamp(130px,28vw,230px);border:10px solid #141a20;border-radius:12px;background:linear-gradient(145deg,#090c10,#20252c);box-shadow:inset 0 5px 15px #000;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
 .cassette{width:min(100%,570px);aspect-ratio:720/314;background:url('assets/cassette.webp') center/contain no-repeat;position:relative;filter:drop-shadow(0 5px 8px #0009)}
 .reel{position:absolute;width:9%;aspect-ratio:1;border-radius:50%;background:repeating-conic-gradient(#cabfa8 0 12deg,#443d37 12deg 38deg,#e7dcc6 38deg 55deg,#292522 55deg 60deg);box-shadow:inset 0 0 0 6px #292522,0 0 3px #000;transform:translate(-50%,-50%);left:29.9%;top:48.4%}
 .reel.right{left:70.3%;top:48.4%}
 .playing .reel{animation:spin 1.6s linear infinite}@keyframes spin{from{transform:translate(-50%,-50%) rotate(0)}to{transform:translate(-50%,-50%) rotate(360deg)}}
 .ejected .cassette{display:none}.ejected .window:after{content:'EMPTY DECK';color:#9aa6b2;letter-spacing:.2em}
-.keys{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:15px}.key{margin:0;font:700 clamp(.66rem,2vw,.9rem) system-ui;background:linear-gradient(#34393d,#0c1015);border:2px solid #535a62;border-radius:5px 5px 10px 10px;min-height:52px;padding:8px 3px;box-shadow:0 5px 2px #080a0d;color:#d2dce3;cursor:pointer}.key.pressed{transform:translateY(4px);box-shadow:0 1px 2px #080a0d;color:#fff}.key:disabled{cursor:not-allowed;opacity:.45}.key:active{transform:translateY(4px);box-shadow:0 1px 2px #080a0d}.autoplay{margin:10px 0 0;color:#dce5e9;font-size:.9rem}.autoplay input{accent-color:#e1b54c;width:1.1rem;height:1.1rem;vertical-align:middle}#deckMessage{margin:12px 0 0;min-height:1.5em;text-align:center;font-size:.9rem}.key:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid #f4c354;outline-offset:2px}
+.keys{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:15px}.key{margin:0;font:700 clamp(.66rem,2vw,.9rem) system-ui;background:linear-gradient(#34393d,#0c1015);border:2px solid #535a62;border-radius:5px 5px 10px 10px;min-height:52px;padding:8px 3px;box-shadow:0 5px 2px #080a0d;color:#d2dce3;cursor:pointer}.key.pressed{transform:translateY(4px);box-shadow:0 1px 2px #080a0d;color:#fff}.key:disabled{cursor:not-allowed;opacity:.45}.key:active{transform:translateY(4px);box-shadow:0 1px 2px #080a0d}#deckMessage{margin:12px 0 0;min-height:1.5em;text-align:center;font-size:.9rem}.key:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid #f4c354;outline-offset:2px}
 .debug{margin-top:12px;border-top:1px solid #42505d;padding-top:10px}.debug summary{cursor:pointer;color:#d7e0e8}.debug pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px ui-monospace,monospace;color:#b8c9d8;background:#10171e;border-radius:8px;padding:12px;max-height:330px;overflow:auto}
 @media(max-width:480px){main{padding:12px}.deck{padding:11px}.keys{gap:3px}.key{min-height:46px;padding:5px 2px}}
-@media(prefers-reduced-motion:reduce){.playing .reel{animation-duration:5s}.counter-strip.rolling{animation:none;transform:translateY(-50%)}}
+@media(prefers-reduced-motion:reduce){.playing .reel{animation-duration:5s}.counter-strip.rolling{animation:none;transform:translateY(-1.15em)}}
 .card{background:#202832;border:1px solid #36414b;border-radius:12px;padding:16px;margin-top:18px}
-label{display:block;margin:12px 0}input[type=file],select{display:block;width:100%;margin-top:8px}select{font:inherit;padding:10px;background:#111923;color:#fff;border:1px solid #566472;border-radius:8px}.drop{border:2px dashed #687786;border-radius:10px;padding:18px;text-align:center;color:#b9c7d3}.drop.over{border-color:#e2b94d;background:#39414a}button{font:inherit;border:0;border-radius:8px;background:#d5a43a;color:#17191a;padding:10px 15px;margin:4px 5px 4px 0;font-weight:700}button.secondary{background:#414e5b;color:#fff}button:disabled{opacity:.45}a{color:#9fcfff}
-.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.stats div{background:#131a22;border-radius:7px;padding:12px}.stats b{display:block;font-size:1.2rem;overflow-wrap:anywhere}small{color:#a4b3bf}#error{color:#ffaaa6;min-height:1.3em}
+label{display:block;margin:12px 0}input[type=file],select{display:block;width:100%;margin-top:8px}select{font:inherit;padding:10px;background:#111923;color:#fff;border:1px solid #566472;border-radius:8px}button{font:inherit;border:0;border-radius:8px;background:#d5a43a;color:#17191a;padding:10px 15px;margin:4px 5px 4px 0;font-weight:700}button.secondary{background:#414e5b;color:#fff}button:disabled{opacity:.45}a{color:#9fcfff}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.stats div{background:#131a22;border-radius:7px;padding:12px}.stats b{display:block;overflow-wrap:anywhere}.stats b{font-family:inherit;font-size:1.2rem;font-style:normal;font-weight:700;color:#edf0f2}small{color:#a4b3bf}#error{color:#ffaaa6;min-height:1.3em}
 .scope-wrap{margin-top:14px;background:#0c1117;border:1px solid #2a3440;border-radius:8px;padding:10px 10px 8px}
 .scope-wrap canvas{display:block;width:100%;height:72px;image-rendering:pixelated}
 .scope-wrap small{display:block;margin-top:6px}
 .ota-cmd{background:#111923;padding:12px;border-radius:8px;overflow:auto;font:13px ui-monospace,monospace}
+
+[hidden]{display:none!important}
+#deckMessage{min-height:0;margin:12px 0 0;font-size:.8rem}
+.tape-picker{margin-top:14px;padding:14px;transition:border-color .15s}.tape-picker.over{border-color:#e2b94d;background:#29323b}
+.picker-actions{display:flex;gap:8px}.picker-actions>*{margin:0}.file-action{position:relative;flex:1;display:flex;align-items:center;justify-content:center;min-height:44px;background:#d5a43a;color:#17191a;border-radius:8px;font-weight:700;cursor:pointer}
+.file-input{position:absolute;width:1px!important;height:1px;padding:0;opacity:0;overflow:hidden}.file-action:focus-within{outline:3px solid #f4c354;outline-offset:3px}
+.index-picker{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:.8rem}#indexName{min-width:0;overflow-wrap:anywhere;color:#a4b3bf}.text-action{background:transparent;color:#abb7c3;min-width:44px;min-height:44px;padding:0;margin:0;font-size:1.3rem}
+.pending-file{font-size:.85rem;margin:10px 0 0;overflow-wrap:anywhere;color:#f0cb70}.picker-hint{font-size:.72rem;margin:4px 0 0;color:#93a3b2}
+#error{min-height:0;margin:8px 0;font-size:.85rem}#error:empty{display:none}
+.playback-status{color:#a4b3bf;font-size:.8rem;margin:10px 2px 0}.playback-status p{margin:6px 0;text-align:left}.playback-status p:empty{display:none}
+details.card{margin-top:12px}summary{cursor:pointer;color:#d7e0e8;font-weight:600}details.card>.stats{margin-top:14px}
+.index-navigation{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;margin-top:8px}.index-navigation label{grid-column:1/-1;margin:0;font-size:.8rem}.index-navigation select,.index-navigation button{margin:0;min-width:0}#indexInfo{font-size:.75rem}
+@media(max-width:480px){.window{height:130px;border-width:7px}.keys{margin-top:10px}#deckMessage{margin-top:10px;font-size:.72rem}.tape-picker{padding:12px;margin-top:12px}}
+.tape-progress{position:relative;display:flex;align-items:center;justify-content:center;margin-top:0;white-space:nowrap}.deck .autoplay{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;width:max-content;max-width:100%;min-height:44px;margin:0;padding:6px;background:#141b21;border:1px solid #525b61;border-radius:7px;box-shadow:inset 0 2px 4px #0006;cursor:pointer}.autoplay strong{display:block;font-size:.7rem;letter-spacing:.12em;color:#dce5e9}.autoplay input{appearance:none;position:relative;width:38px;height:22px;flex-shrink:0;margin:0;background:#35414c;border:1px solid #687580;border-radius:12px;cursor:pointer}.autoplay input:before{content:'';position:absolute;width:16px;height:16px;top:2px;left:2px;border-radius:50%;background:#abb7c3;box-shadow:0 1px 3px #0008}.autoplay input:checked{background:#d5a43a;border-color:#e4bc62}.autoplay input:checked:before{transform:translateX(16px);background:#252019}.autoplay input:focus-visible{outline:3px solid #f4c354;outline-offset:3px}
+
+
+@media(max-width:360px){.counter{font-size:1.25rem}}
+
+.cassette{container-type:inline-size;--label-x:16;--label-y:14;--label-width:68;--label-height:17;--label-size:40;--label-font:Caveat,cursive}
+.tape-label{position:absolute;left:calc(var(--label-x)*1%);top:calc(var(--label-y)*1%);width:calc(var(--label-width)*1%);height:calc(var(--label-height)*1%);display:flex;align-items:center;justify-content:center;overflow:hidden;white-space:nowrap;text-align:center;font-family:var(--label-font);font-size:calc(var(--label-size)*1cqw/7.2);font-weight:400;line-height:1.15;color:#242831;z-index:1}
+
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.vfd{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:16px;padding:10px;background:linear-gradient(155deg,#051b25,#020a10 65%);border:2px solid #080f14;border-radius:5px;box-shadow:inset 0 2px 6px #000,0 1px 1px #ffffff24;color:#6ff6ff}.vfd-caption{font:600 .5rem/1.2 system-ui;letter-spacing:.18em;color:#65b6c4;margin-bottom:6px;text-shadow:0 0 4px #48dcff55}.vfd-digits,.vfd-mode{display:flex;align-items:center;justify-content:center;gap:3px;min-height:20px}.vfd-glyph{display:grid;grid-template-columns:repeat(5,var(--dot-size,2px));grid-template-rows:repeat(7,var(--dot-size,2px));gap:1px;flex-shrink:0}.vfd-dot{display:block;width:var(--dot-size,2px);height:var(--dot-size,2px);background:#123440;opacity:.3}.vfd-dot.on{background:#6ff6ff;opacity:1;box-shadow:0 0 3px #37dfff99}.vfd-slash{margin:0 3px}
+.vfd-modes{display:flex;flex-direction:column;align-items:center;gap:7px;flex-shrink:0}.vfd-right{display:flex;align-items:center;justify-content:center;gap:8px}.vfd-time{min-width:0;text-align:center}.vfd-mode{--dot-size:1px;gap:2px;min-height:0}.vfd-mode .vfd-dot.on{background:#4c5961;box-shadow:none}.vfd-mode[data-active="true"] .vfd-dot.on{background:#6ff6ff;box-shadow:0 0 3px #37dfff99}
+
+
+.vfd-buffer{display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0}.vfd-buffer-caption{font:600 5px/1 system-ui;letter-spacing:.1em;color:#65b6c4}.vfd-meter{display:flex;flex-direction:column-reverse;gap:1px;width:10px;height:31px}.vfd-meter i{display:block;width:100%;height:3px;background:#123440;opacity:.35}.vfd-buffer[data-active="false"]{opacity:.4}
+.vfd-buffer[data-level="1"] .vfd-meter i:nth-child(-n+1){background:#6ff6ff;opacity:1;box-shadow:0 0 3px #37dfff88}
+.vfd-buffer[data-level="2"] .vfd-meter i:nth-child(-n+2){background:#6ff6ff;opacity:1;box-shadow:0 0 3px #37dfff88}
+.vfd-buffer[data-level="3"] .vfd-meter i:nth-child(-n+3){background:#6ff6ff;opacity:1;box-shadow:0 0 3px #37dfff88}
+.vfd-buffer[data-level="4"] .vfd-meter i:nth-child(-n+4){background:#6ff6ff;opacity:1;box-shadow:0 0 3px #37dfff88}
+.vfd-buffer[data-level="5"] .vfd-meter i:nth-child(-n+5){background:#6ff6ff;opacity:1;box-shadow:0 0 3px #37dfff88}
+.vfd-buffer[data-level="6"] .vfd-meter i:nth-child(-n+6){background:#6ff6ff;opacity:1;box-shadow:0 0 3px #37dfff88}
+.vfd-buffer[data-level="7"] .vfd-meter i:nth-child(-n+7){background:#6ff6ff;opacity:1;box-shadow:0 0 3px #37dfff88}
+.vfd-buffer[data-level="8"] .vfd-meter i:nth-child(-n+8){background:#6ff6ff;opacity:1;box-shadow:0 0 3px #37dfff88}
+.window:before{content:'';position:absolute;left:0;right:0;bottom:0;height:30px;background:linear-gradient(transparent,#080e12bb);z-index:1;pointer-events:none}.deck-brand{position:absolute;left:12px;bottom:6px;height:22px;width:auto;max-width:60%;z-index:2;filter:drop-shadow(0 1px 1px #000)}
+@media(max-width:640px){.deck-bottom{gap:6px}.vfd{zoom:.56}.deck .autoplay{padding:4px;gap:5px;min-height:40px}.autoplay strong{font-size:.55rem;letter-spacing:.03em}.autoplay input{width:32px;height:18px}.autoplay input:before{width:12px;height:12px}.autoplay input:checked:before{transform:translateX(14px)}.counter{font-size:1.05rem;padding:3px}.deck-brand{height:20px;left:8px}}
+@media(max-width:360px){.deck-bottom{gap:4px}.vfd{zoom:.38}.autoplay strong{font-size:.48rem}.counter{font-size:.9rem;padding:2px;gap:1px}}
+
 </style>
-<main><h1>ESPsette</h1><p>Tape over Wi-Fi · C64 / C16 PAL</p>
-<div id="deck" class="deck"><div class="deck-top"><span>DATASETTE</span><output id="counter" class="counter" aria-label="Tape counter 000"><span class="counter-digit"><span id="counterStrip0" class="counter-strip"><span id="counterOld0">0</span><span id="counterNext0">0</span></span></span><span class="counter-digit"><span id="counterStrip1" class="counter-strip"><span id="counterOld1">0</span><span id="counterNext1">0</span></span></span><span class="counter-digit"><span id="counterStrip2" class="counter-strip"><span id="counterOld2">0</span><span id="counterNext2">0</span></span></span></output></div><div class="window"><div class="cassette" id="cassette"><div class="reel" id="reelLeft"></div><div class="reel right" id="reelRight"></div></div></div><div class="keys" role="group" aria-label="Datasette controls"><button id="rewind" class="key" type="button" aria-label="Previous tape position">◀◀<br>REW</button><button id="stop" class="key" type="button" aria-label="Release PLAY on SENSE">■<br>STOP</button><button id="play" class="key pressed" type="button" aria-label="Press PLAY on SENSE">▶<br>PLAY</button><button id="fastForward" class="key" type="button" aria-label="Next tape position">▶▶<br>FF</button><button id="deckEject" class="key" type="button" aria-label="Eject tape">⏏<br>EJECT</button></div><p id="deckMessage" role="status" aria-live="polite"></p><label class="autoplay"><input id="autoPlay" type="checkbox" checked> Autoplay when tape is inserted</label></div>
-<section class="card"><div class="stats"><div><small>Tape</small><b id="loaded">—</b></div><div><small>Motor</small><b id="motor">—</b></div><div><small>Played</small><b id="played">—</b></div><div><small>ESP buffer</small><b id="buffer">—</b></div><div><small>Signal remaining</small><b id="remaining">—</b></div><div><small>WRITE / SAVE</small><b id="writeStatus">—</b></div></div><div class="scope-wrap"><canvas id="scope" width="640" height="72" aria-label="READ waveform"></canvas><small id="scopeLabel">READ · waiting for playback</small></div><p id="writeDetail"></p><p id="phase">Connecting…</p><p id="transport"></p><p id="error"></p><details id="debugPanel" class="debug"><summary>Debug / ESP state</summary><p id="diagnostics"></p><pre id="debugJson"></pre></details></section>
-<section class="card"><label>Default computer for PRG<select id="defaultMachine"><option value="c64">C64</option><option value="c16">C16 / Plus/4 PAL</option></select></label><p>A TAP identifies its computer in the header. The built-in demo is for C64.</p></section>
-<section class="card"><div id="dropzone" class="drop">Drop a TAP or PRG; optionally add an IDX for TAP</div><p id="selectedFiles"></p><label>C64 / C16 PAL TAP v1–v2 or PRG<input id="file" type="file" accept=".tap,.prg"></label><div id="indexPicker"><label>IDX index (optional for TAP)<input id="indexFile" type="file" accept=".idx,text/plain"></label><button id="clearIndex" class="secondary">Clear IDX selection</button></div><div id="prgOptions" hidden><label>Computer<select id="machine"><option value="c64">C64</option><option value="c16">C16 / Plus/4 PAL</option></select></label><label>Prepend turbo loader<select id="turbo"><option value="0">No — standard LOAD</option><option value="1" disabled>Yes — coming later</option></select></label><label>Tape name<input id="programName" maxlength="16" placeholder="PROGRAM"></label></div><button id="load">Insert tape</button><button id="demo" class="secondary">Demo tape</button><div id="indexControls" hidden><label>IDX position<select id="idxPositions"></select></label><button id="seek" class="secondary">Jump to position</button><p id="indexInfo"></p></div><p>The file stays in this tab. Keep the browser open during LOAD; when the ESP buffer is full, the next chunk waits without keeping an HTTP request open.</p></section>
-<section id="networkCard" class="card"><h2>Network / OTA</h2><p id="networkInfo">Connecting…</p><pre id="otaCmd" class="ota-cmd"></pre><p id="otaHint"></p><p><a id="wifiLink" href="/wifi">Forget Wi-Fi…</a> (not OTA)</p></section><section id="previewPanel" class="card" hidden><h2>Local preview</h2><p>Simulation without an ESP-01. Select a TAP or PRG and toggle MOTOR to check the animation, buffer and page layout.</p><button id="motorToggle" class="secondary">MOTOR on/off</button><button id="saveMock" class="secondary">Simulate SAVE</button></section></main>
+<main>
+<div id="deck" class="deck"><div class="window"><div class="cassette" id="cassette"><span id="loaded" class="tape-label">Connecting…</span><div class="reel" id="reelLeft"></div><div class="reel right" id="reelRight"></div></div><img class="deck-brand" src="assets/espsette-brand.png" alt="ESPSette"></div><div class="keys" role="group" aria-label="Datasette controls"><button id="rewind" class="key" type="button" aria-label="Previous tape position">◀◀<br>REW</button><button id="stop" class="key" type="button" aria-label="Release PLAY on SENSE">■<br>STOP</button><button id="play" class="key pressed" type="button" aria-label="Press PLAY on SENSE">▶<br>PLAY</button><button id="fastForward" class="key" type="button" aria-label="Next tape position">▶▶<br>FF</button><button id="deckEject" class="key" type="button" aria-label="Eject tape">⏏<br>EJECT</button></div><div class="deck-bottom"><div class="deck-left"><label class="autoplay" title="Autoplay automatically starts playback as soon as a tape is inserted."><input id="autoPlay" type="checkbox" role="switch" checked aria-label="Autoplay when tape is inserted"><strong>AUTOPLAY</strong></label></div><div class="deck-info"><div class="tape-progress"><div class="vfd" aria-label="Tape display">
+  <div class="vfd-modes" role="group" aria-label="Computer type"><span id="machineC64" class="vfd-mode" aria-hidden="true" data-active="false"></span><span id="machineC16" class="vfd-mode" aria-hidden="true" data-active="false"></span><span id="machineLabel" class="sr-only">—</span></div>
+  <div class="vfd-time"><div class="vfd-caption" aria-hidden="true">ELAPSED / TOTAL</div><div id="vfdDigits" class="vfd-digits" aria-hidden="true"></div><span id="played" class="sr-only" aria-label="Playback time">—</span></div>
+  <div class="vfd-right"><div class="vfd-modes" role="group" aria-label="Video standard"><span id="standardPAL" class="vfd-mode" aria-hidden="true" data-active="false"></span><span id="standardNTSC" class="vfd-mode" aria-hidden="true" data-active="false"></span><span id="standardLabel" class="sr-only">—</span></div><span id="bufferIcon" class="vfd-buffer" role="img" aria-label="ESP buffer inactive" data-level="0"><span class="vfd-buffer-caption" aria-hidden="true">BUF</span><span class="vfd-meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></span></div>
+</div></div></div><div class="deck-right"><output id="counter" class="counter" aria-label="Tape counter 000"><span class="counter-digit"><span id="counterStrip0" class="counter-strip"><span id="counterOld0">0</span><span id="counterNext0">0</span></span></span><span class="counter-digit"><span id="counterStrip1" class="counter-strip"><span id="counterOld1">0</span><span id="counterNext1">0</span></span></span><span class="counter-digit"><span id="counterStrip2" class="counter-strip"><span id="counterOld2">0</span><span id="counterNext2">0</span></span></span></output></div></div></div>
+<section id="dropzone" class="card tape-picker" aria-label="Insert a tape">
+  <div class="picker-actions"><label class="file-action" for="file">TAP / TAP+IDX / PRG<input id="file" class="file-input" type="file" accept=".tap,.prg,.idx" multiple></label><button id="demo" class="secondary" type="button">Demo</button></div>
+  <p id="selectedFiles" class="pending-file" hidden></p>
+  <div id="indexPicker" class="index-picker" hidden><span id="indexName"></span><button id="clearIndex" class="text-action" type="button" aria-label="Remove IDX index" hidden>×</button></div>
+  <div id="indexControls" hidden><div class="index-navigation"><label for="idxPositions">Tape position</label><select id="idxPositions"></select><button id="seek" class="secondary" type="button">Jump</button></div><p id="indexInfo"></p></div>
+  <p class="picker-hint">Drop TAP + IDX together, or TAP first, then IDX.<br>Keep this tab open during LOAD.</p>
+</section>
+
+<details class="card"><summary>Playback settings</summary><label>Default computer for PRG<select id="defaultMachine"><option value="c64">C64</option><option value="c16">C16 / Plus/4 PAL</option></select></label><p>TAP files identify their computer automatically.</p></details>
+<details class="card"><summary>Playback details</summary><div class="playback-status" aria-label="Playback status"><p id="deckMessage" role="status" aria-live="polite"></p><p id="error" role="alert"></p></div><div class="stats"><div><small>Signal remaining</small><b id="remaining">—</b></div><div><small>ESP buffer</small><b id="buffer">—</b></div><div><small>Motor</small><b id="motor">—</b></div><div><small>WRITE / SAVE</small><b id="writeStatus">—</b></div></div><div class="scope-wrap"><canvas id="scope" width="640" height="72" aria-label="READ waveform"></canvas><small id="scopeLabel">READ · waiting for playback</small></div><p id="writeDetail"></p><p id="phase">Connecting…</p><p id="transport"></p><details id="debugPanel" class="debug"><summary>Debug / ESP state</summary><p id="diagnostics"></p><pre id="debugJson"></pre></details></details>
+<details id="networkCard" class="card"><summary>Network / OTA</summary><p id="networkInfo">Connecting…</p><pre id="otaCmd" class="ota-cmd"></pre><p id="otaHint"></p><p><a id="wifiLink" href="/wifi">Forget Wi-Fi…</a> (not OTA)</p></details><section id="previewPanel" class="card" hidden><h2>Local preview</h2><p>Simulation without an ESP-01. Select a TAP or PRG and toggle MOTOR to check the animation, buffer and page layout.</p><button id="motorToggle" class="secondary">MOTOR on/off</button><button id="saveMock" class="secondary">Simulate SAVE</button></section></main>
 <script>
 const $ = id => document.getElementById(id);
 const preview = location.protocol === 'file:' || new URLSearchParams(location.search).has('preview');
 let source = null, busy = false, last = null;
 let selectedFile = null, selectedIdx = null;
 let selectedDefaultMachine = null;
-let lastCounterValue = null, lastCounterRaw = null;
+let lastCounterValue = null;
 let counterOriginCycles = 0;
 let mockBytes = 0, mockSize = 0, mockDemo = true, mockTick = Date.now();
 let mockType = 'tap';
@@ -49,6 +115,20 @@ const mock = {tapeState:'loaded', sourceType:'tap', machine:'c64', clockHz:98524
   writeStatus:'idle', writeMachine:'unknown', writeName:'', writeType:0, writeStart:0, writeEnd:0,
   writeHeaders:0, writeErrors:0, writeOverflows:0, scope:'', scopeHz:0, otaReady:false};
 let mockScopeLevel = 0;
+function previewSetting(key, value) {
+  try {
+    if (value !== undefined) localStorage.setItem('espsette.preview.' + key, value);
+    return localStorage.getItem('espsette.preview.' + key);
+  } catch (_) { return null; }
+}
+if (preview) {
+  const machine = previewSetting('machine');
+  if (machine === 'c64' || machine === 'c16') mock.defaultMachine = machine;
+  const autoplay = previewSetting('autoplay');
+  if (autoplay !== null) mock.autoPlay = autoplay === '1';
+  mock.sensePressed = mock.autoPlay;
+  mock.embedded = true;
+}
 
 function drawScope(s) {
   const canvas = $('scope');
@@ -132,14 +212,16 @@ async function mockApi(path, options = {}) {
     return {sensePressed:mock.sensePressed};
   }
   if (path === '/autoplay') {
-    if (mock.motorOn) throw new Error('Stop MOTOR');
+    if (motorBlocksEdit(mock)) throw new Error('Stop MOTOR');
     mock.autoPlay = options.body?.get('enabled') === '1';
+    previewSetting('autoplay', mock.autoPlay ? '1' : '0');
     return {autoPlay:mock.autoPlay};
   }
   if (path === '/default-machine') {
     const machine = options.body?.get('machine');
     if (machine !== 'c64' && machine !== 'c16') throw new Error('Invalid computer');
     mock.defaultMachine = machine;
+    previewSetting('machine', machine);
     return {defaultMachine:machine};
   }
   if (path === '/session') {
@@ -147,7 +229,7 @@ async function mockApi(path, options = {}) {
     mockType = args.get('type') === 'prg' ? 'prg' : 'tap';
     const fileSize = Number(args.get('size'));
     mockSize = mockType === 'prg' ? 2 + 2 * (fileSize - 2) : fileSize;
-    mock.logicalSize = mockSize;
+    mock.logicalSize = mockSize; mock.embedded = false;
     mockBytes = 0; mockDemo = false;
     mock.sessionId++; mock.fileOffsetReceived = mockType === 'prg' ? 2 : 20;
     mock.sourceType = mockType;
@@ -176,7 +258,7 @@ async function mockApi(path, options = {}) {
   }
   if (path === '/seek') {
     const args = options.body;
-    if (mockType !== 'tap' || mock.motorOn || Number(args.get('sid')) !== mock.sessionId)
+    if (mockType !== 'tap' || motorBlocksEdit(mock) || Number(args.get('sid')) !== mock.sessionId)
       throw new Error('Stop MOTOR / stale session');
     const offset = Number(args.get('offset'));
     if (offset < 20 || offset >= mockSize) throw new Error('Invalid TAP offset');
@@ -187,7 +269,7 @@ async function mockApi(path, options = {}) {
     return {sessionId:mock.sessionId, nextOffset:offset, freeBytes:8192, tapeState:'ejected'};
   }
   if (path === '/eject') {
-    if (mock.motorOn) throw new Error('Stop MOTOR');
+    if (motorBlocksEdit(mock)) throw new Error('Stop MOTOR');
     mock.tapeState = 'ejected'; mockBytes = 0; mock.phase = 'idle';
     mock.totalCycles = 0; mock.playedCycles = 0; mock.logicalSize = 0;
     mock.sessionId = 0; mock.fileOffsetReceived = 0; mock.sensePressed = false; source = null;
@@ -204,9 +286,9 @@ async function mockApi(path, options = {}) {
     return {offset:20, playedCycles:mock.playedCycles, tapeState:mock.tapeState};
   }
   if (path === '/demo') {
-    if (mock.motorOn) throw new Error('Stop MOTOR');
+    if (motorBlocksEdit(mock)) throw new Error('Stop MOTOR');
     mock.tapeState = 'loaded'; mock.fileName = 'draxcaught (demo)';
-    mockDemo = true; mockType = 'tap'; mock.sourceType = 'tap';
+    mockDemo = true; mockType = 'tap'; mock.sourceType = 'tap'; mock.embedded = true;
     mock.machine = 'c64'; mock.clockHz = 985248;
     mock.sessionId = 0; mock.logicalSize = 0; mock.fileOffsetReceived = 0;
     mock.playedCycles = 0; mock.sensePressed = mock.autoPlay; mock.scope = '';
@@ -254,23 +336,72 @@ function secondsAtTapeCounter(counter) {
 
 function showTapeCounter(raw) {
   const value = raw % 1000;
+  if (lastCounterValue === value) return;
   const digits = String(value).padStart(3, '0');
   const before = String(lastCounterValue ?? value).padStart(3, '0');
-  const animate = lastCounterRaw !== null && raw === lastCounterRaw + 1;
+  const animate = lastCounterValue !== null;
+  const rolling = [];
   for (let i = 0; i < 3; i++) {
-    if (lastCounterValue === value) break;
+    if (animate && before[i] === digits[i]) continue;
     const strip = $('counterStrip' + i);
     strip.classList.remove('rolling');
     $('counterOld' + i).textContent = animate ? before[i] : digits[i];
     $('counterNext' + i).textContent = digits[i];
-    if (animate && before[i] !== digits[i]) {
-      void strip.offsetWidth; // Restart the upward roll for this digit.
-      strip.classList.add('rolling');
-    }
+    if (animate) rolling.push(strip);
   }
+  // Commit the old digits before starting the upward roll, including on seek.
+  if (rolling.length) void $('counter').offsetWidth;
+  for (const strip of rolling) strip.classList.add('rolling');
   $('counter').setAttribute('aria-label', 'Tape counter ' + digits);
   lastCounterValue = value;
-  lastCounterRaw = raw;
+}
+
+const vfdPatterns = {
+  '0':['01110','10001','10001','10001','10001','10001','01110'],
+  '1':['00100','01100','00100','00100','00100','00100','01110'],
+  '2':['01110','10001','00001','00010','00100','01000','11111'],
+  '3':['11110','00001','00001','01110','00001','00001','11110'],
+  '4':['00010','00110','01010','10010','11111','00010','00010'],
+  '5':['11111','10000','10000','11110','00001','00001','11110'],
+  '6':['01110','10000','10000','11110','10001','10001','01110'],
+  '7':['11111','00001','00010','00100','01000','01000','01000'],
+  '8':['01110','10001','10001','01110','10001','10001','01110'],
+  '9':['01110','10001','10001','01111','00001','00001','01110'],
+  'C':['01111','10000','10000','10000','10000','10000','01111'],
+  'P':['11110','10001','10001','11110','10000','10000','10000'],
+  'A':['01110','10001','10001','11111','10001','10001','10001'],
+  'L':['10000','10000','10000','10000','10000','10000','11111'],
+  'N':['10001','11001','11001','10101','10011','10011','10001'],
+  'T':['11111','00100','00100','00100','00100','00100','00100'],
+  'S':['01111','10000','10000','01110','00001','00001','11110'],
+  ':':['00000','00100','00100','00000','00100','00100','00000'],
+  '/':['00001','00001','00010','00100','01000','10000','10000'],
+  '—':['00000','00000','00000','11111','00000','00000','00000']
+};
+function drawVfdText(display, text) {
+  display.replaceChildren();
+  for (const character of text.replace(/ /g, '')) {
+    const glyph = document.createElement('span');
+    glyph.className = 'vfd-glyph' + (character === '/' ? ' vfd-slash' : '');
+    const pattern = vfdPatterns[character] || vfdPatterns['—'];
+    for (const pixel of pattern.join('')) {
+      const dot = document.createElement('i');
+      dot.className = 'vfd-dot' + (pixel === '1' ? ' on' : '');
+      glyph.append(dot);
+    }
+    display.append(glyph);
+  }
+}
+drawVfdText($('machineC64'), 'C64');
+drawVfdText($('machineC16'), 'C16');
+drawVfdText($('standardPAL'), 'PAL');
+drawVfdText($('standardNTSC'), 'NTSC');
+let lastVfdText = null;
+function renderVfd(text) {
+  $('played').textContent = text;
+  if (lastVfdText === text) return;
+  lastVfdText = text;
+  drawVfdText($('vfdDigits'), text);
 }
 
 function render(s) {
@@ -295,13 +426,17 @@ function render(s) {
         'PLAY + MOTOR: tape running.' :
         'PLAY pressed; waiting for MOTOR.') :
       'STOP released PLAY. Tape paused until PLAY + MOTOR.';
-  if (s.tapeState === 'loaded') {
-    const machineLabel = s.machine === 'c16' ? 'C16' : s.machine === 'c64' ? 'C64' : '';
-    $('loaded').textContent = (s.fileName || 'Loaded') +
-      (machineLabel ? ' · ' + machineLabel : '');
-  } else {
-    $('loaded').textContent = 'Ejected';
-  }
+  const machineLabel = s.machine === 'c16' ? 'C16' : s.machine === 'c64' ? 'C64' : '';
+  $('loaded').textContent = s.tapeState === 'loaded' ? s.fileName || 'Loaded' : 'Ejected';
+  $('machineLabel').textContent = s.tapeState === 'loaded' ? machineLabel : '—';
+  $('machineC64').setAttribute('data-active', String(s.tapeState === 'loaded' && s.machine === 'c64'));
+  $('machineC16').setAttribute('data-active', String(s.tapeState === 'loaded' && s.machine === 'c16'));
+  // Current firmware accepts only PAL tapes and generates PAL PRG pulses.
+  const pal = s.tapeState === 'loaded' && (s.clockHz === 985248 || s.clockHz === 886724);
+  $('standardPAL').setAttribute('data-active', String(pal));
+  $('standardNTSC').setAttribute('data-active', 'false');
+  $('standardLabel').textContent = pal ? 'PAL' : '—';
+  $('loaded').setAttribute('title', $('loaded').textContent);
   $('motor').textContent = s.motorOn ?
     (s.gpioDisabled ? 'On (soft)' : 'On') : 'Off';
   $('autoPlay').checked = !!s.autoPlay;
@@ -309,7 +444,6 @@ function render(s) {
     $('defaultMachine').value = s.defaultMachine;
     if (selectedDefaultMachine !== s.defaultMachine) {
       selectedDefaultMachine = s.defaultMachine;
-      $('machine').value = s.defaultMachine;
     }
   }
   const origin = source?.type === 'tap' && source.id === s.sessionId ?
@@ -317,12 +451,22 @@ function render(s) {
   const absoluteCycles = origin + (s.playedCycles || 0);
   showTapeCounter(tapeCounterAtSeconds(absoluteCycles / s.clockHz));
   const total = s.totalCycles || (source && source.id === s.sessionId ? source.total : null);
-  $('played').textContent = time(s.playedCycles, s.clockHz) +
-    (total ? ' / ' + time(total, s.clockHz) : '');
+  renderVfd(time(s.playedCycles, s.clockHz) + ' / ' + time(total, s.clockHz));
   $('remaining').textContent = total ? time(Math.max(0, total - s.playedCycles), s.clockHz) : '—';
   $('buffer').textContent = s.embedded ?
     ('ROM · ' + (s.logicalSize || 0) + ' B') :
     (s.fileOffsetReceived ? (8192 - s.freeBytes) + ' B' : '—');
+  const streamed = !s.embedded && s.sessionId > 0;
+  const used = Number.isFinite(s.freeBytes) ? Math.max(0, Math.min(8192, 8192 - s.freeBytes)) : 0;
+  const level = streamed ? Math.ceil(used / 8192 * 5) : 0;
+  const bufferLabel = s.embedded ? 'Embedded tape; ESP streaming buffer not used' :
+    !streamed ? 'ESP buffer inactive' :
+    ['ESP buffer empty', 'ESP buffer low', 'ESP buffer partly filled',
+      'ESP buffer half full', 'ESP buffer nearly full', 'ESP buffer full'][level];
+  $('bufferIcon').setAttribute('data-active', String(streamed));
+  $('bufferIcon').setAttribute('data-level', String(streamed ? Math.ceil(used / 8192 * 8) : 0));
+  $('bufferIcon').setAttribute('aria-label', bufferLabel);
+  $('bufferIcon').setAttribute('title', bufferLabel);
   if ($('networkInfo')) {
     $('networkInfo').textContent = location.host +
       (s.gpioDisabled ? ' · GPIO soft' : '');
@@ -355,6 +499,7 @@ function render(s) {
     (s.writeEnabled ? 'Verified headers: ' + s.writeHeaders +
       ' · errors: ' + s.writeErrors + ' · overflows: ' + s.writeOverflows :
       'GPIO2/WRITE requires protected hardware and a WRITE profile.');
+  selectedFilesText();
   if (s.error) $('error').textContent = 'Player error: ' + s.error;
   $('seek').disabled = !source || source.type !== 'tap' || source.id !== s.sessionId;
   drawScope(s);
@@ -444,14 +589,15 @@ function showIndex(entries, warning = '') {
 }
 
 function selectedFilesText() {
-  $('selectedFiles').textContent = (selectedFile?.name || 'No file') +
-    (selectedIdx ? ' + ' + selectedIdx.name : '');
+  const pending = selectedFile && source?.file !== selectedFile;
+  $('selectedFiles').hidden = !pending;
+  $('selectedFiles').textContent = pending ? 'Selected: ' + selectedFile.name : '';
+  $('indexName').textContent = selectedIdx?.name || '';
+  updateFormatControls();
+  $('clearIndex').hidden = !selectedIdx;
 }
 function updateFormatControls() {
-  const isPrg = /\.prg$/i.test(selectedFile?.name || '');
-  $('prgOptions').hidden = !isPrg;
-  $('indexPicker').hidden = isPrg;
-  if (isPrg) $('programName').value = selectedFile.name.replace(/\.prg$/i, '').slice(0, 16);
+  $('indexPicker').hidden = !selectedIdx || /\.prg$/i.test(selectedFile?.name || '');
 }
 
 function sourceChunk(item, offset, limit) {
@@ -565,12 +711,15 @@ async function step() {
   } finally { busy = false; }
 }
 
-$('load').onclick = async () => {
+async function insertTape() {
   const file = selectedFile || $('file').files[0];
   if (!file) { $('error').textContent = 'Select a TAP or PRG'; return; }
   if (motorBlocksEdit(last)) { $('error').textContent = 'Stop MOTOR'; return; }
   await acquire();
   try {
+    const state = await api('/state');
+    render(state);
+    if (motorBlocksEdit(state)) throw Error('Stop MOTOR');
     const isPrg = /\.prg$/i.test(file.name);
     if (!isPrg && !/\.tap$/i.test(file.name)) throw Error('Select a TAP or PRG');
     const bytes = new Uint8Array(await file.slice(0, isPrg ? 2 : 20).arrayBuffer());
@@ -579,8 +728,8 @@ $('load').onclick = async () => {
     if (isPrg) {
       if (file.size < 3) throw Error('PRG contains no program data');
       body = new URLSearchParams({type:'prg', size:String(file.size), header,
-        name:file.name, displayName:$('programName').value || file.name.replace(/\.prg$/i, ''),
-        machine:$('machine').value, turbo:$('turbo').value});
+        name:file.name, displayName:file.name.replace(/\.prg$/i, '').slice(0, 16),
+        machine:selectedDefaultMachine || 'c64', turbo:'0'});
     } else {
       const format = tapFormat(bytes, file.size);
       indexEntries = await parseIdx(selectedIdx);
@@ -615,10 +764,14 @@ $('load').onclick = async () => {
         (mismatch ? ' · TAP/IDX names differ' : ''));
     }
     $('error').textContent = '';
+    $('deckMessage').textContent = 'Tape inserted.';
+    $('deck').scrollIntoView({behavior:'smooth', block:'start'});
   } catch (error) {
     $('error').textContent = 'Cannot insert file: ' + error.message;
   } finally { busy = false; }
-};
+  selectedFilesText();
+  await step();
+}
 
 $('deckEject').onclick = async () => {
   await acquire();
@@ -626,6 +779,10 @@ $('deckEject').onclick = async () => {
     await api('/eject', {method:'POST'});
     counterOriginCycles = 0;
     source = null; showIndex([]);
+    selectedFile = null; selectedIdx = null;
+    $('file').value = '';
+    selectedFilesText(); updateFormatControls();
+    render(await api('/state'));
     $('error').textContent = '';
     $('deckMessage').textContent = 'Tape ejected.';
   }
@@ -638,6 +795,9 @@ $('demo').onclick = async () => {
   try {
     await api('/demo', {method:'POST'});
     counterOriginCycles = 0; source = null; showIndex([]);
+    selectedFile = null; selectedIdx = null;
+    $('file').value = '';
+    selectedFilesText(); updateFormatControls();
     $('error').textContent = '';
     $('deckMessage').textContent = 'Loading embedded demo…';
     // Demo insert runs in the ESP loop (not inside HTTP) to avoid WDT/Wi-Fi drops.
@@ -812,20 +972,59 @@ $('defaultMachine').onchange = async () => {
   } finally { busy = false; }
 };
 
-$('file').onchange = event => { selectedFile = event.target.files[0] || null; selectedFilesText(); updateFormatControls(); $('machine').value = selectedDefaultMachine || 'c64'; };
-$('indexFile').onchange = event => { selectedIdx = event.target.files[0] || null; selectedFilesText(); };
-$('clearIndex').onclick = () => { selectedIdx = null; $('indexFile').value = ''; selectedFilesText(); };
+async function attachIndex(file) {
+  const item = source?.file === selectedFile ? source : null;
+  if (!item || item.type !== 'tap') {
+    selectedIdx = file; selectedFilesText();
+    return;
+  }
+  try {
+    const entries = await parseIdx(file);
+    const header = new Uint8Array(await item.file.slice(0, 20).arrayBuffer());
+    const scan = await scanTape(item.file, entries.map(entry => entry.offset));
+    if (source !== item) return;
+    const valid = entries.filter(entry => scan.positions.has(entry.offset))
+      .map(entry => ({...entry, prefixCycles:scan.positions.get(entry.offset),
+        phase:header[12] === 2 ? scan.pulsePositions.get(entry.offset) % 2 : 0}))
+      .sort((a, b) => a.offset - b.offset);
+    if (entries.length && !valid.length) throw Error('IDX has no entry at a TAP record boundary');
+    item.indexEntries = valid;
+    selectedIdx = file;
+    const mismatch = file && file.name.replace(/\.idx$/i, '').toLowerCase() !==
+      item.file.name.replace(/\.tap$/i, '').toLowerCase();
+    showIndex(valid, entries.length - valid.length + ' entries skipped' +
+      (mismatch ? ' · TAP/IDX names differ' : ''));
+    $('error').textContent = '';
+    selectedFilesText();
+  } catch (error) {
+    $('error').textContent = 'Cannot attach index: ' + error.message;
+  }
+}
+
+async function chooseFiles(files) {
+  const tape = Array.from(files).find(file => /\.(tap|prg)$/i.test(file.name));
+  const index = Array.from(files).find(file => /\.idx$/i.test(file.name));
+  if (!tape) {
+    if (index) await attachIndex(index);
+    return;
+  }
+  selectedFile = tape;
+  selectedIdx = /\.tap$/i.test(tape.name) ? index || null : null;
+  selectedFilesText(); updateFormatControls();
+  await insertTape();
+}
+$('file').onchange = async event => {
+  const files = Array.from(event.target.files);
+  event.target.value = ''; // Selecting the same file again also inserts it again.
+  await chooseFiles(files);
+};
+$('clearIndex').onclick = () => attachIndex(null);
 const dropzone = $('dropzone');
 dropzone.ondragover = event => { event.preventDefault(); dropzone.classList.add('over'); };
 dropzone.ondragleave = () => dropzone.classList.remove('over');
-dropzone.ondrop = event => {
+dropzone.ondrop = async event => {
   event.preventDefault(); dropzone.classList.remove('over');
-  for (const file of event.dataTransfer.files) {
-    if (/\.(tap|prg)$/i.test(file.name)) selectedFile = file;
-    else if (/\.idx$/i.test(file.name)) selectedIdx = file;
-  }
-  selectedFilesText(); updateFormatControls();
-  $('machine').value = selectedDefaultMachine || 'c64';
+  await chooseFiles(event.dataTransfer.files);
 };
 selectedFilesText(); updateFormatControls();
 

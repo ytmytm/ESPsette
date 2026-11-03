@@ -91,14 +91,14 @@ OTA is disabled because the 1 MB image with the embedded demo leaves insufficien
 1. Connect MOTOR → GPIO0, SENSE ← GPIO1 and READ ← GPIO3 through the interface described in [kicad/WIRING.md](kicad/WIRING.md). C16/Plus/4 needs a 1531 connector or adapter.
 2. On first boot, join `ESPsette-XXXXXX` and configure Wi-Fi in the captive portal. The device falls back to its AP if the saved network fails. No Wi-Fi credentials are built in.
 3. Open `http://DEVICE_IP/` (find the IP in your router). The default hostname is `ESPsette`; `.local` resolution is not guaranteed.
-4. Use the embedded demo, or select/drop a TAP or PRG. For PRG, select C64 or C16/Plus/4 PAL; the ESP generates the tape header and data pulses. For indexed TAP files, select/drop the accompanying Ultimate-style `.idx` too.
-5. Autoplay presses virtual PLAY when a tape is inserted; otherwise press PLAY on the page. Type `LOAD` on the Commodore. Playback starts when MOTOR turns on and pauses whenever MOTOR stops, including after the header.
+4. Use **Demo** or **TAP / TAP+IDX / PRG** directly below the deck (drag and drop also works). TAP and PRG files are inserted immediately. PRG uses the default C64 or C16/Plus/4 PAL computer from **Playback settings** and the filename as its tape name; the ESP generates the tape header and data pulses. Computer settings persist on the ESP in LittleFS. When multiple files are selected, the first TAP/PRG and (for TAP) the first IDX are used, regardless of order or extension case. Add an Ultimate-style `.idx` together with a TAP or later through the same picker or drop area. Removing an index does not eject or rewind the tape.
+5. **Autoplay** on the deck presses virtual PLAY when a tape is inserted; otherwise press PLAY on the page. Type `LOAD` on the Commodore. Playback starts when MOTOR turns on and pauses whenever MOTOR stops, including after the header.
 
 Keep the browser tab open and the phone/computer awake while streaming. PLAY/STOP control SENSE; the Commodore controls MOTOR. REW/FF seek while MOTOR is stopped. The animated cassette and counter show playback progress. Settings live in LittleFS; tape files stay in the browser. The page is intended for a trusted LAN and has no login.
 
 ## Debug and local UI preview
 
-Expand **Debug / ESP state** on the page, or connect to colored RemoteDebug logs:
+Expand **Playback details → Debug / ESP state** on the page, or connect to colored RemoteDebug logs:
 
 ```sh
 nc DEVICE_IP 23
@@ -106,7 +106,8 @@ nc DEVICE_IP 23
 
 Normal firmware has no UART log: GPIO1 and GPIO3 are used for SENSE and READ.
 
-Open [web/player.html](web/player.html) directly in a browser or run `make preview` to try the UI with simulated ESP state. See [tests/README.md](tests/README.md) for host tests and `make help` for build targets.
+Open [web/player.html](web/player.html) directly in a browser or run `make preview` to try the UI with simulated ESP state. Caveat is bundled as WOFF2 assets and embedded in the firmware, so it works offline without installed fonts or external requests. Font sources and OFL licenses are in [web/assets/fonts](web/assets/fonts). Preview saves the default computer and autoplay in browser local storage; real firmware saves these settings on the ESP. See [tests/README.md](tests/README.md) for host tests and `make help` for build targets.
+
 
 ## CI and releases
 
