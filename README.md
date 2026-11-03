@@ -14,7 +14,7 @@ Hardware tests on **1 November 2026**:
 | --- | --- |
 | C64 loading the embedded demo TAP | Passed on real hardware |
 | C64 loading a TAP streamed from the browser | Passed on real hardware |
-| PRG → standard tape pulses, C64 and C16/Plus/4 PAL | Host tests pass; hardware test pending |
+| PRG → standard tape pulses, C64 and C16/Plus/4 PAL/NTSC | Host tests pass; hardware test pending |
 | C16/Plus/4 playback; all supported TAP v1/v2 variants | Full hardware coverage pending |
 | IDX seeking and counter-based REW/FF | Host tests pass; hardware test pending |
 | WRITE / SAVE header decoding | Host tests pass; hardware test pending; disabled by default |
@@ -91,8 +91,19 @@ OTA is disabled because the 1 MB image with the embedded demo leaves insufficien
 1. Connect MOTOR → GPIO0, SENSE ← GPIO1 and READ ← GPIO3 through the interface described in [kicad/WIRING.md](kicad/WIRING.md). C16/Plus/4 needs a 1531 connector or adapter.
 2. On first boot, join `ESPsette-XXXXXX` and configure Wi-Fi in the captive portal. The device falls back to its AP if the saved network fails. No Wi-Fi credentials are built in.
 3. Open `http://DEVICE_IP/` (find the IP in your router). The default hostname is `ESPsette`; `.local` resolution is not guaranteed.
-4. Use **Demo** or **TAP / TAP+IDX / PRG** directly below the deck (drag and drop onto the deck or picker also works). TAP and PRG files are inserted immediately. PRG uses the default C64 or C16/Plus/4 PAL computer from **Playback settings** and the filename as its tape name; the ESP generates the tape header and data pulses. Computer settings persist on the ESP in LittleFS. When multiple files are selected, the first TAP/PRG and (for TAP) the first IDX are used, regardless of order or extension case. Add an Ultimate-style `.idx` together with a TAP or later through the same picker or drop area. With IDX, choose a named position in the deck and press **JUMP**, or use **PREV/NEXT**. The list and handwritten cassette title follow the position being played. Elapsed and total time refer to the whole TAP, including after a jump.
+4. Use **Demo** or **TAP / TAP+IDX / PRG** directly below the deck (drag and drop onto the deck or picker also works). TAP and PRG files are inserted immediately. PRG uses the default C64 PAL, C64 NTSC, C16 PAL or C16 NTSC profile from **Playback settings** and the filename as its tape name; the ESP generates the tape header and data pulses. Computer settings persist on the ESP in LittleFS. When multiple files are selected, the first TAP/PRG and (for TAP) the first IDX are used, regardless of order or extension case. Add an Ultimate-style `.idx` together with a TAP or later through the same picker or drop area. With IDX, choose a named position in the deck and press **JUMP**, or use **PREV/NEXT**. The list and handwritten cassette title follow the position being played. Elapsed and total time refer to the whole TAP, including after a jump.
 5. **Autoplay** on the deck presses virtual PLAY when a tape is inserted; otherwise press PLAY on the page. Type `LOAD` on the Commodore. Playback starts when MOTOR turns on and pauses whenever MOTOR stops, including after the header.
+
+The four profiles use the tape clocks from [VICE `vice/src/tape/tap.c`](https://github.com/VICE-Team/svn-mirror/blob/main/vice/src/tape/tap.c):
+
+| Profile | Tape clock |
+| --- | ---: |
+| C64 PAL | 985248 Hz |
+| C64 NTSC | 1022730 Hz |
+| C16 PAL | 886724 Hz |
+| C16 NTSC | 894886 Hz |
+
+C16 cassette timers use the slow clock (half the CPU clock). TAP v1/v2 selects PAL/NTSC from header byte 14; the PRG default does not override TAP metadata. Old saved `c64`/`c16` settings are interpreted as PAL. Repeating the active profile does not write flash, including when using a legacy PAL alias. NTSC has host-side coverage; real NTSC hardware still needs testing.
 
 Keep the browser tab open and the phone/computer awake while streaming. PLAY/STOP control SENSE; the Commodore controls MOTOR. REW/FF seek while MOTOR is stopped. The animated cassette and counter show playback progress. Settings live in LittleFS; tape files stay in the browser. The page is intended for a trusted LAN and has no login.
 

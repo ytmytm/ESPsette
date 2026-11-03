@@ -93,12 +93,24 @@ details.card{margin-top:12px}summary{cursor:pointer;color:#d7e0e8;font-weight:60
   <p class="picker-hint">Drop TAP + IDX together, or TAP first, then IDX.</p>
 </section>
 
-<details class="card"><summary>Playback settings</summary><label>Default computer for PRG<select id="defaultMachine"><option value="c64">C64</option><option value="c16">C16 / Plus/4 PAL</option></select></label><p>TAP files identify their computer automatically.</p></details>
+<details class="card"><summary>Playback settings</summary><label>Default computer for PRG<select id="defaultMachine"><option value="c64-pal">C64 PAL</option><option value="c64-ntsc">C64 NTSC</option><option value="c16-pal">C16 PAL</option><option value="c16-ntsc">C16 NTSC</option></select></label><p>TAP files identify their computer and PAL/NTSC standard automatically.</p></details>
 <details class="card"><summary>Playback details</summary><div class="playback-status" aria-label="Playback status"><p id="deckMessage" role="status" aria-live="polite"></p><p id="error" role="alert"></p></div><div class="stats"><div><small>Signal remaining</small><b id="remaining">—</b></div><div><small>ESP buffer</small><b id="buffer">—</b></div><div><small>Motor</small><b id="motor">—</b></div><div><small>WRITE / SAVE</small><b id="writeStatus">—</b></div></div><div class="scope-wrap"><canvas id="scope" width="640" height="72" aria-label="READ waveform"></canvas><small id="scopeLabel">READ · waiting for playback</small></div><p id="writeDetail"></p><p id="phase">Connecting…</p><p id="indexInfo"></p><p id="transport"></p><details id="debugPanel" class="debug"><summary>Debug / ESP state</summary><p id="diagnostics"></p><pre id="debugJson"></pre></details></details>
 <details id="networkCard" class="card"><summary>Network / OTA</summary><p id="networkInfo">Connecting…</p><pre id="otaCmd" class="ota-cmd"></pre><p id="otaHint"></p><p><a id="wifiLink" href="/wifi">Forget Wi-Fi…</a> (not OTA)</p></details><section id="previewPanel" class="card" hidden><h2>Local preview</h2><p>Simulation without an ESP-01. Select a TAP or PRG and toggle MOTOR to check the animation, buffer and page layout.</p><button id="motorToggle" class="secondary">MOTOR on/off</button><button id="saveMock" class="secondary">Simulate SAVE</button></section></main>
 <script>
 const $ = id => document.getElementById(id);
 const preview = location.protocol === 'file:' || new URLSearchParams(location.search).has('preview');
+// Same tape clocks as VICE vice/src/tape/tap.c (C16 timers run at half CPU speed).
+const computerProfiles = {
+  'c64-pal': {machine:'c64', video:'pal', clockHz:985248, label:'C64 PAL'},
+  'c64-ntsc': {machine:'c64', video:'ntsc', clockHz:1022730, label:'C64 NTSC'},
+  'c16-pal': {machine:'c16', video:'pal', clockHz:886724, label:'C16 PAL'},
+  'c16-ntsc': {machine:'c16', video:'ntsc', clockHz:894886, label:'C16 NTSC'}
+};
+function normalizedProfile(name) {
+  const key = name === 'c64' || name === 'c16' ? name + '-pal' : name;
+  return Object.hasOwn(computerProfiles, key) ? key : null;
+}
+function tapeProfile(machine, video) { return computerProfiles[machine + '-' + video]; }
 let source = null, busy = false, last = null;
 let selectedFile = null, selectedIdx = null;
 let selectedDefaultMachine = null;
@@ -107,8 +119,8 @@ let lastCounterValue = null;
 let counterOriginCycles = 0;
 let mockBytes = 0, mockSize = 0, mockDemo = true, mockTick = Date.now();
 let mockType = 'tap';
-const mock = {tapeState:'loaded', sourceType:'tap', machine:'c64', clockHz:985248, fileName:'draxcaught (demo)', motorOn:false,
-  sensePressed:true, autoPlay:true, defaultMachine:'c64', playing:false, phase:'idle', playedCycles:0,
+const mock = {tapeState:'loaded', sourceType:'tap', machine:'c64', videoStandard:'pal', clockHz:985248, fileName:'draxcaught (demo)', motorOn:false,
+  sensePressed:true, autoPlay:true, defaultMachine:'c64-pal', playing:false, phase:'idle', playedCycles:0,
   totalCycles:117000000, bufferedMillis:null, fileOffsetReceived:0,
   freeBytes:8192, sessionId:0, logicalSize:0, error:null, writeEnabled:false, gpioDisabled:false,
   freeHeap:32000, maxFreeBlock:24000, maxLoopUs:0, maxHttpUs:0,
@@ -124,7 +136,7 @@ function previewSetting(key, value) {
 }
 if (preview) {
   const machine = previewSetting('machine');
-  if (machine === 'c64' || machine === 'c16') mock.defaultMachine = machine;
+  if (normalizedProfile(machine)) mock.defaultMachine = normalizedProfile(machine);
   const autoplay = previewSetting('autoplay');
   if (autoplay !== null) mock.autoPlay = autoplay === '1';
   mock.sensePressed = mock.autoPlay;
@@ -219,8 +231,8 @@ async function mockApi(path, options = {}) {
     return {autoPlay:mock.autoPlay};
   }
   if (path === '/default-machine') {
-    const machine = options.body?.get('machine');
-    if (machine !== 'c64' && machine !== 'c16') throw new Error('Invalid computer');
+    const machine = normalizedProfile(options.body?.get('machine'));
+    if (!machine) throw new Error('Invalid computer');
     mock.defaultMachine = machine;
     previewSetting('machine', machine);
     return {defaultMachine:machine};
@@ -236,7 +248,11 @@ async function mockApi(path, options = {}) {
     mock.sourceType = mockType;
     mock.machine = mockType === 'prg' ? args.get('machine') :
       args.get('header')?.startsWith('433136') ? 'c16' : 'c64';
-    mock.clockHz = mock.machine === 'c16' ? 886724 : 985248;
+    mock.videoStandard = mockType === 'prg' ? args.get('video') || 'pal' :
+      args.get('header')?.slice(28, 30) === '01' ? 'ntsc' : 'pal';
+    const profile = tapeProfile(mock.machine, mock.videoStandard);
+    if (!profile) throw new Error('Invalid computer/video standard');
+    mock.clockHz = profile.clockHz;
     mock.fileName = args.get('displayName') || args.get('name');
     mock.totalCycles = mockType === 'prg' ? prgTotalCycles(fileSize - 2, mock.machine) :
       Number(args.get('cycles'));
@@ -290,7 +306,7 @@ async function mockApi(path, options = {}) {
     if (motorBlocksEdit(mock)) throw new Error('Stop MOTOR');
     mock.tapeState = 'loaded'; mock.fileName = 'draxcaught (demo)';
     mockDemo = true; mockType = 'tap'; mock.sourceType = 'tap'; mock.embedded = true;
-    mock.machine = 'c64'; mock.clockHz = 985248;
+    mock.machine = 'c64'; mock.videoStandard = 'pal'; mock.clockHz = 985248;
     mock.sessionId = 0; mock.logicalSize = 0; mock.fileOffsetReceived = 0;
     mock.playedCycles = 0; mock.sensePressed = mock.autoPlay; mock.scope = '';
     mock.totalCycles = 117000000; mock.phase = 'idle'; mock.error = null;
@@ -446,20 +462,18 @@ function render(s) {
   $('machineLabel').textContent = inserted ? machineLabel : '—';
   $('machineC64').setAttribute('data-active', String(inserted && s.machine === 'c64'));
   $('machineC16').setAttribute('data-active', String(inserted && s.machine === 'c16'));
-  // Current firmware accepts only PAL tapes and generates PAL PRG pulses.
-  const pal = inserted && (s.clockHz === 985248 || s.clockHz === 886724);
-  $('standardPAL').setAttribute('data-active', String(pal));
-  $('standardNTSC').setAttribute('data-active', 'false');
-  $('standardLabel').textContent = pal ? 'PAL' : '—';
+  const video = s.videoStandard || (s.clockHz === 1022730 || s.clockHz === 894886 ? 'ntsc' : 'pal');
+  $('standardPAL').setAttribute('data-active', String(inserted && video === 'pal'));
+  $('standardNTSC').setAttribute('data-active', String(inserted && video === 'ntsc'));
+  $('standardLabel').textContent = inserted ? video.toUpperCase() : '—';
   $('loaded').setAttribute('title', $('loaded').textContent);
   $('motor').textContent = s.motorOn ?
     (s.gpioDisabled ? 'On (soft)' : 'On') : 'Off';
   $('autoPlay').checked = !!s.autoPlay;
-  if (s.defaultMachine === 'c64' || s.defaultMachine === 'c16') {
-    $('defaultMachine').value = s.defaultMachine;
-    if (selectedDefaultMachine !== s.defaultMachine) {
-      selectedDefaultMachine = s.defaultMachine;
-    }
+  const defaultProfile = normalizedProfile(s.defaultMachine);
+  if (defaultProfile) {
+    $('defaultMachine').value = defaultProfile;
+    selectedDefaultMachine = defaultProfile;
   }
   const origin = source?.type === 'tap' && source.id === s.sessionId ?
     source.seekCycles || 0 : s.phase === 'done' || s.phase === 'error' ? counterOriginCycles : 0;
@@ -554,11 +568,12 @@ function tapFormat(bytes, size) {
     (bytes[12] === 1 || bytes[12] === 2);
   const c16 = signature === 'C16-TAPE-RAW' && bytes[13] === 2 &&
     (bytes[12] === 1 || bytes[12] === 2);
-  if (bytes[14] !== 0 || !(c64 || c16))
-    throw Error('Supported: C64 and C16 PAL TAP v1/v2');
+  if (bytes[14] > 1 || !(c64 || c16))
+    throw Error('Supported: C64 and C16 PAL/NTSC TAP v1/v2');
   const declared = new DataView(bytes.buffer, bytes.byteOffset, 20).getUint32(16, true);
   if (declared !== size - 20) throw Error('TAP data length does not match the header');
-  return {machine:c16 ? 'c16' : 'c64', version:bytes[12]};
+  const machine = c16 ? 'c16' : 'c64', video = bytes[14] === 1 ? 'ntsc' : 'pal';
+  return {machine, video, version:bytes[12], clockHz:tapeProfile(machine, video).clockHz};
 }
 
 async function scanTape(file, indexedOffsets = [], clockHz = 985248) {
@@ -753,14 +768,15 @@ async function insertTape() {
     let body, scan = null, validEntries = [], indexEntries = [];
     if (isPrg) {
       if (file.size < 3) throw Error('PRG contains no program data');
+      const profile = computerProfiles[selectedDefaultMachine || 'c64-pal'];
       body = new URLSearchParams({type:'prg', size:String(file.size), header,
         name:file.name, displayName:file.name.replace(/\.prg$/i, '').slice(0, 16),
-        machine:selectedDefaultMachine || 'c64', turbo:'0'});
+        machine:profile.machine, video:profile.video, turbo:'0'});
     } else {
       const format = tapFormat(bytes, file.size);
       indexEntries = await parseIdx(selectedIdx);
       scan = await scanTape(file, indexEntries.map(entry => entry.offset),
-        format.machine === 'c16' ? 886724 : 985248);
+        format.clockHz);
       validEntries = indexEntries.filter(entry =>
         entry.offset >= 20 && entry.offset < file.size && scan.positions.has(entry.offset))
         .map(entry => ({...entry, prefixCycles:scan.positions.get(entry.offset),
@@ -996,10 +1012,10 @@ $('defaultMachine').onchange = async () => {
       body:new URLSearchParams({machine})});
     if (last) render({...last, defaultMachine:ack.defaultMachine});
     $('deckMessage').textContent = 'Default PRG computer: ' +
-      (ack.defaultMachine === 'c16' ? 'C16 / Plus/4' : 'C64') + '.';
+      computerProfiles[normalizedProfile(ack.defaultMachine)].label + '.';
     $('error').textContent = '';
   } catch (error) {
-    $('defaultMachine').value = selectedDefaultMachine || 'c64';
+    $('defaultMachine').value = selectedDefaultMachine || 'c64-pal';
     $('error').textContent = 'Cannot save default computer: ' + error.message;
   } finally { busy = false; }
 };
@@ -1013,7 +1029,8 @@ async function attachIndex(file) {
   try {
     const entries = await parseIdx(file);
     const header = new Uint8Array(await item.file.slice(0, 20).arrayBuffer());
-    const scan = await scanTape(item.file, entries.map(entry => entry.offset));
+    const format = tapFormat(header, item.file.size);
+    const scan = await scanTape(item.file, entries.map(entry => entry.offset), format.clockHz);
     if (source !== item) return;
     const valid = entries.filter(entry => scan.positions.has(entry.offset))
       .map(entry => ({...entry, prefixCycles:scan.positions.get(entry.offset),

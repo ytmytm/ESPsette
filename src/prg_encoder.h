@@ -3,8 +3,9 @@
 #include <Arduino.h>
 
 #include "tape_source.h"
+#include "computer_profile.h"
 
-// Standard C64 or C16/Plus4 PAL cassette blocks. The encoder emits pulse lengths directly;
+// Standard C64 or C16/Plus4 PAL/NTSC cassette blocks. The encoder emits pulse lengths directly;
 // it never materializes a TAP file. Data for both ROM copies is read from the
 // browser-backed logical stream (load address, copy 1, copy 2).
 class PrgEncoder {
@@ -13,7 +14,7 @@ class PrgEncoder {
   enum class Result : uint8_t { PULSE, END, MISSING_DATA };
 
   bool begin(uint16_t loadAddress, uint32_t dataLength, const String& name,
-             Machine machine);
+             Machine machine, bool ntsc = false);
   void observeFirstCopy(uint32_t offset, const uint8_t* bytes, size_t length);
   Result pulseAt(uint32_t index, const TapeSource& source,
                  uint32_t& cycles, uint32_t& sourceOffset) const;
@@ -21,7 +22,7 @@ class PrgEncoder {
   uint32_t totalPulses() const { return totalPulses_; }
   uint32_t dataStartPulse() const { return dataStartPulse_; }
   uint64_t totalCycles() const { return totalCycles_; }
-  uint32_t clockHz() const { return machine_ == Machine::C16 ? 886724UL : 985248UL; }
+  uint32_t clockHz() const { return profileClockHz(computerProfile(machine_ == Machine::C16, ntsc_)); }
   Machine machine() const { return machine_; }
 
  private:
@@ -35,6 +36,7 @@ class PrgEncoder {
   uint32_t totalPulses_ = 0;
   uint64_t totalCycles_ = 0;
   Machine machine_ = Machine::C64;
+  bool ntsc_ = false;
 
   static uint32_t blockPulses(uint32_t pilotPulses, uint32_t bodyBytes);
   uint32_t bytePulse(uint8_t value, uint8_t position) const;

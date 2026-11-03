@@ -131,10 +131,9 @@ SourceFormat sourceFormat = SourceFormat::TAP;
 
 enum class State : uint8_t { WAITING, STREAMING, DRAINING, FINISHED, ERROR };
 
-// One I2S sample contains 32 serial output bits. One bit represents 16 PAL cycles.
-static const uint32_t C64_CLOCK_HZ = 985248UL;
-static const uint32_t C16_CLOCK_HZ = 886724UL;
-uint32_t sourceClockHz = C64_CLOCK_HZ;
+// One I2S sample contains 32 serial output bits. One bit represents 16 source cycles.
+ComputerProfile sourceProfile = ComputerProfile::C64_PAL;
+uint32_t sourceClockHz = profileClockHz(sourceProfile);
 bool tapHalfWaves = false; // TAP v2 uses successive halfwaves.
 static const uint32_t CYCLES_PER_BIT = 16;
 static const uint8_t DMA_WORDS = 64; // ESP8266 core: 8 DMA descriptors, 64 words each.
@@ -147,7 +146,7 @@ State state = State::WAITING;
 uint32_t tapEnd = 0;
 bool tapeLoaded = false;
 bool autoPlay = true;
-bool defaultC16 = false;
+ComputerProfile defaultProfile = ComputerProfile::C64_PAL;
 bool playbackComplete = false;
 String tapeName = "draxcaught (demo)";
 uint64_t totalTapeCycles = 0;
@@ -367,7 +366,8 @@ static void insertEmbeddedDemo() {
   ESP.wdtFeed();
   yield();
   sourceFormat = SourceFormat::TAP;
-  sourceClockHz = C64_CLOCK_HZ;
+  sourceProfile = ComputerProfile::C64_PAL;
+  sourceClockHz = profileClockHz(sourceProfile);
   tapHalfWaves = false;
   tapeSource.useEmbedded(draxcaught_tap, draxcaught_tap_len);
   tapeName = "draxcaught (demo)";
@@ -839,10 +839,10 @@ void setup() {
   }
   File machineFile = LittleFS.open("/machine.cfg", "r");
   if (machineFile) {
-    if (machineFile.size() == 3) {
-      char machine[4] = {};
-      if (machineFile.readBytes(machine, 3) == 3)
-        defaultC16 = strcmp(machine, "c16") == 0;
+    if (machineFile.size() <= 16) {
+      String name = machineFile.readString();
+      name.trim();
+      parseComputerProfile(name.c_str(), defaultProfile); // Legacy c64/c16 means PAL.
     }
     machineFile.close();
   }
@@ -1056,7 +1056,7 @@ static bool decodeHeader(const String& hex, uint8_t header[20]) {
 static bool validStreamHeader(const uint8_t header[20], uint32_t size) {
   const bool c64 = memcmp(header, "C64-TAPE-RAW", 12) == 0 && header[13] == 0;
   const bool c16 = memcmp(header, "C16-TAPE-RAW", 12) == 0 && header[13] == 2;
-  if (size <= 20 || header[14] != 0 ||
+  if (size <= 20 || header[14] > 1 ||
       !((c64 || c16) && (header[12] == 1 || header[12] == 2))) return false;
   const uint32_t dataSize = (uint32_t)header[16] |
                             ((uint32_t)header[17] << 8) |
@@ -1142,14 +1142,15 @@ void handleState() {
       : (demoInsertFailed && !tapeLoaded) ? "error"
       : (tapeLoaded ? "loaded" : "ejected");
   doc["sourceType"] = sourceFormat == SourceFormat::PRG ? "prg" : "tap";
-  doc["machine"] = sourceClockHz == C16_CLOCK_HZ ? "c16" : "c64";
+  doc["machine"] = profileIsC16(sourceProfile) ? "c16" : "c64";
+  doc["videoStandard"] = profileIsNtsc(sourceProfile) ? "ntsc" : "pal";
   doc["clockHz"] = sourceClockHz;
   doc["fileName"] = tapeLoaded ? tapeName : "";
   doc["motorOn"] = motorOn;
   doc["sensePressed"] = senseIsPressed();
   doc["gpioDisabled"] = bool(ESPSETTE_GPIO_DISABLED);
   doc["autoPlay"] = autoPlay;
-  doc["defaultMachine"] = defaultC16 ? "c16" : "c64";
+  doc["defaultMachine"] = profileName(defaultProfile);
   doc["playing"] = motorOn && senseIsPressed() && tapeLoaded &&
       (state == State::STREAMING || state == State::DRAINING);
   const char* phase = "idle";
@@ -1243,9 +1244,11 @@ void handleSession() {
   uint32_t logicalSize;
   uint32_t firstOffset;
   if (isPrg) {
+    const String video = HTTPServer.arg("video");
     const String addressHex = HTTPServer.arg("header");
     if (fileSize < 3 || addressHex.length() != 4 ||
         (HTTPServer.arg("machine") != "c64" && HTTPServer.arg("machine") != "c16") ||
+        (video.length() && video != "pal" && video != "ntsc") ||
         HTTPServer.arg("turbo") != "0") {
       HTTPServer.send(400, "text/plain", "Only standard C64/C16 PRG is supported");
       return;
@@ -1265,7 +1268,7 @@ void handleSession() {
     const PrgEncoder::Machine machine = HTTPServer.arg("machine") == "c16" ?
         PrgEncoder::Machine::C16 : PrgEncoder::Machine::C64;
     if (displayName.length() > 64 ||
-        !prgEncoder.begin(loadAddress, dataLength, displayName, machine)) {
+        !prgEncoder.begin(loadAddress, dataLength, displayName, machine, video == "ntsc")) {
       HTTPServer.send(400, "text/plain", "PRG address range is invalid");
       return;
     }
@@ -1273,6 +1276,7 @@ void handleSession() {
     firstOffset = 2;
     totalTapeCycles = prgEncoder.totalCycles();
     reportedTotalCycles = totalTapeCycles;
+    sourceProfile = computerProfile(machine == PrgEncoder::Machine::C16, video == "ntsc");
     sourceClockHz = prgEncoder.clockHz();
     tapHalfWaves = false;
   } else {
@@ -1280,14 +1284,15 @@ void handleSession() {
         !validStreamHeader(prefix, fileSize) ||
         (HTTPServer.hasArg("cycles") &&
          !parseDecimal64(HTTPServer.arg("cycles"), cycles))) {
-      HTTPServer.send(400, "text/plain", "Supported: C64/C16 PAL TAP v1/v2");
+      HTTPServer.send(400, "text/plain", "Supported: C64/C16 PAL/NTSC TAP v1/v2");
       return;
     }
     logicalSize = fileSize;
     firstOffset = 20;
     totalTapeCycles = 0;
     reportedTotalCycles = cycles; // Browser metadata is display-only.
-    sourceClockHz = prefix[13] == 2 ? C16_CLOCK_HZ : C64_CLOCK_HZ;
+    sourceProfile = computerProfile(prefix[13] == 2, prefix[14] == 1);
+    sourceClockHz = profileClockHz(sourceProfile);
     tapHalfWaves = prefix[12] == 2;
   }
   const uint32_t id = newSessionId(0);
@@ -1530,32 +1535,30 @@ void handleAutoPlay() {
 }
 
 void handleDefaultMachine() {
-  const String machine = HTTPServer.arg("machine");
-  if (machine != "c64" && machine != "c16") {
+  ComputerProfile requested;
+  if (!parseComputerProfile(HTTPServer.arg("machine").c_str(), requested)) {
     HTTPServer.send(400, "application/json", "{\"error\":\"invalid_machine\"}");
     return;
   }
-  const bool requestedC16 = machine == "c16";
-  // Avoid touching flash when the requested setting is already active.
-  if (requestedC16 == defaultC16) {
-    HTTPServer.send(200, "application/json", defaultC16 ?
-        "{\"defaultMachine\":\"c16\"}" : "{\"defaultMachine\":\"c64\"}");
-    return;
+  // Compare normalized profiles so legacy PAL names also skip identical writes.
+  if (requested != defaultProfile) {
+    const char* name = profileName(requested);
+    File file = LittleFS.open("/machine.cfg", "w");
+    if (!file) {
+      HTTPServer.send(500, "application/json", "{\"error\":\"machine_save_failed\"}");
+      return;
+    }
+    const bool saved = file.print(name) == strlen(name);
+    file.close();
+    if (!saved) {
+      HTTPServer.send(500, "application/json", "{\"error\":\"machine_save_failed\"}");
+      return;
+    }
+    defaultProfile = requested;
   }
-  File file = LittleFS.open("/machine.cfg", "w");
-  if (!file) {
-    HTTPServer.send(500, "application/json", "{\"error\":\"machine_save_failed\"}");
-    return;
-  }
-  const bool saved = file.print(machine) == machine.length();
-  file.close();
-  if (!saved) {
-    HTTPServer.send(500, "application/json", "{\"error\":\"machine_save_failed\"}");
-    return;
-  }
-  defaultC16 = requestedC16;
-  HTTPServer.send(200, "application/json", defaultC16 ?
-      "{\"defaultMachine\":\"c16\"}" : "{\"defaultMachine\":\"c64\"}");
+  char reply[48];
+  snprintf(reply, sizeof(reply), "{\"defaultMachine\":\"%s\"}", profileName(defaultProfile));
+  HTTPServer.send(200, "application/json", reply);
 }
 
 void handleEject() {

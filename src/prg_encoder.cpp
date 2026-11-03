@@ -14,9 +14,10 @@ uint32_t PrgEncoder::blockPulses(uint32_t pilotPulses, uint32_t bodyBytes) {
 }
 
 bool PrgEncoder::begin(uint16_t loadAddress, uint32_t dataLength,
-                       const String& name, Machine machine) {
+                       const String& name, Machine machine, bool ntsc) {
   if (!dataLength || (uint32_t)loadAddress + dataLength > 65535) return false;
   machine_ = machine;
+  ntsc_ = ntsc;
   dataLength_ = dataLength;
   dataChecksum_ = 0;
   memset(header_, 0x20, sizeof(header_));

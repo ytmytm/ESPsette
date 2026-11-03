@@ -44,7 +44,7 @@ static void referenceBlock(std::vector<uint32_t>& out, const uint8_t* bytes,
   out.push_back(c16 ? t.mediumPulse : t.shortPulse);
 }
 
-static void checkMachine(PrgEncoder::Machine machine, Timings t) {
+static void checkMachine(PrgEncoder::Machine machine, Timings t, bool ntsc = false) {
   const bool c16 = machine == PrgEncoder::Machine::C16;
   const std::array<uint8_t, 3> program = {0xaa, 0xbb, 0xcc};
   const uint8_t address[2] = {1, 8};
@@ -53,7 +53,7 @@ static void checkMachine(PrgEncoder::Machine machine, Timings t) {
   assert(source.append(2, program.data(), program.size()));
   assert(source.append(2 + program.size(), program.data(), program.size()));
   PrgEncoder encoder;
-  assert(encoder.begin(0x0801, program.size(), String("TEST"), machine));
+  assert(encoder.begin(0x0801, program.size(), String("TEST"), machine, ntsc));
   encoder.observeFirstCopy(2, program.data(), program.size());
 
   std::array<uint8_t, 192> header;
@@ -88,17 +88,19 @@ static void checkMachine(PrgEncoder::Machine machine, Timings t) {
     // Pi1551's synthetic native SAVE pulses have 240/480/960 us halfwaves.
     // Compare wholewave durations with our PAL cycle values (WAV-PRG).
     const uint32_t clock = encoder.clockHz();
-    assert(clock == 886724);
+    assert(clock == (ntsc ? 894886 : 886724));
     assert(t.shortPulse * 1000000ULL / clock >= 480);
     assert(t.shortPulse * 1000000ULL / clock <= 510);
     assert(t.mediumPulse * 1000000ULL / clock >= 960);
     assert(t.mediumPulse * 1000000ULL / clock <= 1020);
     assert(t.longPulse * 1000000ULL / clock >= 1920);
     assert(t.longPulse * 1000000ULL / clock <= 2040);
-  } else assert(encoder.clockHz() == 985248);
+  } else assert(encoder.clockHz() == (ntsc ? 1022730 : 985248));
 }
 
 int main() {
   checkMachine(PrgEncoder::Machine::C16, {448, 896, 1792});
   checkMachine(PrgEncoder::Machine::C64, {384, 536, 680});
+  checkMachine(PrgEncoder::Machine::C16, {448, 896, 1792}, true);
+  checkMachine(PrgEncoder::Machine::C64, {384, 536, 680}, true);
 }

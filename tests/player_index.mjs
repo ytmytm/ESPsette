@@ -274,8 +274,8 @@ await vm.runInContext("document.getElementById('autoPlay').checked = true; docum
 assert.equal(vm.runInContext('mock.autoPlay', context), true);
 vm.runInContext("document.getElementById('defaultMachine').value = 'c16'", context);
 await vm.runInContext("document.getElementById('defaultMachine').onchange()", context);
-assert.equal(vm.runInContext('mock.defaultMachine', context), 'c16');
-assert.equal(previewStorage.get('espsette.preview.machine'), 'c16');
+assert.equal(vm.runInContext('mock.defaultMachine', context), 'c16-pal');
+assert.equal(previewStorage.get('espsette.preview.machine'), 'c16-pal');
 await assert.rejects(vm.runInContext("mockApi('/default-machine', {body:new URLSearchParams({machine:'vic20'})})", context));
 const resume = await vm.runInContext(
   `mockApi('/session', {body:new URLSearchParams({type:'tap', size:'26',
@@ -496,10 +496,47 @@ context.deckDrop.dataTransfer.files=[context.uiPrg];
 await vm.runInContext("document.getElementById('deck').ondrop(deckDrop)",context);
 assert.equal(vm.runInContext('source.type',context),'prg');
 assert.equal(elements.get('indexControls').hidden,true);
+// All four saved PRG profiles select the real tape clock and VFD indicators.
+for (const [profile, machine, video, hz] of [
+  ['c64-pal','c64','pal',985248], ['c64-ntsc','c64','ntsc',1022730],
+  ['c16-pal','c16','pal',886724], ['c16-ntsc','c16','ntsc',894886]
+]) {
+  context.profileChoice=profile;
+  await vm.runInContext("document.getElementById('defaultMachine').value=profileChoice; document.getElementById('defaultMachine').onchange()",context);
+  await vm.runInContext('chooseFiles([uiPrg])',context);
+  assert.equal(vm.runInContext('mock.defaultMachine',context), profile);
+  assert.equal(vm.runInContext('source.sessionBody.get("machine")',context), machine);
+  assert.equal(vm.runInContext('source.sessionBody.get("video")',context), video);
+  assert.equal(vm.runInContext('mock.clockHz',context), hz);
+  assert.equal(elements.get('standardLabel').textContent,video.toUpperCase());
+  assert.equal(elements.get(video==='ntsc'?'standardNTSC':'standardPAL').attributes['data-active'],'true');
+}
+// TAP headers override the PRG default; validate both versions for each profile.
+for (const [machine, video, hz] of [
+  ['C64',0,985248], ['C64',1,1022730], ['C16',0,886724], ['C16',1,894886]
+]) for (const version of [1,2]) {
+  const header=new Uint8Array(20);
+  header.set(new TextEncoder().encode(machine+'-TAPE-RAW'));
+  header[12]=version;header[13]=machine==='C16'?2:0;header[14]=video;header[16]=1;
+  context.profileHeader=header;
+  const parsed=vm.runInContext('tapFormat(profileHeader,21)',context);
+  assert.equal(parsed.clockHz,hz);
+  assert.equal(parsed.video,video?'ntsc':'pal');
+  context.profileTape=new Blob([header,Uint8Array.of(48)]);
+  context.profileTape.name='clock.tap';
+  await vm.runInContext('chooseFiles([profileTape]);',context);
+  assert.equal(vm.runInContext('mock.clockHz',context),hz);
+  assert.equal(elements.get('standardLabel').textContent,video?'NTSC':'PAL');
+}
+context.profileHeader[14]=2;
+assert.throws(()=>vm.runInContext('tapFormat(profileHeader,21)',context),/PAL\/NTSC/);
+await assert.rejects(vm.runInContext("mockApi('/default-machine',{body:new URLSearchParams({machine:'c16-secam'})})",context));
+// Legacy preview settings migrate to PAL without losing the computer choice.
+previewStorage.set('espsette.preview.machine','c16');
 // Preview settings survive reloading the page; real hardware uses LittleFS.
 await vm.runInContext("mockApi('/autoplay', {body:new URLSearchParams({enabled:'0'})})", context);
 const reloaded = vm.createContext({...context});
 vm.runInContext(script, reloaded);
-assert.equal(vm.runInContext('mock.defaultMachine', reloaded), 'c16');
+assert.equal(vm.runInContext('mock.defaultMachine', reloaded), 'c16-pal');
 assert.equal(vm.runInContext('mock.autoPlay', reloaded), false);
 console.log('IDX/TAP, VICE counter, English UI, session recovery and WRITE preview OK');
