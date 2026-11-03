@@ -403,6 +403,22 @@ await vm.runInContext("document.getElementById('deckEject').onclick()", context)
 assert.equal(vm.runInContext('selectedFile', context), null);
 assert.equal(elements.get('loaded').textContent, 'Ejected');
 assert.equal(elements.get('selectedFiles').hidden, true);
+// Shipped manual fixtures must load together and expose the advertised markers.
+context.fixtureTape = new Blob([readFileSync(new URL('fixtures/ui-test.tap', import.meta.url))]);
+context.fixtureTape.name = 'ui-test.tap';
+context.fixtureIndex = new Blob([readFileSync(new URL('fixtures/ui-test.idx', import.meta.url))]);
+context.fixtureIndex.name = 'ui-test.idx';
+vm.runInContext('mock.motorOn=false; render({...mock})', context);
+await vm.runInContext('chooseFiles([fixtureIndex, fixtureTape])', context);
+assert.equal(elements.get('error').textContent, '');
+assert.equal(vm.runInContext('source.file', context), context.fixtureTape);
+assert.ok(vm.runInContext('source.logicalSize', context) > 8192);
+assert.equal(vm.runInContext('source.fullTotal', context), 120 * 985248);
+assert.deepEqual(Array.from(vm.runInContext('source.indexEntries', context),
+  entry => entry.prefixCycles), [0, 20, 40, 60, 80, 100].map(seconds => seconds * 985248));
+await vm.runInContext('seekTo(source.indexEntries[3])', context);
+assert.equal(vm.runInContext('source.seekCycles', context), 60 * 985248);
+assert.equal(elements.get('error').textContent, '');
 // Preview settings survive reloading the page; real hardware uses LittleFS.
 await vm.runInContext("mockApi('/autoplay', {body:new URLSearchParams({enabled:'0'})})", context);
 const reloaded = vm.createContext({...context});

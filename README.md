@@ -108,6 +108,7 @@ Normal firmware has no UART log: GPIO1 and GPIO3 are used for SENSE and READ.
 
 Open [web/player.html](web/player.html) directly in a browser or run `make preview` to try the UI with simulated ESP state. Caveat is bundled as WOFF2 assets and embedded in the firmware, so it works offline without installed fonts or external requests. Font sources and OFL licenses are in [web/assets/fonts](web/assets/fonts). Preview saves the default computer and autoplay in browser local storage; real firmware saves these settings on the ESP. See [tests/README.md](tests/README.md) for host tests and `make help` for build targets.
 
+For manual UI testing, use [ui-test.tap](tests/fixtures/ui-test.tap) with [ui-test.idx](tests/fixtures/ui-test.idx): a two-minute synthetic tape with six navigation markers. See [fixture instructions](tests/fixtures/README.md).
 
 ## CI and releases
 

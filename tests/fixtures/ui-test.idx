@@ -1,0 +1,8 @@
+# Synthetic C64 PAL TAP v1, 02:00, six indexed sections.
+# UI test signal only; contains no Commodore program.
+0x00000014 00:00 Start
+0x00008E9E 00:20 Second section
+0x00012C1E 00:40 Third section
+0x0001A467 01:00 Halfway
+0x00024109 01:20 Fifth section
+0x0002C3CE 01:40 Last section
