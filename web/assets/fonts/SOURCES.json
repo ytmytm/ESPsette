@@ -1,0 +1,27 @@
+[
+  {
+    "file": "caveat-latin-ext-400.woff2",
+    "source": "https://fonts.gstatic.com/s/caveat/v23/WnznHAc5bAfYB2QRah7pcpNvOx-pjfJ9eIupYSxP.woff2",
+    "upstream_sha256": "b887f256176087e22d2374d634ba7d1e9def523bc02babe2eca3efa25b32ecd7",
+    "upstream_bytes": 18600,
+    "sha256": "be0186a6d4cdca54b2582d1262bacee8ea578edd58e2e9811002df5f9e275a99",
+    "bytes": 10740,
+    "processing": "FontTools 4.65.0: pin variable axes to defaults; preserve supplied Unicode coverage; omit optional OpenType layout features; WOFF2. Character coverage: Basic Latin, Latin-1, Latin Extended-A, combining accents, common punctuation and euro, intersected with upstream subset."
+  },
+  {
+    "file": "caveat-latin-400.woff2",
+    "source": "https://fonts.gstatic.com/s/caveat/v23/WnznHAc5bAfYB2QRah7pcpNvOx-pjfJ9eIWpYQ.woff2",
+    "upstream_sha256": "d0b7b931b8980049327e8f8f9ac264617c8200b8422d62e886473d3d9527bad3",
+    "upstream_bytes": 48836,
+    "sha256": "40532de4f541ec112f8d9295f6dfece7d18df1cbfba71ef73ecb72c86ff2acc6",
+    "bytes": 22644,
+    "processing": "FontTools 4.65.0: pin variable axes to defaults; preserve supplied Unicode coverage; omit optional OpenType layout features; WOFF2. Character coverage: Basic Latin, Latin-1, Latin Extended-A, combining accents, common punctuation and euro, intersected with upstream subset."
+  },
+  {
+    "file": "caveat-OFL.txt",
+    "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/caveat/OFL.txt",
+    "upstream_sha256": "1f9d81d094273d82f3898a1ee8b598a717d050ecbf5ff7bede105b704880157b",
+    "sha256": "163a2b400e16916ad3196296c946c526d0efce6baf22a2164269ffc62fb9f671",
+    "processing": "Trailing whitespace removed; license text unchanged."
+  }
+]
