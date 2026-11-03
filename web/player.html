@@ -63,7 +63,7 @@ details.card{margin-top:12px}summary{cursor:pointer;color:#d7e0e8;font-weight:60
 .tape-label{position:absolute;left:calc(var(--label-x)*1%);top:calc(var(--label-y)*1%);width:calc(var(--label-width)*1%);height:calc(var(--label-height)*1%);display:flex;align-items:center;justify-content:center;overflow:hidden;white-space:nowrap;text-align:center;font-family:var(--label-font);font-size:calc(var(--label-size)*1cqw/7.2);font-weight:400;line-height:1.15;color:#242831;z-index:1}
 
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-.vfd{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:16px;padding:10px;background:linear-gradient(155deg,#051b25,#020a10 65%);border:2px solid #080f14;border-radius:5px;box-shadow:inset 0 2px 6px #000,0 1px 1px #ffffff24;color:#6ff6ff}.vfd-caption{font:600 .5rem/1.2 system-ui;letter-spacing:.18em;color:#65b6c4;margin-bottom:6px;text-shadow:0 0 4px #48dcff55}.vfd-digits,.vfd-mode{display:flex;align-items:center;justify-content:center;gap:3px;min-height:20px}.vfd-glyph{display:grid;grid-template-columns:repeat(5,var(--dot-size,2px));grid-template-rows:repeat(7,var(--dot-size,2px));gap:1px;flex-shrink:0}.vfd-dot{display:block;width:var(--dot-size,2px);height:var(--dot-size,2px);background:#123440;opacity:.3}.vfd-dot.on{background:#6ff6ff;opacity:1;box-shadow:0 0 3px #37dfff99}.vfd-slash{margin:0 3px}
+.vfd{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:16px;padding:10px;background:linear-gradient(155deg,#051b25,#020a10 65%);border:2px solid #080f14;border-radius:5px;box-shadow:inset 0 2px 6px #000,0 1px 1px #ffffff24;color:#6ff6ff}.vfd-caption{font:600 .5rem/1.2 system-ui;letter-spacing:.18em;color:#65b6c4;margin-bottom:6px;text-shadow:0 0 4px #48dcff55}.vfd-digits{width:190px}.vfd-digits[data-long="true"]{--dot-size:1px;gap:2px}.vfd-digits,.vfd-mode{display:flex;align-items:center;justify-content:center;gap:3px;min-height:20px}.vfd-glyph{display:grid;grid-template-columns:repeat(5,var(--dot-size,2px));grid-template-rows:repeat(7,var(--dot-size,2px));gap:1px;flex-shrink:0}.vfd-dot{display:block;width:var(--dot-size,2px);height:var(--dot-size,2px);background:#123440;opacity:.3}.vfd-dot.on{background:#6ff6ff;opacity:1;box-shadow:0 0 3px #37dfff99}.vfd-slash{margin:0 3px}
 .vfd-modes{display:flex;flex-direction:column;align-items:center;gap:7px;flex-shrink:0}.vfd-right{display:flex;align-items:center;justify-content:center;gap:8px}.vfd-time{min-width:0;text-align:center}.vfd-mode{--dot-size:1px;gap:2px;min-height:0}.vfd-mode .vfd-dot.on{background:#4c5961;box-shadow:none}.vfd-mode[data-active="true"] .vfd-dot.on{background:#6ff6ff;box-shadow:0 0 3px #37dfff99}
 
 
@@ -77,8 +77,8 @@ details.card{margin-top:12px}summary{cursor:pointer;color:#d7e0e8;font-weight:60
 .vfd-buffer[data-level="7"] .vfd-meter i:nth-child(-n+7){background:#6ff6ff;opacity:1;box-shadow:0 0 3px #37dfff88}
 .vfd-buffer[data-level="8"] .vfd-meter i:nth-child(-n+8){background:#6ff6ff;opacity:1;box-shadow:0 0 3px #37dfff88}
 .window:before{content:'';position:absolute;left:0;right:0;bottom:0;height:30px;background:linear-gradient(transparent,#080e12bb);z-index:1;pointer-events:none}.deck-brand{position:absolute;left:12px;bottom:6px;height:22px;width:auto;max-width:60%;z-index:2;filter:drop-shadow(0 1px 1px #000)}
-@media(max-width:640px){.deck-bottom{gap:6px}.vfd{zoom:.56}.deck .autoplay{padding:4px;gap:5px;min-height:40px}.autoplay strong{font-size:.55rem;letter-spacing:.03em}.autoplay input{width:32px;height:18px}.autoplay input:before{width:12px;height:12px}.autoplay input:checked:before{transform:translateX(14px)}.counter{font-size:1.05rem;padding:3px}.deck-brand{height:20px;left:8px}}
-@media(max-width:360px){.deck-bottom{gap:4px}.vfd{zoom:.38}.autoplay strong{font-size:.48rem}.counter{font-size:.9rem;padding:2px;gap:1px}}
+@media(max-width:640px){.deck-bottom{gap:6px}.vfd{zoom:.50}.deck .autoplay{padding:4px;gap:5px;min-height:40px}.autoplay strong{font-size:.55rem;letter-spacing:.03em}.autoplay input{width:32px;height:18px}.autoplay input:before{width:12px;height:12px}.autoplay input:checked:before{transform:translateX(14px)}.counter{font-size:1.05rem;padding:3px}.deck-brand{height:20px;left:8px}}
+@media(max-width:360px){.deck-bottom{gap:4px}.vfd{zoom:.34}.autoplay strong{font-size:.48rem}.counter{font-size:.9rem;padding:2px;gap:1px}}
 
 </style>
 <main>
@@ -398,10 +398,14 @@ drawVfdText($('machineC16'), 'C16');
 drawVfdText($('standardPAL'), 'PAL');
 drawVfdText($('standardNTSC'), 'NTSC');
 let lastVfdText = null;
+function vfdTime(cycles, clockHz) {
+  return cycles == null ? '--:--' : time(cycles, clockHz).padStart(5, '0');
+}
 function renderVfd(text) {
   $('played').textContent = text;
   if (lastVfdText === text) return;
   lastVfdText = text;
+  $('vfdDigits').setAttribute('data-long', String(text.replace(/ /g, '').length > 11));
   drawVfdText($('vfdDigits'), text);
 }
 
@@ -465,7 +469,8 @@ function render(s) {
   const total = browserTape ? source.fullTotal :
     s.totalCycles || (source && source.id === s.sessionId ? source.total : null);
   const elapsed = browserTape ? absoluteCycles : s.playedCycles;
-  renderVfd(time(elapsed, s.clockHz) + ' / ' + time(total, s.clockHz));
+  renderVfd(vfdTime(inserted ? elapsed : 0, s.clockHz) + ' / ' +
+    vfdTime(inserted && total > 0 ? total : null, s.clockHz));
   $('remaining').textContent = total ? time(Math.max(0, total - elapsed), s.clockHz) : '—';
   $('buffer').textContent = s.embedded ?
     ('ROM · ' + (s.logicalSize || 0) + ' B') :

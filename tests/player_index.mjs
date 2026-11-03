@@ -405,6 +405,8 @@ vm.runInContext('mock.motorOn = false; render({...mock})', context);
 await vm.runInContext("document.getElementById('deckEject').onclick()", context);
 assert.equal(vm.runInContext('selectedFile', context), null);
 assert.equal(elements.get('loaded').textContent, 'Ejected');
+assert.equal(elements.get('played').textContent, '00:00 / --:--');
+assert.equal(elements.get('vfdDigits').children.length, 11);
 assert.equal(elements.get('selectedFiles').hidden, true);
 // Shipped manual fixtures must load together and expose the advertised markers.
 context.fixtureTape = new Blob([readFileSync(new URL('fixtures/ui-test.tap', import.meta.url))]);
@@ -433,13 +435,13 @@ assert.equal(elements.get('forwardLabel').textContent, 'NEXT');
 assert.equal(elements.get('rewind').disabled, true);
 assert.equal(elements.get('idxPositions').children[0].textContent, '00:00 Start');
 assert.equal(elements.get('loaded').textContent, 'Start');
-assert.equal(elements.get('played').textContent, '0:00 / 2:00');
+assert.equal(elements.get('played').textContent, '00:00 / 02:00');
 vm.runInContext('mock.playedCycles=40*mock.clockHz-1; render({...mock})', context);
 assert.equal(elements.get('idxPositions').value,
   String(vm.runInContext('source.indexEntries[1].offset', context)));
 vm.runInContext('mock.playedCycles=40*mock.clockHz; render({...mock})', context);
 assert.equal(elements.get('loaded').textContent, 'Third section');
-assert.equal(elements.get('played').textContent, '0:40 / 2:00');
+assert.equal(elements.get('played').textContent, '00:40 / 02:00');
 assert.equal(elements.get('idxPositions').value,
   String(vm.runInContext('source.indexEntries[2].offset', context)));
 vm.runInContext('mock.playedCycles=119*mock.clockHz; render({...mock})', context);
@@ -449,7 +451,7 @@ assert.equal(elements.get('idxPositions').value,
 await vm.runInContext("document.getElementById('rewind').onclick()", context);
 assert.equal(vm.runInContext('source.seekCycles', context), 80*985248);
 assert.equal(elements.get('loaded').textContent, 'Fifth section');
-assert.equal(elements.get('played').textContent, '1:20 / 2:00');
+assert.equal(elements.get('played').textContent, '01:20 / 02:00');
 // While choosing a Jump destination, polling must not overwrite the choice.
 context.document.activeElement=elements.get('idxPositions');
 vm.runInContext("document.getElementById('idxPositions').value=String(source.indexEntries[1].offset); document.getElementById('idxPositions').onchange(); render({...mock})", context);
@@ -459,11 +461,11 @@ context.document.activeElement=elements.get('seek');
 await vm.runInContext("document.getElementById('seek').onclick()", context);
 assert.equal(vm.runInContext('source.seekCycles', context), 20*985248);
 assert.equal(elements.get('loaded').textContent, 'Second section');
-assert.equal(elements.get('played').textContent, '0:20 / 2:00');
+assert.equal(elements.get('played').textContent, '00:20 / 02:00');
 assert.equal(elements.get('remaining').textContent, '1:40');
 vm.runInContext('mock.playedCycles=20*mock.clockHz; render({...mock})', context);
 assert.equal(elements.get('loaded').textContent, 'Third section');
-assert.equal(elements.get('played').textContent, '0:40 / 2:00');
+assert.equal(elements.get('played').textContent, '00:40 / 02:00');
 assert.equal(elements.get('idxPositions').value,
   String(vm.runInContext('source.indexEntries[2].offset', context)));
 vm.runInContext('mock.playedCycles=0; render({...mock})', context);
