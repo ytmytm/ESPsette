@@ -21,6 +21,7 @@
 :root{color-scheme:dark;font:16px system-ui}*{box-sizing:border-box}body{margin:0;background:#11151b;color:#edf0f2}
 main{max-width:760px;margin:auto;padding:18px}p{line-height:1.45;color:#abb7c3}
 .deck{background:linear-gradient(135deg,#373d44,#1d232b 58%,#353d42);border:3px solid #60666b;border-radius:20px;padding:20px;box-shadow:0 22px 45px #0008,inset 0 2px 4px #ffffff33}
+.deck.over{border-color:#e2b94d;outline:2px solid #e2b94d66;outline-offset:2px}
 .deck-bottom{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;margin-top:15px}.deck-left{display:flex;align-items:center;gap:24px;min-width:0;justify-self:start}.deck-info{min-width:0;max-width:100%;text-align:center;justify-self:center}.deck-right{display:flex;align-items:center;gap:12px;justify-self:end}.counter{display:flex;gap:2px;padding:3px 5px;background:linear-gradient(#65645e,#c2bdad 25%,#948f81 80%,#3d3b36);border:2px solid #222326;border-radius:4px;box-shadow:inset 0 2px 5px #0009,0 1px 1px #ffffff50;font:700 1.45rem/1.15 ui-monospace,monospace;color:#101010;font-variant-numeric:tabular-nums}.counter-digit{display:block;width:.69em;height:1.15em;overflow:hidden;background:linear-gradient(#aaa69a,#e4dfcf 35%,#e2ddce 65%,#928e84);border:1px solid #5f5c53;border-radius:2px;text-align:center;box-shadow:inset 0 1px 2px #0005}.counter-strip{display:block;height:2.3em;will-change:transform}.counter-strip span{display:block;height:1.15em}.counter-strip.rolling{animation:counter-roll .7s cubic-bezier(.22,.65,.25,1) both}@keyframes counter-roll{from{transform:translateY(0)}to{transform:translateY(-1.15em)}}
 .window{height:clamp(130px,28vw,230px);border:10px solid #141a20;border-radius:12px;background:linear-gradient(145deg,#090c10,#20252c);box-shadow:inset 0 5px 15px #000;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
 .cassette{width:min(100%,570px);aspect-ratio:720/314;background:url('assets/cassette.webp') center/contain no-repeat;position:relative;filter:drop-shadow(0 5px 8px #0009)}
@@ -1045,13 +1046,21 @@ $('file').onchange = async event => {
   event.target.value = ''; // Selecting the same file again also inserts it again.
   await chooseFiles(files);
 };
-const dropzone = $('dropzone');
-dropzone.ondragover = event => { event.preventDefault(); dropzone.classList.add('over'); };
-dropzone.ondragleave = () => dropzone.classList.remove('over');
-dropzone.ondrop = async event => {
-  event.preventDefault(); dropzone.classList.remove('over');
-  await chooseFiles(event.dataTransfer.files);
-};
+const dropTargets = [$('dropzone'), $('deck')];
+for (const target of dropTargets) {
+  target.ondragover = event => {
+    event.preventDefault(); target.classList.add('over');
+  };
+  target.ondragleave = event => {
+    if (!event.relatedTarget || !target.contains(event.relatedTarget))
+      target.classList.remove('over');
+  };
+  target.ondrop = async event => {
+    event.preventDefault(); event.stopPropagation();
+    for (const zone of dropTargets) zone.classList.remove('over');
+    await chooseFiles(event.dataTransfer.files);
+  };
+}
 selectedFilesText();
 
 if (preview) {

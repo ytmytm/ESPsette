@@ -4,7 +4,7 @@ Use `ui-test.tap` and `ui-test.idx` in the local player preview. This is a synth
 
 Manual checks:
 
-1. Select or drop both files together, in either order, or load TAP first and add IDX afterwards.
+1. Select both files or drop them onto the deck or file picker together, in either order, or load TAP first and add IDX afterwards.
 2. With preview MOTOR on and Autoplay enabled, check reel motion, the rolling counter, VFD time and buffer ring.
 3. Use PREV/NEXT or the position selector and JUMP to navigate between sections. Stop MOTOR for seeking on real hardware.
 4. Load TAP alone again; the IDX row should disappear and PREV/NEXT should return to REW/FF with counter-based navigation.

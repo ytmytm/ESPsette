@@ -474,6 +474,26 @@ await vm.runInContext('chooseFiles([fixtureTape])', context);
 assert.equal(elements.get('indexControls').hidden,true);
 assert.equal(elements.get('rewindLabel').textContent,'REW');
 assert.equal(elements.get('forwardLabel').textContent,'FF');
+// The deck and picker accept the same file drops, including late IDX.
+context.deckDrop = {preventDefault(){this.prevented=true}, stopPropagation(){this.stopped=true},
+  dataTransfer:{files:[context.fixtureIndex, context.fixtureTape]}};
+await vm.runInContext("document.getElementById('deck').ondrop(deckDrop)", context);
+assert.equal(context.deckDrop.prevented,true);
+assert.equal(context.deckDrop.stopped,true);
+assert.equal(vm.runInContext('source.file',context), context.fixtureTape);
+assert.equal(vm.runInContext('source.indexEntries.length',context),6);
+context.pickerDrop = {...context.deckDrop, dataTransfer:{files:[context.fixtureTape]}};
+await vm.runInContext("document.getElementById('dropzone').ondrop(pickerDrop)",context);
+assert.equal(vm.runInContext('source.indexEntries.length',context),0);
+const beforeLateDrop=vm.runInContext('source.id',context);
+context.deckDrop.dataTransfer.files=[context.fixtureIndex];
+await vm.runInContext("document.getElementById('deck').ondrop(deckDrop)",context);
+assert.equal(vm.runInContext('source.id',context), beforeLateDrop);
+assert.equal(vm.runInContext('source.indexEntries.length',context),6);
+context.deckDrop.dataTransfer.files=[context.uiPrg];
+await vm.runInContext("document.getElementById('deck').ondrop(deckDrop)",context);
+assert.equal(vm.runInContext('source.type',context),'prg');
+assert.equal(elements.get('indexControls').hidden,true);
 // Preview settings survive reloading the page; real hardware uses LittleFS.
 await vm.runInContext("mockApi('/autoplay', {body:new URLSearchParams({enabled:'0'})})", context);
 const reloaded = vm.createContext({...context});
