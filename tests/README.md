@@ -9,6 +9,7 @@ node tests/player_index.mjs
 c++ -std=c++17 -Isrc tests/computer_profile_test.cpp -o /tmp/ESPsette-profile-test
 /tmp/ESPsette-profile-test
 python3 -m unittest discover -s tests -p 'test_firmware_package.py' -v
+python3 -m unittest discover -s tests -p 'test_demo_site.py' -v
 c++ -std=c++17 -Isrc tests/write_decoder_test.cpp src/write_decoder.cpp -o /tmp/ESPsette-write-test
 /tmp/ESPsette-write-test
 c++ -std=c++17 -Itests/support -Isrc tests/prg_vectors_test.cpp src/prg_encoder.cpp src/tape_source.cpp -o /tmp/ESPsette-prg-test
