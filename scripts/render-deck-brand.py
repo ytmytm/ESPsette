@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the fixed ESPSette cover logo; requires Pillow and a local font."""
+"""Render the fixed ESPsette cover logo; requires Pillow and a local font."""
 import argparse
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
@@ -13,7 +13,7 @@ parser.add_argument(
 args = parser.parse_args()
 scale = 4
 font = ImageFont.truetype(str(args.font), 26 * scale)
-text = 'ESPSette'
+text = 'ESPsette'
 left, top, right, bottom = font.getbbox(text)
 padding = 2 * scale
 image = Image.new('RGBA', (right - left + padding * 2, bottom - top + padding * 2))
