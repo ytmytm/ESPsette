@@ -1535,6 +1535,13 @@ void handleDefaultMachine() {
     HTTPServer.send(400, "application/json", "{\"error\":\"invalid_machine\"}");
     return;
   }
+  const bool requestedC16 = machine == "c16";
+  // Avoid touching flash when the requested setting is already active.
+  if (requestedC16 == defaultC16) {
+    HTTPServer.send(200, "application/json", defaultC16 ?
+        "{\"defaultMachine\":\"c16\"}" : "{\"defaultMachine\":\"c64\"}");
+    return;
+  }
   File file = LittleFS.open("/machine.cfg", "w");
   if (!file) {
     HTTPServer.send(500, "application/json", "{\"error\":\"machine_save_failed\"}");
@@ -1546,7 +1553,7 @@ void handleDefaultMachine() {
     HTTPServer.send(500, "application/json", "{\"error\":\"machine_save_failed\"}");
     return;
   }
-  defaultC16 = machine == "c16";
+  defaultC16 = requestedC16;
   HTTPServer.send(200, "application/json", defaultC16 ?
       "{\"defaultMachine\":\"c16\"}" : "{\"defaultMachine\":\"c64\"}");
 }
