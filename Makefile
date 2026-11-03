@@ -36,6 +36,7 @@ help:
 		'Targets:' \
 		'  make help                          Show this help' \
 		'  make setup                         Install local uv/Python/PlatformIO tools' \
+		'  make preview                       Open local UI with simulated ESP state' \
 		'  make build [PROFILE=1m] [VERBOSE=1] Compile (PROFILE: 512k|1m|4m)' \
 		'  make flash PORT=... [PROFILE=1m]   Serial upload (download-mode wiring)' \
 		'  make ota OTA_HOST=... [PROFILE=1m] Experimental; disabled in default firmware' \
@@ -59,7 +60,7 @@ embed-web:
 	./tools/venv/bin/python scripts/embed-player.py
 
 preview:
-	./scripts/open-preview.sh
+	sh ./scripts/open-preview.sh
 
 build: embed-web
 	./scripts/pio.sh run $(PIO_VERBOSE) -e $(SERIAL_ENV)
