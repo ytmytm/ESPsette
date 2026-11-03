@@ -123,12 +123,13 @@ label{display:block;margin:12px 0}input[type=file],select{display:block;width:10
 .tape-picker{margin-top:14px;padding:14px;transition:border-color .15s}.tape-picker.over{border-color:#e2b94d;background:#29323b}
 .picker-actions{display:flex;gap:8px}.picker-actions>*{margin:0}.file-action{position:relative;flex:1;display:flex;align-items:center;justify-content:center;min-height:44px;background:#d5a43a;color:#17191a;border-radius:8px;font-weight:700;cursor:pointer}
 .file-input{position:absolute;width:1px!important;height:1px;padding:0;opacity:0;overflow:hidden}.file-action:focus-within{outline:3px solid #f4c354;outline-offset:3px}
-.index-picker{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:.8rem}#indexName{min-width:0;overflow-wrap:anywhere;color:#a4b3bf}.text-action{background:transparent;color:#abb7c3;min-width:44px;min-height:44px;padding:0;margin:0;font-size:1.3rem}
+.deck-hint{font-size:.72rem;margin:12px 0 0;text-align:left;color:#93a3b2}
 .pending-file{font-size:.85rem;margin:10px 0 0;overflow-wrap:anywhere;color:#f0cb70}.picker-hint{font-size:.72rem;margin:4px 0 0;color:#93a3b2}
 #error{min-height:0;margin:8px 0;font-size:.85rem}#error:empty{display:none}
 .playback-status{color:#a4b3bf;font-size:.8rem;margin:10px 2px 0}.playback-status p{margin:6px 0;text-align:left}.playback-status p:empty{display:none}
 details.card{margin-top:12px}summary{cursor:pointer;color:#d7e0e8;font-weight:600}details.card>.stats{margin-top:14px}
-.index-navigation{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;margin-top:8px}.index-navigation label{grid-column:1/-1;margin:0;font-size:.8rem}.index-navigation select,.index-navigation button{margin:0;min-width:0}#indexInfo{font-size:.75rem}
+.index-navigation{display:grid;grid-template-columns:auto minmax(0,1fr) 64px;gap:10px;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid #505b64}.index-navigation label{margin:0;font-size:.65rem;letter-spacing:.08em;color:#b9c2c7}.index-navigation select{margin:0;min-width:0;font-size:.85rem}.index-navigation .key{margin:0;min-height:46px;font-size:.7rem}#indexInfo{font-size:.75rem}
+@media(max-width:360px){.index-navigation{grid-template-columns:auto minmax(0,1fr) 52px;gap:6px}.index-navigation label{font-size:.55rem;letter-spacing:.03em}.index-navigation select{padding:8px}}
 @media(max-width:480px){.window{height:130px;border-width:7px}.keys{margin-top:10px}#deckMessage{margin-top:10px;font-size:.72rem}.tape-picker{padding:12px;margin-top:12px}}
 .tape-progress{position:relative;display:flex;align-items:center;justify-content:center;margin-top:0;white-space:nowrap}.deck .autoplay{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;width:max-content;max-width:100%;min-height:44px;margin:0;padding:6px;background:#141b21;border:1px solid #525b61;border-radius:7px;box-shadow:inset 0 2px 4px #0006;cursor:pointer}.autoplay strong{display:block;font-size:.7rem;letter-spacing:.12em;color:#dce5e9}.autoplay input{appearance:none;position:relative;width:38px;height:22px;flex-shrink:0;margin:0;background:#35414c;border:1px solid #687580;border-radius:12px;cursor:pointer}.autoplay input:before{content:'';position:absolute;width:16px;height:16px;top:2px;left:2px;border-radius:50%;background:#abb7c3;box-shadow:0 1px 3px #0008}.autoplay input:checked{background:#d5a43a;border-color:#e4bc62}.autoplay input:checked:before{transform:translateX(16px);background:#252019}.autoplay input:focus-visible{outline:3px solid #f4c354;outline-offset:3px}
 @media(max-width:360px){.counter{font-size:1.25rem}}
@@ -149,12 +150,13 @@ details.card{margin-top:12px}summary{cursor:pointer;color:#d7e0e8;font-weight:60
 .window:before{content:'';position:absolute;left:0;right:0;bottom:0;height:30px;background:linear-gradient(transparent,#080e12bb);z-index:1;pointer-events:none}.deck-brand{position:absolute;left:12px;bottom:6px;height:22px;width:auto;max-width:60%;z-index:2;filter:drop-shadow(0 1px 1px #000)}
 @media(max-width:640px){.deck-bottom{gap:6px}.vfd{zoom:.56}.deck .autoplay{padding:4px;gap:5px;min-height:40px}.autoplay strong{font-size:.55rem;letter-spacing:.03em}.autoplay input{width:32px;height:18px}.autoplay input:before{width:12px;height:12px}.autoplay input:checked:before{transform:translateX(14px)}.counter{font-size:1.05rem;padding:3px}.deck-brand{height:20px;left:8px}}
 @media(max-width:360px){.deck-bottom{gap:4px}.vfd{zoom:.38}.autoplay strong{font-size:.48rem}.counter{font-size:.9rem;padding:2px;gap:1px}}
-</style><main><div id="deck" class="deck"><div class="window"><div class="cassette" id="cassette"><span id="loaded" class="tape-label">Connecting…</span><div class="reel" id="reelLeft"></div><div class="reel right" id="reelRight"></div></div><img class="deck-brand" src="data:image/png;base64,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" alt="ESPSette"></div><div class="keys" role="group" aria-label="Datasette controls"><button id="rewind" class="key" type="button" aria-label="Previous tape position">◀◀<br>REW</button><button id="stop" class="key" type="button" aria-label="Release PLAY on SENSE">■<br>STOP</button><button id="play" class="key pressed" type="button" aria-label="Press PLAY on SENSE">▶<br>PLAY</button><button id="fastForward" class="key" type="button" aria-label="Next tape position">▶▶<br>FF</button><button id="deckEject" class="key" type="button" aria-label="Eject tape">⏏<br>EJECT</button></div><div class="deck-bottom"><div class="deck-left"><label class="autoplay" title="Autoplay automatically starts playback as soon as a tape is inserted."><input id="autoPlay" type="checkbox" role="switch" checked aria-label="Autoplay when tape is inserted"><strong>AUTOPLAY</strong></label></div><div class="deck-info"><div class="tape-progress"><div class="vfd" aria-label="Tape display"><div class="vfd-modes" role="group" aria-label="Computer type"><span id="machineC64" class="vfd-mode" aria-hidden="true" data-active="false"></span><span id="machineC16" class="vfd-mode" aria-hidden="true" data-active="false"></span><span id="machineLabel" class="sr-only">—</span></div><div class="vfd-time"><div class="vfd-caption" aria-hidden="true">ELAPSED / TOTAL</div><div id="vfdDigits" class="vfd-digits" aria-hidden="true"></div><span id="played" class="sr-only" aria-label="Playback time">—</span></div><div class="vfd-right"><div class="vfd-modes" role="group" aria-label="Video standard"><span id="standardPAL" class="vfd-mode" aria-hidden="true" data-active="false"></span><span id="standardNTSC" class="vfd-mode" aria-hidden="true" data-active="false"></span><span id="standardLabel" class="sr-only">—</span></div><span id="bufferIcon" class="vfd-buffer" role="img" aria-label="ESP buffer inactive" data-level="0"><span class="vfd-buffer-caption" aria-hidden="true">BUF</span><span class="vfd-meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></span></div></div></div></div><div class="deck-right"><output id="counter" class="counter" aria-label="Tape counter 000"><span class="counter-digit"><span id="counterStrip0" class="counter-strip"><span id="counterOld0">0</span><span id="counterNext0">0</span></span></span><span class="counter-digit"><span id="counterStrip1" class="counter-strip"><span id="counterOld1">0</span><span id="counterNext1">0</span></span></span><span class="counter-digit"><span id="counterStrip2" class="counter-strip"><span id="counterOld2">0</span><span id="counterNext2">0</span></span></span></output></div></div></div><section id="dropzone" class="card tape-picker" aria-label="Insert a tape"><div class="picker-actions"><label class="file-action" for="file">TAP / TAP+IDX / PRG<input id="file" class="file-input" type="file" accept=".tap,.prg,.idx" multiple></label><button id="demo" class="secondary" type="button">Demo</button></div><p id="selectedFiles" class="pending-file" hidden></p><div id="indexPicker" class="index-picker" hidden><span id="indexName"></span><button id="clearIndex" class="text-action" type="button" aria-label="Remove IDX index" hidden>×</button></div><div id="indexControls" hidden><div class="index-navigation"><label for="idxPositions">Tape position</label><select id="idxPositions"></select><button id="seek" class="secondary" type="button">Jump</button></div><p id="indexInfo"></p></div><p class="picker-hint">Drop TAP + IDX together, or TAP first, then IDX.<br>Keep this tab open during LOAD.</p></section><details class="card"><summary>Playback settings</summary><label>Default computer for PRG<select id="defaultMachine"><option value="c64">C64</option><option value="c16">C16 / Plus/4 PAL</option></select></label><p>TAP files identify their computer automatically.</p></details><details class="card"><summary>Playback details</summary><div class="playback-status" aria-label="Playback status"><p id="deckMessage" role="status" aria-live="polite"></p><p id="error" role="alert"></p></div><div class="stats"><div><small>Signal remaining</small><b id="remaining">—</b></div><div><small>ESP buffer</small><b id="buffer">—</b></div><div><small>Motor</small><b id="motor">—</b></div><div><small>WRITE / SAVE</small><b id="writeStatus">—</b></div></div><div class="scope-wrap"><canvas id="scope" width="640" height="72" aria-label="READ waveform"></canvas><small id="scopeLabel">READ · waiting for playback</small></div><p id="writeDetail"></p><p id="phase">Connecting…</p><p id="transport"></p><details id="debugPanel" class="debug"><summary>Debug / ESP state</summary><p id="diagnostics"></p><pre id="debugJson"></pre></details></details><details id="networkCard" class="card"><summary>Network / OTA</summary><p id="networkInfo">Connecting…</p><pre id="otaCmd" class="ota-cmd"></pre><p id="otaHint"></p><p><a id="wifiLink" href="/wifi">Forget Wi-Fi…</a> (not OTA)</p></details><section id="previewPanel" class="card" hidden><h2>Local preview</h2><p>Simulation without an ESP-01. Select a TAP or PRG and toggle MOTOR to check the animation, buffer and page layout.</p><button id="motorToggle" class="secondary">MOTOR on/off</button><button id="saveMock" class="secondary">Simulate SAVE</button></section></main><script>
+</style><main><div id="deck" class="deck"><div class="window"><div class="cassette" id="cassette"><span id="loaded" class="tape-label">Connecting…</span><div class="reel" id="reelLeft"></div><div class="reel right" id="reelRight"></div></div><img class="deck-brand" src="data:image/png;base64,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" alt="ESPSette"></div><div class="keys" role="group" aria-label="Datasette controls"><button id="rewind" class="key" type="button" aria-label="Previous tape position">◀◀<br><span id="rewindLabel">REW</span></button><button id="stop" class="key" type="button" aria-label="Release PLAY on SENSE">■<br>STOP</button><button id="play" class="key pressed" type="button" aria-label="Press PLAY on SENSE">▶<br>PLAY</button><button id="fastForward" class="key" type="button" aria-label="Next tape position">▶▶<br><span id="forwardLabel">FF</span></button><button id="deckEject" class="key" type="button" aria-label="Eject tape">⏏<br>EJECT</button></div><div class="deck-bottom"><div class="deck-left"><label class="autoplay" title="Autoplay automatically starts playback as soon as a tape is inserted."><input id="autoPlay" type="checkbox" role="switch" checked aria-label="Autoplay when tape is inserted"><strong>AUTOPLAY</strong></label></div><div class="deck-info"><div class="tape-progress"><div class="vfd" aria-label="Tape display"><div class="vfd-modes" role="group" aria-label="Computer type"><span id="machineC64" class="vfd-mode" aria-hidden="true" data-active="false"></span><span id="machineC16" class="vfd-mode" aria-hidden="true" data-active="false"></span><span id="machineLabel" class="sr-only">—</span></div><div class="vfd-time"><div class="vfd-caption" aria-hidden="true">ELAPSED / TOTAL</div><div id="vfdDigits" class="vfd-digits" aria-hidden="true"></div><span id="played" class="sr-only" aria-label="Playback time">—</span></div><div class="vfd-right"><div class="vfd-modes" role="group" aria-label="Video standard"><span id="standardPAL" class="vfd-mode" aria-hidden="true" data-active="false"></span><span id="standardNTSC" class="vfd-mode" aria-hidden="true" data-active="false"></span><span id="standardLabel" class="sr-only">—</span></div><span id="bufferIcon" class="vfd-buffer" role="img" aria-label="ESP buffer inactive" data-level="0"><span class="vfd-buffer-caption" aria-hidden="true">BUF</span><span class="vfd-meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></span></div></div></div></div><div class="deck-right"><output id="counter" class="counter" aria-label="Tape counter 000"><span class="counter-digit"><span id="counterStrip0" class="counter-strip"><span id="counterOld0">0</span><span id="counterNext0">0</span></span></span><span class="counter-digit"><span id="counterStrip1" class="counter-strip"><span id="counterOld1">0</span><span id="counterNext1">0</span></span></span><span class="counter-digit"><span id="counterStrip2" class="counter-strip"><span id="counterOld2">0</span><span id="counterNext2">0</span></span></span></output></div></div><div id="indexControls" class="index-navigation" hidden><label for="idxPositions">TAPE POSITION</label><select id="idxPositions" aria-label="Tape position"></select><button id="seek" class="key" type="button">↦<br>JUMP</button></div><p class="deck-hint">Keep this tab open during LOAD.</p></div><section id="dropzone" class="card tape-picker" aria-label="Insert a tape"><div class="picker-actions"><label class="file-action" for="file">TAP / TAP+IDX / PRG<input id="file" class="file-input" type="file" accept=".tap,.prg,.idx" multiple></label><button id="demo" class="secondary" type="button">Demo</button></div><p id="selectedFiles" class="pending-file" hidden></p><p class="picker-hint">Drop TAP + IDX together, or TAP first, then IDX.</p></section><details class="card"><summary>Playback settings</summary><label>Default computer for PRG<select id="defaultMachine"><option value="c64">C64</option><option value="c16">C16 / Plus/4 PAL</option></select></label><p>TAP files identify their computer automatically.</p></details><details class="card"><summary>Playback details</summary><div class="playback-status" aria-label="Playback status"><p id="deckMessage" role="status" aria-live="polite"></p><p id="error" role="alert"></p></div><div class="stats"><div><small>Signal remaining</small><b id="remaining">—</b></div><div><small>ESP buffer</small><b id="buffer">—</b></div><div><small>Motor</small><b id="motor">—</b></div><div><small>WRITE / SAVE</small><b id="writeStatus">—</b></div></div><div class="scope-wrap"><canvas id="scope" width="640" height="72" aria-label="READ waveform"></canvas><small id="scopeLabel">READ · waiting for playback</small></div><p id="writeDetail"></p><p id="phase">Connecting…</p><p id="indexInfo"></p><p id="transport"></p><details id="debugPanel" class="debug"><summary>Debug / ESP state</summary><p id="diagnostics"></p><pre id="debugJson"></pre></details></details><details id="networkCard" class="card"><summary>Network / OTA</summary><p id="networkInfo">Connecting…</p><pre id="otaCmd" class="ota-cmd"></pre><p id="otaHint"></p><p><a id="wifiLink" href="/wifi">Forget Wi-Fi…</a> (not OTA)</p></details><section id="previewPanel" class="card" hidden><h2>Local preview</h2><p>Simulation without an ESP-01. Select a TAP or PRG and toggle MOTOR to check the animation, buffer and page layout.</p><button id="motorToggle" class="secondary">MOTOR on/off</button><button id="saveMock" class="secondary">Simulate SAVE</button></section></main><script>
 const $ = id => document.getElementById(id);
 const preview = location.protocol === 'file:' || new URLSearchParams(location.search).has('preview');
 let source = null, busy = false, last = null;
 let selectedFile = null, selectedIdx = null;
 let selectedDefaultMachine = null;
+let indexChoosing = false;
 let lastCounterValue = null;
 let counterOriginCycles = 0;
 let mockBytes = 0, mockSize = 0, mockDemo = true, mockTick = Date.now();
@@ -449,17 +451,25 @@ function render(s) {
 last = s;
 const playing = !!s.playing;
 const editBlocked = motorBlocksEdit(s);
+// A streamed tape stays inserted while the ESP refills its buffer after a seek.
+const sessionTape = !!(source && source.id === s.sessionId &&
+s.sessionId > 0 && source.logicalSize === s.logicalSize);
+const inserted = s.tapeState === 'loaded' || sessionTape;
 const canServerNav = s.tapeState === 'loaded' && s.sourceType === 'tap';
+const indexed = !!(source?.type === 'tap' && source.id === s.sessionId && source.indexEntries.length);
+$('rewindLabel').textContent = indexed ? 'PREV' : 'REW';
+$('forwardLabel').textContent = indexed ? 'NEXT' : 'FF';
 $('deck').classList.toggle('playing', playing);
-$('deck').classList.toggle('ejected', s.tapeState === 'ejected');
+$('deck').classList.toggle('ejected', s.tapeState === 'ejected' && !sessionTape);
 $('play').classList.toggle('pressed', !!s.sensePressed);
 $('stop').classList.toggle('pressed', !s.sensePressed);
 $('play').setAttribute('aria-pressed', String(!!s.sensePressed));
 $('stop').setAttribute('aria-pressed', String(!s.sensePressed));
-// REW/FF stay enabled whenever a TAP (or demo) can be navigated.
-$('rewind').disabled = !source &&
+// Indexed navigation is limited to the previous/next entry in the list.
+$('rewind').disabled = indexed ? !navigationTarget(-1) : !source &&
 (s.tapeState !== 'loaded' || s.sessionId !== 0) && !canServerNav;
-$('fastForward').disabled = !(navigationTarget(1) || canServerNav);
+$('fastForward').disabled = indexed ? !navigationTarget(1) : !(navigationTarget(1) || canServerNav);
+syncIndexPosition();
 $('deckEject').disabled = editBlocked || s.tapeState === 'ejected' && !s.sessionId;
 if (!$('deckMessage').textContent)
 $('deckMessage').textContent = s.sensePressed ?
@@ -468,12 +478,14 @@ $('deckMessage').textContent = s.sensePressed ?
 'PLAY pressed; waiting for MOTOR.') :
 'STOP released PLAY. Tape paused until PLAY + MOTOR.';
 const machineLabel = s.machine === 'c16' ? 'C16' : s.machine === 'c64' ? 'C64' : '';
-$('loaded').textContent = s.tapeState === 'loaded' ? s.fileName || 'Loaded' : 'Ejected';
-$('machineLabel').textContent = s.tapeState === 'loaded' ? machineLabel : '—';
-$('machineC64').setAttribute('data-active', String(s.tapeState === 'loaded' && s.machine === 'c64'));
-$('machineC16').setAttribute('data-active', String(s.tapeState === 'loaded' && s.machine === 'c16'));
+const indexEntry = indexed ? source.indexEntries[activeIndexPosition()] : null;
+const indexTitle = indexEntry?.label.replace(/^\s*\d{1,3}:[0-5]\d(?::[0-5]\d)?\s+(?=\S)/, '');
+$('loaded').textContent = inserted ? indexTitle || s.fileName || source?.file?.name || 'Loaded' : 'Ejected';
+$('machineLabel').textContent = inserted ? machineLabel : '—';
+$('machineC64').setAttribute('data-active', String(inserted && s.machine === 'c64'));
+$('machineC16').setAttribute('data-active', String(inserted && s.machine === 'c16'));
 // Current firmware accepts only PAL tapes and generates PAL PRG pulses.
-const pal = s.tapeState === 'loaded' && (s.clockHz === 985248 || s.clockHz === 886724);
+const pal = inserted && (s.clockHz === 985248 || s.clockHz === 886724);
 $('standardPAL').setAttribute('data-active', String(pal));
 $('standardNTSC').setAttribute('data-active', 'false');
 $('standardLabel').textContent = pal ? 'PAL' : '—';
@@ -491,9 +503,12 @@ const origin = source?.type === 'tap' && source.id === s.sessionId ?
 source.seekCycles || 0 : s.phase === 'done' || s.phase === 'error' ? counterOriginCycles : 0;
 const absoluteCycles = origin + (s.playedCycles || 0);
 showTapeCounter(tapeCounterAtSeconds(absoluteCycles / s.clockHz));
-const total = s.totalCycles || (source && source.id === s.sessionId ? source.total : null);
-renderVfd(time(s.playedCycles, s.clockHz) + ' / ' + time(total, s.clockHz));
-$('remaining').textContent = total ? time(Math.max(0, total - s.playedCycles), s.clockHz) : '—';
+const browserTape = source?.type === 'tap' && source.id === s.sessionId;
+const total = browserTape ? source.fullTotal :
+s.totalCycles || (source && source.id === s.sessionId ? source.total : null);
+const elapsed = browserTape ? absoluteCycles : s.playedCycles;
+renderVfd(time(elapsed, s.clockHz) + ' / ' + time(total, s.clockHz));
+$('remaining').textContent = total ? time(Math.max(0, total - elapsed), s.clockHz) : '—';
 $('buffer').textContent = s.embedded ?
 ('ROM · ' + (s.logicalSize || 0) + ' B') :
 (s.fileOffsetReceived ? (8192 - s.freeBytes) + ' B' : '—');
@@ -618,22 +633,18 @@ select.replaceChildren();
 for (const entry of entries) {
 const option = document.createElement('option');
 option.value = String(entry.offset);
-option.textContent = '0x' + entry.offset.toString(16).toUpperCase() + ' · ' + entry.label;
+option.textContent = entry.label;
 select.append(option);
 }
 $('indexControls').hidden = entries.length === 0;
+if (entries.length) select.value = String(entries[0].offset);
+syncIndexPosition(true);
 $('indexInfo').textContent = warning || entries.length + ' valid positions';
 }
 function selectedFilesText() {
 const pending = selectedFile && source?.file !== selectedFile;
 $('selectedFiles').hidden = !pending;
 $('selectedFiles').textContent = pending ? 'Selected: ' + selectedFile.name : '';
-$('indexName').textContent = selectedIdx?.name || '';
-updateFormatControls();
-$('clearIndex').hidden = !selectedIdx;
-}
-function updateFormatControls() {
-$('indexPicker').hidden = !selectedIdx || /\.prg$/i.test(selectedFile?.name || '');
 }
 function sourceChunk(item, offset, limit) {
 let length = Math.min(1024, limit, item.logicalSize - offset);
@@ -649,20 +660,30 @@ function currentTapeCycles() {
 return (source?.seekCycles || 0) +
 (source && last?.sessionId === source.id ? last.playedCycles || 0 : 0);
 }
+function activeIndexPosition() {
+const entries = source?.indexEntries || [];
+if (!entries.length) return -1;
+const cycles = currentTapeCycles();
+// IDX byte offsets are validated and mapped to pulse cycles by scanTape.
+// Received/upload offsets are ahead of playback because of the ESP buffer.
+let index = 0;
+for (let i = 1; i < entries.length && entries[i].prefixCycles <= cycles; i++) index = i;
+return index;
+}
+function syncIndexPosition(force = false) {
+const index = activeIndexPosition();
+if (index < 0) return;
+// Let the user finish selecting a Jump destination without the poll loop
+// changing it under the pointer; otherwise always follow the playing entry.
+if (!force && indexChoosing && (document.activeElement === $('idxPositions') || document.activeElement === $('seek'))) return;
+indexChoosing = false;
+$('idxPositions').value = String(source.indexEntries[index].offset);
+}
 function navigationTarget(direction) {
 if (!source || source.type !== 'tap') return null;
 const current = currentTapeCycles();
-const epsilon = Math.max(1, (last?.clockHz || 985248) / 100);
 if (source.indexEntries.length) {
-const start = {offset:20, prefixCycles:0, phase:0};
-const end = {offset:source.logicalSize, prefixCycles:source.fullTotal, phase:0, atEnd:true};
-const entries = [start, ...source.indexEntries];
-if (direction > 0) {
-const next = entries.find(entry => entry.prefixCycles > current + epsilon);
-return next || end;
-}
-const previous = entries.filter(entry => entry.prefixCycles < current - epsilon);
-return previous.length ? previous[previous.length - 1] : start;
+return source.indexEntries[activeIndexPosition() + direction] || null;
 }
 const clockHz = last?.clockHz || 985248;
 const currentCounter = tapeCounterAtSeconds(current / clockHz);
@@ -809,7 +830,7 @@ counterOriginCycles = 0;
 source = null; showIndex([]);
 selectedFile = null; selectedIdx = null;
 $('file').value = '';
-selectedFilesText(); updateFormatControls();
+selectedFilesText();
 render(await api('/state'));
 $('error').textContent = '';
 $('deckMessage').textContent = 'Tape ejected.';
@@ -825,7 +846,7 @@ await api('/demo', {method:'POST'});
 counterOriginCycles = 0; source = null; showIndex([]);
 selectedFile = null; selectedIdx = null;
 $('file').value = '';
-selectedFilesText(); updateFormatControls();
+selectedFilesText();
 $('error').textContent = '';
 $('deckMessage').textContent = 'Loading embedded demo…';
 // Demo insert runs in the ESP loop (not inside HTTP) to avoid WDT/Wi-Fi drops.
@@ -872,8 +893,8 @@ source.id = ack.sessionId;
 source.offset = ack.nextOffset;
 source.total = 0;
 source.seekOffset = source.logicalSize;
-source.seekCycles = 0;
-counterOriginCycles = 0;
+source.seekCycles = source.fullTotal;
+counterOriginCycles = source.fullTotal;
 $('error').textContent = '';
 $('deckMessage').textContent = 'Fast-forwarded to end of tape.';
 return;
@@ -892,12 +913,16 @@ if (source.indexEntries.some(item => item.offset === entry.offset))
 $('idxPositions').value = String(entry.offset);
 $('error').textContent = '';
 $('deckMessage').textContent = entry.offset === 20 ?
-'Rewound to start.' : 'Jumped to 0x' + entry.offset.toString(16).toUpperCase() + '.';
+'Rewound to start.' : 'Jumped to ' + (entry.label || 'tape position') + '.';
+render(await api('/state'));
+syncIndexPosition(true);
 } catch (error) {
 $('error').textContent = 'Cannot seek: ' + error.message;
 } finally { busy = false; }
 }
+$('idxPositions').onchange = () => { indexChoosing = true; };
 $('seek').onclick = async () => {
+indexChoosing = false;
 const offset = Number($('idxPositions').value);
 const entry = source?.indexEntries.find(item => item.offset === offset);
 if (!entry) { $('error').textContent = 'Invalid IDX position'; return; }
@@ -919,6 +944,7 @@ return;
 if (source?.type === 'tap') {
 const prev = navigationTarget(-1);
 if (prev) return seekTo(prev);
+if (source.indexEntries.length) return;
 }
 if (!source && last?.tapeState === 'loaded' && last.sourceType === 'tap')
 return serverNav(-1);
@@ -940,6 +966,7 @@ $('fastForward').onclick = async () => {
 if (source?.type === 'tap') {
 const next = navigationTarget(1);
 if (next) return seekTo(next);
+if (source.indexEntries.length) return;
 }
 if (last?.tapeState === 'loaded' && last.sourceType === 'tap')
 return serverNav(1);
@@ -1015,6 +1042,7 @@ showIndex(valid, entries.length - valid.length + ' entries skipped' +
 (mismatch ? ' · TAP/IDX names differ' : ''));
 $('error').textContent = '';
 selectedFilesText();
+if (last) render(last);
 } catch (error) {
 $('error').textContent = 'Cannot attach index: ' + error.message;
 }
@@ -1028,7 +1056,7 @@ return;
 }
 selectedFile = tape;
 selectedIdx = /\.tap$/i.test(tape.name) ? index || null : null;
-selectedFilesText(); updateFormatControls();
+selectedFilesText();
 await insertTape();
 }
 $('file').onchange = async event => {
@@ -1036,7 +1064,6 @@ const files = Array.from(event.target.files);
 event.target.value = ''; // Selecting the same file again also inserts it again.
 await chooseFiles(files);
 };
-$('clearIndex').onclick = () => attachIndex(null);
 const dropzone = $('dropzone');
 dropzone.ondragover = event => { event.preventDefault(); dropzone.classList.add('over'); };
 dropzone.ondragleave = () => dropzone.classList.remove('over');
@@ -1044,7 +1071,7 @@ dropzone.ondrop = async event => {
 event.preventDefault(); dropzone.classList.remove('over');
 await chooseFiles(event.dataTransfer.files);
 };
-selectedFilesText(); updateFormatControls();
+selectedFilesText();
 if (preview) {
 $('previewPanel').hidden = false;
 if ($('networkCard')) $('networkCard').hidden = true;

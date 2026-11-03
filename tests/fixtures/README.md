@@ -6,8 +6,8 @@ Manual checks:
 
 1. Select or drop both files together, in either order, or load TAP first and add IDX afterwards.
 2. With preview MOTOR on and Autoplay enabled, check reel motion, the rolling counter, VFD time and buffer ring.
-3. Use REW/FF or the position selector and Jump to navigate between sections. Stop MOTOR for seeking on real hardware.
-4. Remove IDX with ×; playback should continue and REW/FF should return to counter-based navigation.
+3. Use PREV/NEXT or the position selector and JUMP to navigate between sections. Stop MOTOR for seeking on real hardware.
+4. Load TAP alone again; the IDX row should disappear and PREV/NEXT should return to REW/FF with counter-based navigation.
 5. Turn Autoplay off, reinsert TAP, and check that playback waits for PLAY.
 
 Regenerate the files from the repository root with `python3 tests/fixtures/generate-ui-tape.py`. The generator uses only the Python standard library; generated files are committed so manual tests require no setup.

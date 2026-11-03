@@ -139,7 +139,10 @@ vm.runInContext(`navSource.indexEntries=[{offset:100,prefixCycles:9852480,phase:
   {offset:200,prefixCycles:19704960,phase:0}];
   last.playedCycles=14778720;`, context);
 assert.equal(vm.runInContext('navigationTarget(1).offset', context), 200);
+assert.equal(vm.runInContext('navigationTarget(-1)', context), null);
+vm.runInContext('last.playedCycles=24631200;', context);
 assert.equal(vm.runInContext('navigationTarget(-1).offset', context), 100);
+assert.equal(vm.runInContext('navigationTarget(1)', context), null);
 vm.runInContext('source=null', context);
 for (const [seconds, expected] of [[0, 0], [10, 4], [30, 11],
   [60, 22], [120, 43], [600, 185], [3600, 732]])
@@ -345,17 +348,17 @@ assert.equal(vm.runInContext('source.id', context), uiSession);
 assert.equal(vm.runInContext('source.offset', context), uiOffset);
 assert.equal(vm.runInContext('source.indexEntries.length', context), 2);
 assert.equal(vm.runInContext('source.indexEntries[1].phase', context), 0);
-assert.equal(elements.get('indexName').textContent, 'ui.idx');
+assert.equal(vm.runInContext('selectedIdx.name', context), 'ui.idx');
 assert.equal(elements.get('indexControls').hidden, false);
 context.uiBadIndex = {name:'bad.idx', size:10, text:async () => '22 Inside pulse'};
 await vm.runInContext('attachIndex(uiBadIndex)', context);
 assert.match(elements.get('error').textContent, /Cannot attach index/);
 assert.equal(vm.runInContext('source.indexEntries.length', context), 2);
-assert.equal(elements.get('indexName').textContent, 'ui.idx');
-await vm.runInContext("document.getElementById('clearIndex').onclick()", context);
+assert.equal(vm.runInContext('selectedIdx.name', context), 'ui.idx');
+await vm.runInContext('attachIndex(null)', context);
 assert.equal(vm.runInContext('source.indexEntries.length', context), 0);
 assert.equal(elements.get('indexControls').hidden, true);
-assert.equal(elements.get('clearIndex').hidden, true);
+assert.equal(vm.runInContext('selectedIdx', context), null);
 await vm.runInContext('chooseFiles([uiTape, uiIndex])', context);
 assert.equal(vm.runInContext('source.indexEntries.length', context), 2);
 // Replacing the tape discards the previous tape's optional index.
@@ -369,7 +372,7 @@ await vm.runInContext('chooseFiles([uiPrg])', context);
 assert.equal(vm.runInContext('source.type', context), 'prg');
 assert.equal(vm.runInContext('mock.machine', context), 'c16');
 assert.equal(vm.runInContext('mock.fileName', context), 'program');
-assert.equal(elements.get('indexPicker').hidden, true);
+assert.equal(elements.get('indexControls').hidden, true);
 assert.equal(elements.get('selectedFiles').hidden, true);
 // Both orders of TAP + IDX work. Only the first supported tape is used.
 await vm.runInContext('chooseFiles([uiIndex, uiTape])', context);
@@ -419,6 +422,58 @@ assert.deepEqual(Array.from(vm.runInContext('source.indexEntries', context),
 await vm.runInContext('seekTo(source.indexEntries[3])', context);
 assert.equal(vm.runInContext('source.seekCycles', context), 60 * 985248);
 assert.equal(elements.get('error').textContent, '');
+// IDX navigation follows actual playback boundaries, not received/upload bytes.
+await vm.runInContext('step()', context);
+await vm.runInContext('step()', context);
+vm.runInContext('mock.playedCycles=0; source.seekCycles=0; render({...mock})', context);
+assert.equal(elements.get('idxPositions').value,
+  String(vm.runInContext('source.indexEntries[0].offset', context)));
+assert.equal(elements.get('rewindLabel').textContent, 'PREV');
+assert.equal(elements.get('forwardLabel').textContent, 'NEXT');
+assert.equal(elements.get('rewind').disabled, true);
+assert.equal(elements.get('idxPositions').children[0].textContent, '00:00 Start');
+assert.equal(elements.get('loaded').textContent, 'Start');
+assert.equal(elements.get('played').textContent, '0:00 / 2:00');
+vm.runInContext('mock.playedCycles=40*mock.clockHz-1; render({...mock})', context);
+assert.equal(elements.get('idxPositions').value,
+  String(vm.runInContext('source.indexEntries[1].offset', context)));
+vm.runInContext('mock.playedCycles=40*mock.clockHz; render({...mock})', context);
+assert.equal(elements.get('loaded').textContent, 'Third section');
+assert.equal(elements.get('played').textContent, '0:40 / 2:00');
+assert.equal(elements.get('idxPositions').value,
+  String(vm.runInContext('source.indexEntries[2].offset', context)));
+vm.runInContext('mock.playedCycles=119*mock.clockHz; render({...mock})', context);
+assert.equal(elements.get('fastForward').disabled, true);
+assert.equal(elements.get('idxPositions').value,
+  String(vm.runInContext('source.indexEntries[5].offset', context)));
+await vm.runInContext("document.getElementById('rewind').onclick()", context);
+assert.equal(vm.runInContext('source.seekCycles', context), 80*985248);
+assert.equal(elements.get('loaded').textContent, 'Fifth section');
+assert.equal(elements.get('played').textContent, '1:20 / 2:00');
+// While choosing a Jump destination, polling must not overwrite the choice.
+context.document.activeElement=elements.get('idxPositions');
+vm.runInContext("document.getElementById('idxPositions').value=String(source.indexEntries[1].offset); document.getElementById('idxPositions').onchange(); render({...mock})", context);
+assert.equal(elements.get('idxPositions').value,
+  String(vm.runInContext('source.indexEntries[1].offset', context)));
+context.document.activeElement=elements.get('seek');
+await vm.runInContext("document.getElementById('seek').onclick()", context);
+assert.equal(vm.runInContext('source.seekCycles', context), 20*985248);
+assert.equal(elements.get('loaded').textContent, 'Second section');
+assert.equal(elements.get('played').textContent, '0:20 / 2:00');
+assert.equal(elements.get('remaining').textContent, '1:40');
+vm.runInContext('mock.playedCycles=20*mock.clockHz; render({...mock})', context);
+assert.equal(elements.get('loaded').textContent, 'Third section');
+assert.equal(elements.get('played').textContent, '0:40 / 2:00');
+assert.equal(elements.get('idxPositions').value,
+  String(vm.runInContext('source.indexEntries[2].offset', context)));
+vm.runInContext('mock.playedCycles=0; render({...mock})', context);
+context.document.activeElement=null;
+assert.equal(elements.get('idxPositions').value,
+  String(vm.runInContext('source.indexEntries[1].offset', context)));
+await vm.runInContext('chooseFiles([fixtureTape])', context);
+assert.equal(elements.get('indexControls').hidden,true);
+assert.equal(elements.get('rewindLabel').textContent,'REW');
+assert.equal(elements.get('forwardLabel').textContent,'FF');
 // Preview settings survive reloading the page; real hardware uses LittleFS.
 await vm.runInContext("mockApi('/autoplay', {body:new URLSearchParams({enabled:'0'})})", context);
 const reloaded = vm.createContext({...context});
