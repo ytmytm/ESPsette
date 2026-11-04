@@ -1,25 +1,18 @@
-# Lokalny patch VICE
+# Isolated VICE integration patch
 
-`espsette-fastloader.patch` jest osobnym patchem integracyjnym, na wzór
-`vice/patches/` w Parobku. Bazuje na rewizji VICE
-`eaf9b61f5560f921ebaa25349b09e797f351eb1e`.
-
-Patch rejestruje urządzenie eksperymentalne, dołącza adapter tape-port i
-poprawia zwolniony SENSE na C16. Kod nadajnika i adaptera pozostaje osobno
-w `sender.c`, `sender.h` i `vice-device.c`, żeby rozwijać go bez dublowania
-implementacji w patchu. `patch-vice.py` nakłada patch, a następnie kopiuje
-te trzy pliki do roboczego `vice/src/tapeport/`.
-
-Ścieżki w patchu mają prefiks `a/vice/` i `b/vice/`, jak w patchach Parobka.
-Ze źródłowego katalogu `vice/` stosujemy `patch -p2`; helper robi to sam:
+`espsette-fastloader.patch` targets VICE revision
+`eaf9b61f5560f921ebaa25349b09e797f351eb1e`, following the separate-patch layout
+used in Parobek. It registers the test tape-port device and fixes the released
+SENSE input on C16 without a user port. The sender and adapter remain separate
+in `sender.c`, `sender.h` and `vice-device.c`; the helper copies them into the
+disposable emulator source after applying the integration patch.
 
 ```sh
 python3 experiments/fastloader/patch-vice.py /path/to/disposable/vice-source
 ```
 
-Helper sprawdza cały patch przed zmianą i rozpoznaje już nałożony patch.
-Źródła i binaria emulatora pozostają lokalnie w ignorowanym
-`tools/fastloader-vice/`; źródeł Parobka nie modyfikujemy.
-
-Patch pozostaje roboczy do zakończenia developmentu. Wtedy przygotujemy jego
-ostateczną postać i commit do repozytorium razem z uzgodnionymi plikami modelu.
+Patch paths have `a/vice/` and `b/vice/` prefixes. The helper uses `patch -p2`,
+checks the complete patch before mutation and recognizes an already-applied
+patch. Source and binaries stay in ignored `tools/fastloader-vice/`; the user's
+Parobek tree is never changed. No emulator sources or binaries are distributed
+with the firmware. The patch remains separate for final review after development.

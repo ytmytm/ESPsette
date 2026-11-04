@@ -23,7 +23,7 @@ endif
 
 ESPTOOL := ESPTOOL_CFGFILE="$(CURDIR)/esptool.cfg" ./tools/venv/bin/python -m esptool --chip esp8266 --port "$(PORT)"
 
-.PHONY: help setup build flash ota flash-id chip-info embed-web preview fastloader-test fastloader-bit-test native
+.PHONY: help setup build flash ota flash-id chip-info embed-web preview fastloader-test native
 
 help:
 	@printf '%s\n' \
@@ -33,9 +33,8 @@ help:
 		'  make help                          Show this help' \
 		'  make setup                         Install local uv/Python/PlatformIO tools' \
 		'  make preview                       Open local UI with simulated ESP state' \
-		'  make native                       Assemble C64 and C16/Plus4 fastloaders (ACME)' \
 		'  make fastloader-test               Run isolated fastloader sender tests' \
-		'  make fastloader-bit-test           Search bit layouts and check Y indexing in Python' \
+		'  make native                       Assemble C64 and C16/Plus4 fastloaders (ACME)' \
 		'  make build [PROFILE=1m] [VERBOSE=1] Compile (PROFILE: 512k|1m|4m)' \
 		'  make flash PORT=... [PROFILE=1m]   Serial upload (download-mode wiring)' \
 		'  make ota OTA_HOST=... [PROFILE=1m] Experimental; disabled in default firmware' \
@@ -64,10 +63,6 @@ preview:
 fastloader-test:
 	$(CC) -std=c11 -Wall -Wextra -Werror -pedantic experiments/fastloader/sender-test.c experiments/fastloader/sender.c -o /tmp/ESPsette-fastloader-test
 	/tmp/ESPsette-fastloader-test
-
-fastloader-bit-test:
-	python3 experiments/fastloader/search-bit-layout.py
-	python3 experiments/fastloader/test-indexing.py
 
 native:
 	python3 scripts/build-native.py
