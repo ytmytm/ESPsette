@@ -53,12 +53,16 @@ on and GPIO2 belongs to the command receiver. **WRITE is wired directly, with
 no inverter.** C64 ROM symbols are measured between rising edges; C16/Plus/4
 ROM symbols are measured between falling edges. The decoder requires 32
 consecutive short pilot periods to select the family and its edge polarity,
-then ignores the other polarity. It does not infer the machine from one long
+then switches the hardware interrupt to that single polarity, halving the
+interrupt rate. It does not infer the machine from one long
 pulse: TED rising-edge periods can resemble C64 byte markers.
 
-A bounded 512-entry ring transfers periods and edge polarity to the main loop;
-protocol decoding runs outside the ISR. Each entry holds a 15-bit microsecond
-period and one polarity bit; long gaps saturate at 32767 us. The ISR
+The fixed-size decoder runs directly in the GPIO ISR, entirely in IRAM. It
+uses no heap allocation, logging, flash calls or pulse queue. The former
+512-entry queue consumed 1 KB of RAM and depended on synchronous HTTP handling
+returning within roughly 100 ms; it has been removed. Both WRITE and MOTOR
+events are decoded without waiting for the main loop. Long periods saturate
+at 32767 us. The ISR
 checks the physical MOTOR level on every edge, not only when a session starts:
 
 ```cpp
@@ -88,8 +92,8 @@ records: about 32 ms on C64 and under 1 ms on TED in the captured traces. This
 pause preserves the discard state. A subsequent SAVE can begin as soon as the
 two program copies have been consumed. If SAVE is aborted or program capture
 is damaged, leave MOTOR off for at least one second before retrying; a restart
-after that quiet interval resets an unfinished discard. Brief TED pauses can
-be missed by main-loop polling without losing the discard state.
+after that quiet interval resets an unfinished discard. MOTOR's ISR handles
+even brief TED pauses independently of HTTP polling.
 
 A damaged, partial or overflowing capture cannot publish a request. There is
 no per-byte command acknowledgement on READ or SENSE; reception is observable
@@ -104,9 +108,9 @@ stages, until completion, cancellation or ejection releases that session.
 Before using WRITE commands again, finish the transfer or eject the fast PRG.
 
 The WRITE interrupt is detached while fastloading to avoid interrupts from
-ESP-generated data. The ISR also checks ownership before queuing any edge, so
-output data cannot enter the command ring during a mode transition. Suspending also disables capture, discards
-queued durations and resets the partial decoder frame. The decoder itself
+ESP-generated data. Both ISRs also check ownership before decoding, so output
+data cannot enter the command decoder during a mode transition. Suspending
+disables capture and resets the partial decoder frame. The decoder itself
 rejects input while suspended. After completion or cancellation, GPIO2 returns
 to input and reception can restart on MOTOR. The fastloader's `$CA65` mode
 signature remains a separate protocol, not a standard WRITE command header.
@@ -125,12 +129,26 @@ signature remains a separate protocol, not a standard WRITE command header.
 | `writeName` / `writeMachine` | Last verified header filename and detected computer family |
 | `writeType` / `writeStart` / `writeEnd` | Header metadata; never a request to create a file |
 | `writeHeaders` | Count of all verified headers, including ignored ordinary filenames |
-| `writeErrors` / `writeOverflows` | Invalid-frame and capture-overflow counters |
+| `writeErrors` / `writeOverflows` | Invalid-frame counter; legacy overflow field stays zero because there is no pulse queue |
+| `resetReason` | ESP8266 reset code: 0 power-on, 1 hardware watchdog, 2 exception, 3 software watchdog, 4 software restart, 5 deep sleep, 6 external reset |
+| `resetException` / `resetPc` | Exception cause and program counter, present after reset reason 2 |
+| `freeStack` | Continuation-stack unused-space watermark, in bytes |
 
 `writeCommandId` changes only for a complete verified `ESP:` request. Pollers
 should use that ID to distinguish a new request from repeated state responses.
 `writeType`, `writeStart` and `writeEnd` are decoder diagnostics and may describe
 a partial frame; only the command/ID pair is published after full validation.
+
+The web diagnostics show the last reset reason, exception location when
+available, heap and stack watermark, so UART access is not required. `/state`
+copies a small decoder snapshot under a brief interrupt lock, then formats
+and sends it with interrupts enabled. Its JSON arena is a bounded temporary
+heap allocation; placing a 2 KB arena on the ESP8266's 4 KB continuation stack
+left too little space for HTTP/TCP and GPIO interrupt frames. The response
+String reserves its final size once, avoiding repeated buffer reallocations.
+Allocation failure returns HTTP 503 rather than proceeding with an empty
+document. Build checks verify the decoder's IRAM placement and reject direct
+flash calls from the WRITE/MOTOR ISR paths.
 
 ## Tests and hardware status
 

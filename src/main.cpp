@@ -105,21 +105,45 @@ static bool fastloaderBusy() {
          fastPhase == FastPhase::DESCRIPTOR || fastPhase == FastPhase::PAYLOAD;
 }
 WriteDecoder writeDecoder;
-static constexpr uint16_t WRITE_RING_SIZE = 512;
-volatile uint16_t writeRing[WRITE_RING_SIZE];
-volatile uint16_t writeHead = 0, writeTail = 0;
-volatile uint32_t writeLastEdgeUs[2] = {}, writeCaptureOverflows = 0;
+// Decode in IRAM at the edge, independently of synchronous HTTP writes.
+// No pulse queue, heap allocation or logging is used by this ISR.
+volatile uint32_t writeLastEdgeUs[2] = {};
 volatile bool writeActive = false;
-uint32_t reportedWriteOverflows = 0;
 bool writeWasAllowed = true;
-bool writeInterruptAttached = false;
-uint32_t writeMotorOffUs = 0;
-bool writeMotorStopped = false;
+volatile bool writeInterruptAttached = false;
+volatile uint8_t writeInterruptMode = CHANGE;
+volatile uint32_t writeMotorOffUs = 0;
+volatile bool writeMotorStopped = false;
 
 // Reserve GPIO2 for the entire fastloader session, including its WRITE-output
 // signature. Commands resume after completion, cancellation or ejection.
 static bool IRAM_ATTR writeCommandsAllowed() {
   return fastPhase == FastPhase::OFF || fastPhase == FastPhase::DONE;
+}
+
+static void IRAM_ATTR setWriteInterruptMode(uint8_t mode) {
+  if (mode == writeInterruptMode) return;
+  // The Arduino callback remains CHANGE (no software polarity filtering).
+  // Only the hardware edge detector changes; no flash/attachInterrupt call.
+  GPC(PIN_WRITE) = (GPC(PIN_WRITE) & ~(0xFu << GPCI)) | (uint32_t(mode) << GPCI);
+  writeInterruptMode = mode;
+}
+
+static void IRAM_ATTR updateWriteMotor(bool on, uint32_t now) {
+  if (on == writeActive) return;
+  if (on) {
+    writeDecoder.motorStart(writeMotorStopped ? uint32_t(now - writeMotorOffUs) : UINT32_MAX);
+    writeLastEdgeUs[0] = writeLastEdgeUs[1] = 0;
+    const auto machine = writeDecoder.machine();
+    setWriteInterruptMode(machine == WriteDecoder::Machine::UNKNOWN ? CHANGE :
+                          machine == WriteDecoder::Machine::C64 ? RISING : FALLING);
+    writeActive = true;
+  } else {
+    writeActive = false;
+    writeDecoder.motorStop();
+    writeMotorOffUs = now;
+    writeMotorStopped = true;
+  }
 }
 
 void IRAM_ATTR onWriteEdge() {
@@ -129,31 +153,11 @@ void IRAM_ATTR onWriteEdge() {
   const uint32_t previous = writeLastEdgeUs[high];
   writeLastEdgeUs[high] = now;
   if (!previous) return;
-  const uint16_t next = (writeHead + 1) & (WRITE_RING_SIZE - 1);
-  if (next == writeTail) { ++writeCaptureOverflows; return; }
   const uint32_t duration = now - previous;
-  // Preserve edge polarity alongside its same-polarity period. Direct C64
-  // WRITE needs rising edges; direct TED WRITE needs falling edges.
-  writeRing[writeHead] = (duration > 0x7fff ? 0x7fff : duration) | (high ? 0x8000 : 0);
-  writeHead = next;
-}
-
-void drainWriteCommands() {
-  uint32_t overflows;
-  noInterrupts(); overflows = writeCaptureOverflows; interrupts();
-  if (overflows != reportedWriteOverflows) {
-    reportedWriteOverflows = overflows;
-    noInterrupts(); writeTail = writeHead; writeLastEdgeUs[0] = writeLastEdgeUs[1] = 0; interrupts();
-    writeDecoder.overflow();
-  }
-  for (uint16_t count = 0; count < WRITE_RING_SIZE; ++count) {
-    noInterrupts();
-    if (writeTail == writeHead) { interrupts(); break; }
-    const uint16_t duration = writeRing[writeTail];
-    writeTail = (writeTail + 1) & (WRITE_RING_SIZE - 1);
-    interrupts();
-    writeDecoder.feedEdgeMicros(duration & 0x7fff, (duration & 0x8000) != 0);
-  }
+  writeDecoder.feedEdgeMicros(duration > 0x7fff ? 0x7fff : duration, high);
+  const auto machine = writeDecoder.machine();
+  if (machine != WriteDecoder::Machine::UNKNOWN)
+    setWriteInterruptMode(machine == WriteDecoder::Machine::C64 ? RISING : FALLING);
 }
 
 void processWriteCommands() {
@@ -161,7 +165,6 @@ void processWriteCommands() {
   if (!writeCommandsAllowed()) {
     noInterrupts();
     writeActive = false;
-    writeTail = writeHead;
     writeLastEdgeUs[0] = writeLastEdgeUs[1] = 0;
     interrupts();
     if (writeInterruptAttached) {
@@ -175,28 +178,21 @@ void processWriteCommands() {
   if (!writeInterruptAttached) {
     attachInterrupt(digitalPinToInterrupt(PIN_WRITE), onWriteEdge, CHANGE);
     writeInterruptAttached = true;
+    writeInterruptMode = CHANGE;
   }
   if (!writeWasAllowed) {
+    noInterrupts();
+    writeActive = false;
     writeDecoder.motorStart();
     writeWasAllowed = true;
+    interrupts();
   }
-  if (motorIsOn()) {
-    if (!writeActive) {
-      writeDecoder.motorStart(writeMotorStopped ? uint32_t(micros() - writeMotorOffUs) : UINT32_MAX);
-      noInterrupts();
-      writeTail = writeHead;
-      writeLastEdgeUs[0] = writeLastEdgeUs[1] = 0;
-      writeActive = true;
-      interrupts();
-    }
-    drainWriteCommands();
-  } else if (writeActive) {
-    noInterrupts(); writeActive = false; interrupts();
-    drainWriteCommands();
-    writeDecoder.motorStop();
-    writeMotorOffUs = micros();
-    writeMotorStopped = true;
-  }
+  // Also synchronize the initial physical state when capture is attached.
+  // Subsequent MOTOR edges are handled directly by onMotorChange(), even
+  // while the main loop is blocked sending HTTP data.
+  noInterrupts();
+  updateWriteMotor((GPI & (1u << PIN_MOTOR)) != 0, micros());
+  interrupts();
 #endif
 }
 
@@ -373,6 +369,7 @@ void IRAM_ATTR onMotorFalling() {
 void IRAM_ATTR onMotorChange() {
   const bool on = (GPI & (1u << PIN_MOTOR)) != 0;
   if (!on) onMotorFalling();
+  if (writeInterruptAttached && writeCommandsAllowed()) updateWriteMotor(on, micros());
   if (fastPhase == FastPhase::TAPE && !fastSignatureSeen) {
     if (on) {
       fastSignature = (fastSignature << 1) | ((GPI >> PIN_WRITE) & 1);
@@ -1444,7 +1441,16 @@ static bool scanTapToCycles(uint64_t targetCycles, uint32_t& outOffset,
 }
 
 void handleState() {
-  StaticJsonDocument<2048> doc;
+  // The ESP8266 continuation stack is only 4 KB. Keep the JSON arena off
+  // that stack so HTTP/TCP calls plus a GPIO ISR still have room.
+  DynamicJsonDocument doc(2048);
+  if (doc.capacity() == 0) {
+    HTTPServer.send(503, "application/json", "{\"error\":\"low_memory\"}");
+    return;
+  }
+  noInterrupts();
+  const WriteDecoder writeSnapshot = writeDecoder;
+  interrupts();
   const bool motorOn = motorIsOn();
   doc["tapeState"] = pendingDemoInsert ? "loading"
       : (demoInsertFailed && !tapeLoaded) ? "error"
@@ -1505,6 +1511,13 @@ void handleState() {
     doc["logicalSize"] = 0;
   }
   doc["sessionId"] = tapeSource.sessionId();
+  const auto* reset = ESP.getResetInfoPtr();
+  doc["resetReason"] = reset->reason;
+  if (reset->reason == REASON_EXCEPTION_RST) {
+    doc["resetException"] = reset->exccause;
+    doc["resetPc"] = reset->epc1;
+  }
+  doc["freeStack"] = ESP.getFreeContStack();
   doc["freeHeap"] = ESP.getFreeHeap();
   doc["maxFreeBlock"] = ESP.getMaxFreeBlockSize();
   doc["maxLoopUs"] = maxLoopUs;
@@ -1515,17 +1528,17 @@ void handleState() {
   doc["error"] = playerError;
   doc["writeEnabled"] = !bool(ESPSETTE_GPIO_DISABLED);
   doc["writeListening"] = bool(writeActive) && writeCommandsAllowed();
-  doc["writeStatus"] = writeCommandsAllowed() ? writeDecoder.status() : "suspended_fastloader";
-  doc["writeCommand"] = writeDecoder.command();
-  doc["writeCommandId"] = writeDecoder.commandCount();
-  doc["writeName"] = writeDecoder.name();
-  doc["writeMachine"] = writeDecoder.machineName();
-  doc["writeType"] = writeDecoder.fileType();
-  doc["writeStart"] = writeDecoder.startAddress();
-  doc["writeEnd"] = writeDecoder.endAddress();
-  doc["writeHeaders"] = writeDecoder.receivedCount();
-  doc["writeErrors"] = writeDecoder.errorCount();
-  doc["writeOverflows"] = writeDecoder.overflowCount();
+  doc["writeStatus"] = writeCommandsAllowed() ? writeSnapshot.status() : "suspended_fastloader";
+  doc["writeCommand"] = writeSnapshot.command();
+  doc["writeCommandId"] = writeSnapshot.commandCount();
+  doc["writeName"] = writeSnapshot.name();
+  doc["writeMachine"] = writeSnapshot.machineName();
+  doc["writeType"] = writeSnapshot.fileType();
+  doc["writeStart"] = writeSnapshot.startAddress();
+  doc["writeEnd"] = writeSnapshot.endAddress();
+  doc["writeHeaders"] = writeSnapshot.receivedCount();
+  doc["writeErrors"] = writeSnapshot.errorCount();
+  doc["writeOverflows"] = writeSnapshot.overflowCount();
   doc["otaReady"] = otaReady;
   {
     char scopeStr[SCOPE_LEN + 1];
@@ -1543,6 +1556,10 @@ void handleState() {
     return;
   }
   String response;
+  if (!response.reserve(measureJson(doc))) {
+    HTTPServer.send(503, "application/json", "{\"error\":\"low_memory\"}");
+    return;
+  }
   serializeJson(doc, response);
   HTTPServer.sendHeader("Cache-Control", "no-store");
   HTTPServer.send(200, "application/json", response);

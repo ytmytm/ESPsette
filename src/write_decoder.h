@@ -3,6 +3,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#if defined(ESP8266)
+#include <Arduino.h>
+#define WRITE_IRAM IRAM_ATTR
+#else
+#define WRITE_IRAM
+#endif
+
 // C64/C16 standard WRITE-header command channel. File data is discarded.
 // A verified ESP:<request> publishes a request; command handlers are not installed.
 // feedEdgeMicros() accepts same-polarity periods from the direct WRITE pin.
@@ -10,12 +17,13 @@
 class WriteDecoder {
  public:
   enum class Machine : uint8_t { UNKNOWN, C64, C16 };
-  void motorStart(uint32_t quietMicros = UINT32_MAX);
-  void motorStop();
-  void suspend();
-  void feedMicros(uint16_t duration);
-  void feedEdgeMicros(uint16_t duration, bool high);
-  void overflow();
+  void WRITE_IRAM motorStart(uint32_t quietMicros = UINT32_MAX);
+  void WRITE_IRAM motorStop();
+  void WRITE_IRAM suspend();
+  void WRITE_IRAM feedMicros(uint16_t duration);
+  void WRITE_IRAM feedEdgeMicros(uint16_t duration, bool high);
+  void WRITE_IRAM overflow();
+  Machine machine() const { return machine_; }
   const char* status() const { return status_; }
   const char* name() const { return name_; }
   const char* command() const { return command_; }
@@ -60,10 +68,10 @@ class WriteDecoder {
   uint32_t errorCount_ = 0;
   uint32_t overflowCount_ = 0;
 
-  Pulse classify(uint16_t duration) const;
-  void resetFrame();
-  void fail(const char* reason);
-  void onByte(uint8_t value);
-  void onTerminator();
-  void finishHeader();
+  Pulse WRITE_IRAM classify(uint16_t duration) const;
+  void WRITE_IRAM resetFrame();
+  void WRITE_IRAM fail(const char* reason);
+  void WRITE_IRAM onByte(uint8_t value);
+  void WRITE_IRAM onTerminator();
+  void WRITE_IRAM finishHeader();
 };

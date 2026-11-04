@@ -1,5 +1,4 @@
 #include "write_decoder.h"
-#include <string.h>
 
 WriteDecoder::Pulse WriteDecoder::classify(uint16_t duration) const {
   // C16/Plus4 ROM whole waves are roughly 478/956/1913 us. WAV-PRG uses
@@ -84,8 +83,8 @@ void WriteDecoder::finishHeader() {
   name_[16] = '\0';
   for (int8_t i = 15; i >= 0 && name_[i] == ' '; --i) name_[i] = '\0';
   ++receivedCount_;
-  if (strncmp(name_, "ESP:", 4) == 0 && name_[4]) {
-    memcpy(command_, name_ + 4, sizeof(command_));
+  if (name_[0] == 'E' && name_[1] == 'S' && name_[2] == 'P' && name_[3] == ':' && name_[4]) {
+    for (uint8_t i = 0; i < sizeof(command_); ++i) command_[i] = name_[i + 4];
     ++commandCount_;
     status_ = "command_received_no_action";
   } else {

@@ -712,7 +712,12 @@ function render(s) {
     'ESP: heap ' + s.freeHeap + ' B (largest block ' + s.maxFreeBlock + ' B)' +
     ' · max loop/HTTP ' + s.maxLoopUs + '/' + s.maxHttpUs + ' µs' +
     ' · I2S/source underruns ' + s.i2sUnderruns + '/' + s.sourceUnderruns +
-    ' · upload errors ' + s.uploadErrors;
+    ' · upload errors ' + s.uploadErrors +
+    (s.freeStack == null ? '' : ' · stack watermark ' + s.freeStack + ' B') +
+    (s.resetReason == null ? '' : ' · last reset: ' +
+      (['power on', 'hardware watchdog', 'exception', 'software watchdog',
+        'software restart', 'deep sleep', 'external reset'][s.resetReason] || s.resetReason) +
+      (s.resetReason === 2 ? ' (cause ' + s.resetException + ' @0x' + Number(s.resetPc).toString(16) + ')' : ''));
   const writeLabels = {idle:'Ready', listening:s.writeListening ? 'Listening' : 'Waiting for MOTOR',
     receiving_header:'Receiving request', command_received_no_action:'Request received (not executed)',
     header_ignored:'Non-command header ignored', suspended_fastloader:'Paused for fastloader',

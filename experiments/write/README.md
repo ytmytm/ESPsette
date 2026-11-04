@@ -7,6 +7,9 @@ timestamps. It never encodes pulses, reads KERNAL internals, intercepts SAVE,
 or runs the ESP decoder inside the emulator. The host replay feeds the actual
 firmware decoder with same-polarity periods, using the ESP ISR's motor gating,
 microsecond conversion and 15-bit period saturation.
+After pilot recognition, replay follows the firmware's single-edge hardware
+selection. Both MOTOR and WRITE callbacks feed the decoder directly; replay
+requires no main-loop drains or callbacks during the entire SAVE operation.
 
 The shared integration patch remains in
 `experiments/fastloader/vice-patches/espsette-fastloader.patch`; the adapter is
@@ -65,6 +68,16 @@ Physical WRITE still requires a hardware retest. The emulator exercises ROM
 waveforms and protocol state; it cannot validate ESP ISR latency, interrupt
 loss, Wi-Fi contention or electrical behavior. ±10 us timestamp jitter tests
 are an explicit simulated bound, not a hardware measurement.
+
+The first hardware follow-up reported intermittent success, parity/pulse
+errors and resets with the browser open (about 23 KB free heap). Protocol
+replay alone did not cover HTTP stalls, ISR placement or continuation-stack
+pressure. The next revision removes the 1 KB pulse queue, decodes directly in
+IRAM, selects one interrupt edge after the pilot, and processes MOTOR in its
+ISR. The state response uses a temporary bounded heap arena instead of a
+2 KB stack arena, and the browser displays reset/exception and stack
+diagnostics. These changes still require a new physical-board test; the reset
+cause has not yet been observed, so a stack overflow is a hypothesis.
 
 ## Retained fixtures
 

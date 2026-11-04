@@ -643,6 +643,12 @@ vm.runInContext(`render({...mock,writeEnabled:true,writeName:'NAZWA',writeComman
   writeHeaders:1,writeStatus:'header_ignored'})`, context);
 assert.match(elements.get('writeDetail').textContent, /Last header: "NAZWA"/);
 assert.equal(elements.get('writeStatus').textContent, 'Non-command header ignored');
+vm.runInContext(`render({...mock,freeHeap:23000,freeStack:1024,resetReason:3})`, context);
+assert.match(elements.get('diagnostics').textContent, /heap 23000 B/);
+assert.match(elements.get('diagnostics').textContent, /stack watermark 1024 B/);
+assert.match(elements.get('diagnostics').textContent, /last reset: software watchdog/);
+vm.runInContext(`render({...mock,freeHeap:23000,resetReason:2,resetException:28,resetPc:0x40201234})`, context);
+assert.match(elements.get('diagnostics').textContent, /exception \(cause 28 @0x40201234\)/);
 
 // Preview uses the configured fast rate, waits for refill and ignores MOTOR/SENSE as data controls.
 vm.runInContext(`globalThis.progressSnapshot = {state:{...mock},bytes:mockBytes,bootstrap:mockBootstrapCycles};

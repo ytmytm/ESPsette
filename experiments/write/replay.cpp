@@ -4,6 +4,8 @@
 #include <cstdio>
 #include <cstdint>
 
+static_assert(sizeof(WriteDecoder) <= 320, "WRITE state must remain small and fixed-size");
+
 int main() {
   unsigned long hz = 0;
   if (std::scanf("hz,%lu\n", &hz) != 1 || !hz) return 2;
@@ -32,6 +34,11 @@ int main() {
       const bool edge = bool(high) != write;
       write = high;
       if (!motor || !edge) continue;
+      // Firmware switches the hardware detector to one edge as soon as the
+      // pilot selects a machine. No main-loop processing is needed at all.
+      const auto machine = decoder.machine();
+      if (machine != WriteDecoder::Machine::UNKNOWN &&
+          bool(high) != (machine == WriteDecoder::Machine::C64)) continue;
       const uint32_t us = uint64_t(ticks) * 1000000 / hz;
       if (haveEdge[high]) {
         const uint32_t duration = us - lastUs[high];
