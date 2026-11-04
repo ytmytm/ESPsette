@@ -727,7 +727,12 @@ drawVfdText($('vfdDigits'), text);
 function render(s) {
 last = s;
 const playing = !!s.playing;
-playbackAwake.update(playing && (s.fastloaderActive || s.motorOn && s.sensePressed) &&
+// During fast transfer MOTOR requests blocks and SENSE carries data.
+// Keep protection through signature/buffer waits and ROM MOTOR pauses too.
+const fastPrgTransfer = s.sourceType === 'prg' && s.fastloaderActive &&
+(s.phase === 'bootstrap' || s.phase === 'fastload' ||
+s.sensePressed && ['header', 'headerPause', 'data', 'paused'].includes(s.phase));
+playbackAwake.update((fastPrgTransfer || playing && s.motorOn && s.sensePressed) &&
 s.tapeState === 'loaded' && s.phase !== 'done' && s.phase !== 'error' && !s.error);
 const editBlocked = motorBlocksEdit(s) || s.phase === 'fastload' || s.phase === 'bootstrap';
 if (validFastloader(s.fastloader)) {

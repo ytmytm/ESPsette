@@ -547,6 +547,31 @@ assert.equal(awakeUpdates.at(-1),false);
 vm.runInContext("render({...mock, phase:'error',error:'buffer_underrun'})",context);
 assert.equal(awakeUpdates.at(-1),false);
 vm.runInContext('mock.motorOn=false;mock.playing=false;render({...mock})',context);
+// Fast PRG uses MOTOR/SENSE as protocol signals, including waits with playing=false.
+for (const phase of ['bootstrap', 'fastload']) {
+  for (const motorOn of [false, true]) for (const sensePressed of [false, true]) {
+    context.fastWakeState = {sourceType:'prg', fastloaderActive:true, tapeState:'loaded',
+      phase, motorOn, sensePressed, playing:false, error:null};
+    vm.runInContext('render({...mock, ...fastWakeState})', context);
+    assert.equal(awakeUpdates.at(-1), true, `${phase}: MOTOR=${motorOn}, SENSE=${sensePressed}`);
+  }
+}
+for (const phase of ['header', 'headerPause', 'data', 'paused']) {
+  context.fastWakeState = {sourceType:'prg', fastloaderActive:true, tapeState:'loaded',
+    phase, motorOn:false, sensePressed:true, playing:false, error:null};
+  vm.runInContext('render({...mock, ...fastWakeState})', context);
+  assert.equal(awakeUpdates.at(-1), true); // Keep awake across ordinary bootstrap MOTOR pauses.
+}
+for (const override of [
+  {phase:'done'}, {phase:'error'}, {error:'fastloader_cancelled'}, {tapeState:'ejected'},
+  {phase:'idle'}, {phase:'paused', sensePressed:false},
+  {sourceType:'tap', phase:'fastload'}, {fastloaderActive:false, phase:'fastload'}
+]) {
+  context.fastWakeOverride = override;
+  vm.runInContext('render({...mock, ...fastWakeState, ...fastWakeOverride})', context);
+  assert.equal(awakeUpdates.at(-1), false, JSON.stringify(override));
+}
+vm.runInContext('render({...mock})', context);
 // Persistent fastloader settings: validation, dirty edits, defaults, activation.
 vm.runInContext("mock.motorOn = false; mock.gpioDisabled = false; mock.phase = 'idle'; render({...mock})", context);
 assert.equal(elements.get('fastloaderEnabled').checked, false);
