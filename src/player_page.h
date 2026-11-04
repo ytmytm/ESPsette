@@ -852,9 +852,7 @@ $('fastProgressDetail').textContent = stage + ' · ' + count(fast.remaining) + '
 }
 $('deck').classList.toggle('ejected', s.tapeState === 'ejected' && !sessionTape);
 $('play').classList.toggle('pressed', !!s.sensePressed);
-$('stop').classList.toggle('pressed', !s.sensePressed);
 $('play').setAttribute('aria-pressed', String(!!s.sensePressed));
-$('stop').setAttribute('aria-pressed', String(!s.sensePressed));
 // Indexed navigation is limited to the previous/next entry in the list.
 $('rewind').disabled = indexed ? !navigationTarget(-1) : !source &&
 (s.tapeState !== 'loaded' || s.sessionId !== 0) && !canServerNav;

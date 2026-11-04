@@ -692,6 +692,21 @@ await elements.get('fastloaderSave').onclick();
 await vm.runInContext('chooseFiles([fastPrg])', context);
 assert.equal(vm.runInContext('source.sessionBody.get("turbo")', context), '0');
 assert.equal(vm.runInContext('source.logicalSize', context), 6); // Standard ROM copies.
+// STOP is momentary; the stopped state persists on SENSE, not on a latched STOP key.
+vm.runInContext('mock.motorOn=false;mock.sensePressed=true;mock.fastloaderActive=false;render({...mock})',context);
+await elements.get('stop').onclick();
+assert.equal(vm.runInContext('mock.sensePressed',context),false);
+assert.equal(elements.get('stop').classList.values.has('pressed'),false);
+assert.equal(elements.get('stop').attributes?.['aria-pressed'],undefined);
+assert.equal(elements.get('play').classList.values.has('pressed'),false);
+vm.runInContext('render({...mock})',context);
+assert.equal(vm.runInContext('mock.sensePressed',context),false);
+assert.equal(elements.get('stop').classList.values.has('pressed'),false);
+await elements.get('play').onclick();
+assert.equal(vm.runInContext('mock.sensePressed',context),true);
+assert.equal(elements.get('play').classList.values.has('pressed'),true);
+assert.equal(elements.get('stop').classList.values.has('pressed'),false);
+
 // Preview settings survive reloading the page; real hardware uses LittleFS.
 await vm.runInContext("mockApi('/autoplay', {body:new URLSearchParams({enabled:'0'})})", context);
 const reloaded = vm.createContext({...context});
