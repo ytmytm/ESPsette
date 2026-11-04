@@ -20,7 +20,7 @@ Hardware tests on **1 November 2026**:
 | C16/Plus/4 playback; all supported TAP v1/v2 variants | Full hardware coverage pending |
 | IDX seeking and counter-based REW/FF | Host tests pass; hardware test pending |
 | WRITE / SAVE header decoding | Host tests pass; hardware test pending; disabled by default |
-| Turbo loader | Not implemented |
+| Turbo loader | [Isolated C64/C16/Plus/4 host/VICE experiment](experiments/fastloader/README.md); firmware option pending |
 | OTA updates | Disabled in the default firmware; use serial flashing |
 
 ## Hardware

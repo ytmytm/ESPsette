@@ -1,0 +1,38 @@
+diff --git a/vice/src/tapeport/tapeport.h b/vice/src/tapeport/tapeport.h
+--- a/vice/src/tapeport/tapeport.h
++++ b/vice/src/tapeport/tapeport.h
+@@ -45,6 +45,7 @@
+     TAPEPORT_DEVICE_TAPE_DIAG_586220_HARNESS,
+     TAPEPORT_DEVICE_TAPECART,
+     TAPEPORT_DEVICE_WORDCRAFT_DONGLE,
++    TAPEPORT_DEVICE_ESPSETTE_FL,
+ 
+     /* This item always needs to be at the end */
+     TAPEPORT_MAX_DEVICES
+diff --git a/vice/src/tapeport/tapeport.c b/vice/src/tapeport/tapeport.c
+--- a/vice/src/tapeport/tapeport.c
++++ b/vice/src/tapeport/tapeport.c
+@@ -342,8 +342,11 @@
+     RESOURCE_INT_LIST_END
+ };
+ 
++#include "vice-device.c"
++
+ static int tapeport_device_resources_init(int amount)
+ {
++    tapeport_device_register(TAPEPORT_DEVICE_ESPSETTE_FL, &fl_device);
+     datasette_resources_init(amount);
+ 
+     if (tapertc_resources_init(amount) < 0) {
+diff --git a/vice/src/plus4/plus4pio1.c b/vice/src/plus4/plus4pio1.c
+--- a/vice/src/plus4/plus4pio1.c
++++ b/vice/src/plus4/plus4pio1.c
+@@ -52,7 +52,7 @@
+     if (has_pio1) {
+         pio1_value = 0xff;
+     } else {
+-        pio1_value = 0;
++        pio1_value = 4; /* C16: released cassette SENSE is high */
+     }
+ 
+     /*  Correct clock */

@@ -27,7 +27,7 @@ endif
 
 ESPTOOL := ESPTOOL_CFGFILE="$(CURDIR)/esptool.cfg" ./tools/venv/bin/python -m esptool --chip esp8266 --port "$(PORT)"
 
-.PHONY: help setup build flash ota flash-id chip-info embed-web preview
+.PHONY: help setup build flash ota flash-id chip-info embed-web preview fastloader-test
 
 help:
 	@printf '%s\n' \
@@ -37,6 +37,7 @@ help:
 		'  make help                          Show this help' \
 		'  make setup                         Install local uv/Python/PlatformIO tools' \
 		'  make preview                       Open local UI with simulated ESP state' \
+		'  make fastloader-test               Run isolated fastloader sender tests' \
 		'  make build [PROFILE=1m] [VERBOSE=1] Compile (PROFILE: 512k|1m|4m)' \
 		'  make flash PORT=... [PROFILE=1m]   Serial upload (download-mode wiring)' \
 		'  make ota OTA_HOST=... [PROFILE=1m] Experimental; disabled in default firmware' \
@@ -61,6 +62,10 @@ embed-web:
 
 preview:
 	sh ./scripts/open-preview.sh
+
+fastloader-test:
+	$(CC) -std=c11 -Wall -Wextra -Werror -pedantic experiments/fastloader/sender-test.c experiments/fastloader/sender.c -o /tmp/ESPsette-fastloader-test
+	/tmp/ESPsette-fastloader-test
 
 build: embed-web
 	./scripts/pio.sh run $(PIO_VERBOSE) -e $(SERIAL_ENV)
