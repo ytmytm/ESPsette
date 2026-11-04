@@ -12,7 +12,7 @@ Files stay in the browser and pass through an 8 KB buffer on the ESP. No SD card
 
 ## Tested and pending
 
-Hardware tests on **1 November 2026**:
+Hardware tests on **1 and 4 November 2026**:
 
 | Feature | Status |
 | --- | --- |
@@ -22,7 +22,7 @@ Hardware tests on **1 November 2026**:
 | C16/Plus/4 playback; all supported TAP v1/v2 variants | Full hardware coverage pending |
 | IDX seeking and counter-based REW/FF | Host tests pass; hardware test pending |
 | WRITE command requests | Header validation and ESP: request publication pass host tests; hardware test pending; no command handlers yet |
-| Turbo loader | Selectable PRG bootstrap + GPIO sender; C64/C16/Plus/4 host/VICE tests pass; hardware test pending |
+| Turbo loader | C64 PAL fastloading confirmed on real hardware (4 November); C16/Plus/4 and NTSC hardware tests pending |
 | OTA updates | Disabled in the default firmware; use serial flashing |
 
 ## Hardware
@@ -87,7 +87,8 @@ verifies that the GPIO transmitter and busy wait reside in IRAM. The firmware
 GitHub Actions workflow installs ACME, assembles both targets, runs sender,
 settings, wire-order and cycle-budget tests, then builds the ESP image.
 [Protocol, timing and emulator tests](experiments/fastloader/README.md) describe
-the three stages and the limits of simulation. Hardware verification is pending.
+the three stages and the limits of simulation. C64 PAL fastloading has been
+confirmed on real hardware; other models/video standards await verification.
 
 During fastloading the deck shows payload bytes sent/remaining, percentage,
 measured average kB/s and an estimated remaining transfer time. Counts come

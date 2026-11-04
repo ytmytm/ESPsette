@@ -3,8 +3,8 @@
 The firmware supports a standard ROM bootstrap followed by a two-bit GPIO
 transfer. Enable **Use fastloader for PRG** in Playback settings; the default is
 off. Timing settings are stored in LittleFS. C64/C16/Plus/4 PAL and NTSC have
-passed host/VICE tests; ESP timing and electrical behavior still need hardware
-verification.
+passed host/VICE tests. C64 PAL fastloading was confirmed on real hardware on
+2026-11-04; other hardware variants and measured throughput await verification.
 
 Native code is in [`native/fastloader/`](../../native/fastloader/).
 [BOOTSTRAP.md](BOOTSTRAP.md) describes autostart and memory layout;

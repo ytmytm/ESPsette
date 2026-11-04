@@ -102,7 +102,8 @@ confirm BASIC POKE or machine-code marker execution after ROM restoration.
 The 32-case matrix covers three machines, both video standards, both launch
 paths, block/page boundaries, unaligned destinations, maximum RAM payloads and
 both C64 CIA variants. The ESP GPIO implementation and configurable delays also
-have host wire-order tests; physical ESP/Commodore testing is still pending.
+have host wire-order tests. C64 PAL fastloading was confirmed on real hardware
+on 2026-11-04; other hardware variants still need testing.
 
 There is no payload CRC or automatic retransmission. STOP releases the ESP
 outputs; reset the computer before retrying an interrupted receiver. The
