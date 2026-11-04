@@ -12,6 +12,16 @@ are not implemented yet.** No deck, network or filesystem action follows a
 received request. `ESP:TEST` is a useful example for checking reception, not
 an executable operation.
 
+## Quick reminder
+
+- `SAVE "NAZWA",1`: display the last verified filename; no command is published.
+- `SAVE "ESP:TEST",1`: publish request `TEST`; no handler executes it yet.
+- The ESP stores neither program. Press PLAY to supply SENSE for a real SAVE.
+- Reception requires MOTOR high on every captured edge and no selected fastloader session.
+
+The browser demo has **Simulate SAVE "NAZWA"** and **Simulate ESP:TEST** buttons.
+They reproduce the UI metadata and fastloader ownership rules without hardware.
+
 ## Sending a request
 
 1. Eject the current tape/PRG in the browser, then press PLAY. No source file
@@ -40,7 +50,15 @@ Non-printable filename bytes are displayed as `?`.
 
 A GPIO rising-edge ISR timestamps full WRITE periods while MOTOR is on and
 GPIO2 belongs to the command receiver. A bounded 512-entry ring transfers the
-periods to the main loop; protocol decoding runs outside the ISR. Pulse timing
+periods to the main loop; protocol decoding runs outside the ISR. The ISR
+checks the physical MOTOR level on every edge, not only when a session starts:
+
+```cpp
+if (!writeActive || !writeCommandsAllowed() || !(GPI & (1u << PIN_MOTOR))) return;
+```
+
+`writeCommandsAllowed()` accepts only fastloader phases OFF or DONE. The
+interrupt is detached in all other phases, including the standard bootstrap. Pulse timing
 automatically distinguishes C64 and C16/Plus/4.
 
 A request is published only after checking:

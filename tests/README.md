@@ -50,3 +50,9 @@ Fastloader UI tests check byte-based progress/ETA, accelerated counters/reels,
 data/MOTOR stalls without releasing wake protection, completion, ordinary WRITE
 filenames and configured-rate preview behavior. Encoder tests compare virtual
 payload duration with the independently generated standard pulse stream.
+
+Preview control tests run the built-in fastload sample through its shortened
+bootstrap, bounded buffer refill, receiver pause/resume and completion. They
+check WRITE isolation during fastload and header/request examples afterward,
+without changing saved settings. STOP tests check that the button springs back
+while the released PLAY state persists.

@@ -707,6 +707,49 @@ assert.equal(vm.runInContext('mock.sensePressed',context),true);
 assert.equal(elements.get('play').classList.values.has('pressed'),true);
 assert.equal(elements.get('stop').classList.values.has('pressed'),false);
 
+// One-click preview works with fastloader disabled and preserves saved settings.
+const savedFastloaderPreview = previewStorage.get('espsette.preview.fastloader');
+vm.runInContext('mock.gpioDisabled=true;mock.motorOn=true;render({...mock})',context);
+await elements.get('previewFastload').onclick();
+assert.equal(vm.runInContext('source.file.name',context),'FASTLOAD-DEMO.PRG');
+assert.equal(vm.runInContext('mock.fastloaderActive',context),true);
+assert.equal(vm.runInContext('mock.fastloader.enabled',context),false);
+assert.equal(previewStorage.get('espsette.preview.fastloader'),savedFastloaderPreview);
+assert.equal(vm.runInContext('source.sessionBody.get("turbo")',context),'1');
+assert.equal(vm.runInContext('mock.phase',context),'header');
+vm.runInContext('advanceMockFast(.8);render({...mock})',context);
+assert.equal(vm.runInContext('mock.phase',context),'fastload');
+assert.ok(vm.runInContext('mock.fastloaderBytes',context)>0);
+assert.equal(elements.get('fastProgress').hidden,false);
+const previewHeaderCount = vm.runInContext('mock.writeHeaders',context);
+elements.get('previewSaveName').onclick();
+assert.equal(vm.runInContext('mock.writeHeaders',context),previewHeaderCount);
+assert.match(elements.get('previewMessage').textContent,/WRITE reception is paused/);
+elements.get('previewPauseReceiver').onclick();
+const pausedPreviewBytes=vm.runInContext('mock.fastloaderBytes',context);
+vm.runInContext('advanceMockFast(.5);render({...mock})',context);
+assert.equal(vm.runInContext('mock.fastloaderBytes',context),pausedPreviewBytes);
+assert.match(elements.get('fastProgressDetail').textContent,/Waiting for receiver/);
+assert.equal(elements.get('previewPauseReceiver').textContent,'Resume receiver');
+assert.equal(awakeUpdates.at(-1),true);
+elements.get('previewPauseReceiver').onclick();
+vm.runInContext('advanceMockFast(.1);render({...mock})',context);
+assert.ok(vm.runInContext('mock.fastloaderBytes',context)>pausedPreviewBytes);
+for(let i=0;i<50 && vm.runInContext('mock.phase',context)!=='done';i++) {
+  vm.runInContext('advanceMockFast(.25)',context);
+  await vm.runInContext('step()',context); // Same bounded ring/refill path as selected files.
+}
+assert.equal(vm.runInContext('mock.phase',context),'done');
+assert.match(elements.get('fastProgressBytes').textContent,/100%/);
+elements.get('previewSaveName').onclick();
+assert.match(elements.get('writeDetail').textContent,/Last header: "NAZWA"/);
+assert.equal(elements.get('playbackDetails').open,true);
+const previousRequestId=vm.runInContext('mock.writeCommandId',context);
+elements.get('previewWriteCommand').onclick();
+assert.equal(vm.runInContext('mock.writeCommandId',context),previousRequestId+1);
+assert.match(elements.get('writeDetail').textContent,/ESP:TEST/);
+assert.equal(elements.get('writeStatus').textContent,'Request received (not executed)');
+vm.runInContext('mock.motorOn=false;mock.gpioDisabled=false;',context);
 // Preview settings survive reloading the page; real hardware uses LittleFS.
 await vm.runInContext("mockApi('/autoplay', {body:new URLSearchParams({enabled:'0'})})", context);
 const reloaded = vm.createContext({...context});

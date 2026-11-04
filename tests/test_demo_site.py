@@ -20,6 +20,11 @@ class DemoSiteTest(unittest.TestCase):
             self.assertIn('const preview = true;', page)
             self.assertNotIn("const preview = location.protocol", page)
             self.assertIn('<h2>Demo mode</h2>', page)
+            for control in ('previewFastload', 'previewPauseReceiver', 'previewSaveName', 'previewWriteCommand'):
+                self.assertIn(f'id="{control}"', page)
+            self.assertIn('Fastload PRG demo', page)
+            self.assertIn('Simulate ESP:TEST', page)
+            self.assertIn('SAVE "ESP:TEST",1', page)
             self.assertIn('data:video/mp4;base64,',page)
             self.assertIn('data:video/webm;base64,',page)
             for asset in set(re.findall(r'assets/[A-Za-z0-9_./-]+\.(?:webp|png|woff2|mp4|webm|js)', page)):

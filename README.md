@@ -108,6 +108,8 @@ data and creates no file. This restores the command transport, not recording.
 Command handlers are not implemented yet, so verified requests are shown as
 received without execution. GPIO2 is reserved for fastloading throughout a
 selected fast PRG session; finish or eject it before sending WRITE requests.
+The WRITE ISR checks MOTOR high on each edge and rejects capture throughout
+a selected fastloader session; its interrupt is detached during that session.
 See [WRITE command protocol](docs/WRITE-COMMANDS.md) for the procedure, validation,
 state fields and GPIO ownership.
 
@@ -177,7 +179,7 @@ nc DEVICE_IP 23
 
 Normal firmware has no UART log: GPIO1 and GPIO3 are used for SENSE and READ.
 
-Open [web/player.html](web/player.html) directly in a browser or run `make preview` to try the UI with simulated ESP state. Caveat is bundled as WOFF2 assets and embedded in the firmware, so it works offline without installed fonts or external requests. Font sources and OFL licenses are in [web/assets/fonts](web/assets/fonts). Preview saves the default computer, autoplay and fastloader settings in browser local storage; real firmware saves these settings on the ESP. See [tests/README.md](tests/README.md) for host tests and `make help` for build targets.
+Open [web/player.html](web/player.html) directly in a browser or run `make preview` to try the UI with simulated ESP state. Caveat is bundled as WOFF2 assets and embedded in the firmware, so it works offline without installed fonts or external requests. Font sources and OFL licenses are in [web/assets/fonts](web/assets/fonts). **Fastload PRG demo** runs a built-in sample with a shortened bootstrap, byte progress, accelerated counter/reels and configured timing. **Pause receiver** demonstrates a stalled transfer while keeping screen protection active. **Simulate SAVE "NAZWA"** and **Simulate ESP:TEST** show received header/request metadata; they wait until the fastload has finished or is ejected. These controls are available only in preview/demo mode and do not contact hardware. Preview saves the default computer, autoplay and fastloader settings in browser local storage; real firmware saves these settings on the ESP. See [tests/README.md](tests/README.md) for host tests and `make help` for build targets.
 
 For manual UI testing, use [ui-test.tap](tests/fixtures/ui-test.tap) with [ui-test.idx](tests/fixtures/ui-test.idx): a two-minute synthetic tape with six navigation markers. See [fixture instructions](tests/fixtures/README.md).
 
