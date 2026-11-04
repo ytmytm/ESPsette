@@ -94,11 +94,32 @@ details.card{margin-top:12px}summary{cursor:pointer;color:#d7e0e8;font-weight:60
 </section>
 
 <details class="card"><summary>Playback settings</summary><label>Default computer for PRG<select id="defaultMachine"><option value="c64-pal">C64 PAL</option><option value="c64-ntsc">C64 NTSC</option><option value="c16-pal">C16 PAL</option><option value="c16-ntsc">C16 NTSC</option></select></label><p>TAP files identify their computer and PAL/NTSC standard automatically.</p></details>
-<details class="card"><summary>Playback details</summary><div class="playback-status" aria-label="Playback status"><p id="deckMessage" role="status" aria-live="polite"></p><p id="error" role="alert"></p></div><div class="stats"><div><small>Signal remaining</small><b id="remaining">—</b></div><div><small>ESP buffer</small><b id="buffer">—</b></div><div><small>Motor</small><b id="motor">—</b></div><div><small>WRITE / SAVE</small><b id="writeStatus">—</b></div></div><div class="scope-wrap"><canvas id="scope" width="640" height="72" aria-label="READ waveform"></canvas><small id="scopeLabel">READ · waiting for playback</small></div><p id="writeDetail"></p><p id="phase">Connecting…</p><p id="indexInfo"></p><p id="transport"></p><details id="debugPanel" class="debug"><summary>Debug / ESP state</summary><p id="diagnostics"></p><pre id="debugJson"></pre></details></details>
+<details class="card"><summary>Playback details</summary><div class="playback-status" aria-label="Playback status"><p id="deckMessage" role="status" aria-live="polite"></p><p id="error" role="alert"></p></div><div class="stats"><div><small>Signal remaining</small><b id="remaining">—</b></div><div><small>ESP buffer</small><b id="buffer">—</b></div><div><small>Motor</small><b id="motor">—</b></div><div><small>WRITE / SAVE</small><b id="writeStatus">—</b></div></div><div class="scope-wrap"><canvas id="scope" width="640" height="72" aria-label="READ waveform"></canvas><small id="scopeLabel">READ · waiting for playback</small></div><p id="writeDetail"></p><p id="phase">Connecting…</p><p id="indexInfo"></p><p id="transport"></p><p id="awakeStatus" role="status">Screen sleep protection: idle.</p><button id="retryAwake" class="secondary" type="button" hidden>Keep screen awake</button><details id="debugPanel" class="debug"><summary>Debug / ESP state</summary><p id="diagnostics"></p><pre id="debugJson"></pre></details></details>
 <details id="networkCard" class="card"><summary>Network / OTA</summary><p id="networkInfo">Connecting…</p><pre id="otaCmd" class="ota-cmd"></pre><p id="otaHint"></p><p><a id="wifiLink" href="/wifi">Forget Wi-Fi…</a> (not OTA)</p></details><section id="previewPanel" class="card" hidden><h2>Local preview</h2><p>Simulation without an ESP-01. Select a TAP or PRG and toggle MOTOR to check the animation, buffer and page layout.</p><button id="motorToggle" class="secondary">MOTOR on/off</button><button id="saveMock" class="secondary">Simulate SAVE</button></section></main>
+<script src="assets/playback-awake.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const preview = location.protocol === 'file:' || new URLSearchParams(location.search).has('preview');
+const playbackAwake = createPlaybackAwake({
+  document, navigator:typeof navigator === 'undefined' ? {} : navigator,
+  window:typeof window === 'undefined' ? null : window,
+  mediaSources:[
+    {src:'assets/wake/keep-awake.mp4', type:'video/mp4'},
+    {src:'assets/wake/keep-awake.webm', type:'video/webm; codecs="vp8, vorbis"'}
+  ],
+  onStatus(status) {
+    const messages = {
+      idle:'Screen sleep protection: idle.', requesting:'Requesting screen sleep protection…',
+      native:'Screen stays awake during playback.',
+      media:'Screen sleep protection: compatibility mode. Keep this tab visible.',
+      hidden:'Screen sleep protection paused while this tab is hidden.',
+      blocked:'Screen may sleep. Tap Keep screen awake to retry; your browser or power-saving settings may block it.'
+    };
+    $('awakeStatus').textContent = messages[status];
+    $('retryAwake').hidden = status !== 'blocked';
+  }
+});
+$('retryAwake').onclick = () => playbackAwake.gesture();
 // Same tape clocks as VICE vice/src/tape/tap.c (C16 timers run at half CPU speed).
 const computerProfiles = {
   'c64-pal': {machine:'c64', video:'pal', clockHz:985248, label:'C64 PAL'},
@@ -428,6 +449,8 @@ function renderVfd(text) {
 function render(s) {
   last = s;
   const playing = !!s.playing;
+  playbackAwake.update(playing && s.motorOn && s.sensePressed &&
+    s.tapeState === 'loaded' && s.phase !== 'done' && s.phase !== 'error' && !s.error);
   const editBlocked = motorBlocksEdit(s);
   // A streamed tape stays inserted while the ESP refills its buffer after a seek.
   const sessionTape = !!(source && source.id === s.sessionId &&
@@ -747,6 +770,7 @@ async function step() {
       }
     }
   } catch (error) {
+    playbackAwake.update(false);
     $('transport').textContent = 'Connection lost; the file remains in this tab.';
     $('error').textContent = 'Connection/transfer: ' + error.message;
   } finally { busy = false; }

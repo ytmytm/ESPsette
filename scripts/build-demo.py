@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build the static GitHub Pages demo from the firmware's browser UI."""
 import argparse
+import base64
 from pathlib import Path
 import re
 import shutil
@@ -15,6 +16,13 @@ def build_demo(output: Path) -> None:
     if count != 1:
         raise ValueError('Player preview switch not found; refusing to publish a hardware UI')
     source = source.replace('<h2>Local preview</h2>', '<h2>Demo mode</h2>')
+    # Match firmware: the controller turns these embedded bytes into Blob URLs
+    # synchronously during a tap, without extra ESP requests during streaming.
+    for media in ('keep-awake.mp4', 'keep-awake.webm'):
+        path = 'assets/wake/' + media
+        kind = media.rsplit('.', 1)[1]
+        data = base64.b64encode((ROOT / 'web' / path).read_bytes()).decode('ascii')
+        source = source.replace(path, 'data:video/' + kind + ';base64,' + data)
     samples = ('<p>Try the indexed test tape: '
                '<a href="samples/ui-test.tap" download>Sample TAP</a> + '
                '<a href="samples/ui-test.idx" download>Sample IDX</a>.</p>')

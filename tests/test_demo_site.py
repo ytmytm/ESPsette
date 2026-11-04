@@ -20,7 +20,9 @@ class DemoSiteTest(unittest.TestCase):
             self.assertIn('const preview = true;', page)
             self.assertNotIn("const preview = location.protocol", page)
             self.assertIn('<h2>Demo mode</h2>', page)
-            for asset in set(re.findall(r'assets/[A-Za-z0-9_./-]+\.(?:webp|png|woff2)', page)):
+            self.assertIn('data:video/mp4;base64,',page)
+            self.assertIn('data:video/webm;base64,',page)
+            for asset in set(re.findall(r'assets/[A-Za-z0-9_./-]+\.(?:webp|png|woff2|mp4|webm|js)', page)):
                 self.assertEqual((output / asset).read_bytes(), (ROOT / 'web' / asset).read_bytes())
             self.assertTrue((output / 'assets/fonts/caveat-OFL.txt').is_file())
             for name in ('ui-test.tap', 'ui-test.idx'):

@@ -35,6 +35,7 @@ jobs:
       - name: Run host tests
         run: |
           node tests/player_index.mjs
+          node tests/playback_awake.mjs
           c++ -std=c++17 -Isrc tests/computer_profile_test.cpp -o /tmp/profile-test
           /tmp/profile-test
           c++ -std=c++17 -Isrc tests/write_decoder_test.cpp src/write_decoder.cpp -o /tmp/write-test

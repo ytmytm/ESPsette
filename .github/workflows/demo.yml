@@ -8,6 +8,7 @@ on:
       - 'scripts/build-demo.py'
       - 'tests/test_demo_site.py'
       - 'tests/player_index.mjs'
+      - 'tests/playback_awake.mjs'
       - 'tests/fixtures/**'
       - 'web/**'
   pull_request:
@@ -16,6 +17,7 @@ on:
       - 'scripts/build-demo.py'
       - 'tests/test_demo_site.py'
       - 'tests/player_index.mjs'
+      - 'tests/playback_awake.mjs'
       - 'tests/fixtures/**'
       - 'web/**'
   workflow_dispatch:
@@ -37,6 +39,7 @@ jobs:
       - name: Test player and demo packaging
         run: |
           node tests/player_index.mjs
+          node tests/playback_awake.mjs
           python3 -m unittest discover -s tests -p 'test_demo_site.py' -v
       - name: Build the static demo
         run: python3 scripts/build-demo.py

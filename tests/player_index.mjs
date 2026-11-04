@@ -26,7 +26,9 @@ function element() {
   };
 }
 const previewStorage = new Map();
+const awakeUpdates = [];
 const context = vm.createContext({
+  createPlaybackAwake: () => ({update:active => awakeUpdates.push(!!active), gesture(){}}),
   localStorage: {getItem:key => previewStorage.get(key) ?? null,
     setItem:(key, value) => previewStorage.set(key, String(value))},
   document: {
@@ -289,6 +291,7 @@ vm.runInContext(`source = {file:resumeTape, type:'tap', id:${resume.sessionId},
 await vm.runInContext('step()', context);
 assert.equal(vm.runInContext('source.offset', context), 20);
 assert.match(elements.get('transport').textContent, /Connection lost/);
+assert.equal(awakeUpdates.at(-1),false);
 vm.runInContext('api = originalApi; mock.fileOffsetReceived = 21; mockBytes = 1;', context);
 await vm.runInContext('step()', context);
 assert.equal(vm.runInContext('source.offset', context), 26);
@@ -533,6 +536,20 @@ assert.throws(()=>vm.runInContext('tapFormat(profileHeader,21)',context),/PAL\/N
 await assert.rejects(vm.runInContext("mockApi('/default-machine',{body:new URLSearchParams({machine:'c16-secam'})})",context));
 // Legacy preview settings migrate to PAL without losing the computer choice.
 previewStorage.set('espsette.preview.machine','c16');
+// Screen protection follows actual playback, even after the whole file is buffered.
+vm.runInContext("mock.motorOn=true; mock.sensePressed=true; mock.playing=true; mock.tapeState='loaded';mock.phase='data';mock.error=null;render({...mock})", context);
+assert.equal(awakeUpdates.at(-1),true);
+vm.runInContext('render({...mock,fileOffsetReceived:mock.logicalSize})',context);
+assert.equal(awakeUpdates.at(-1),true);
+vm.runInContext('render({...mock, motorOn:false})',context);
+assert.equal(awakeUpdates.at(-1),false);
+vm.runInContext('render({...mock, sensePressed:false})',context);
+assert.equal(awakeUpdates.at(-1),false);
+vm.runInContext("render({...mock, phase:'done'})",context);
+assert.equal(awakeUpdates.at(-1),false);
+vm.runInContext("render({...mock, phase:'error',error:'buffer_underrun'})",context);
+assert.equal(awakeUpdates.at(-1),false);
+vm.runInContext('mock.motorOn=false;mock.playing=false;render({...mock})',context);
 // Preview settings survive reloading the page; real hardware uses LittleFS.
 await vm.runInContext("mockApi('/autoplay', {body:new URLSearchParams({enabled:'0'})})", context);
 const reloaded = vm.createContext({...context});
