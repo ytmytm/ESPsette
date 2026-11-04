@@ -607,7 +607,11 @@ assert.equal(elements.get('remainingLabel').textContent, 'Transfer remaining');
 assert.equal(elements.get('remaining').textContent, '3,072 B · ~0.4 s');
 assert.ok(vm.runInContext('lastCounterValue', context) > fastCounterStart);
 assert.equal(elements.get('deck').classList.values.has('fastloading'), true);
-assert.ok(parseFloat(elements.get('deck').style['--spin-period']) < 1.6);
+const normalReelPeriod = Number(html.match(/\.playing \.reel\{animation:spin ([\d.]+)s/)[1]);
+const fastReelPeriod = Number(html.match(/\.playing\.fastloading \.reel\{animation-duration:([\d.]+)s/)[1]);
+assert.ok(fastReelPeriod * 4 < normalReelPeriod); // Turbo must be clearly faster, including before rate telemetry.
+assert.equal(vm.runInContext('fastloaderView({...progressState,fastloaderBytes:0,fastloaderElapsedMs:0}).spinning',context),true);
+assert.equal(vm.runInContext("fastloaderView({...progressState,phase:'bootstrap',fastloaderBytes:0,fastloaderElapsedMs:0}).spinning",context),true);
 vm.runInContext('render({...mock,...progressState,fastloaderWaitingForData:true,playing:false})', context);
 assert.match(elements.get('fastProgressDetail').textContent, /Waiting for data/);
 assert.equal(elements.get('deck').classList.values.has('playing'), false);
@@ -631,7 +635,7 @@ assert.equal(vm.runInContext('fastloaderView({...progressState,fastloaderTotalBy
 vm.runInContext(`render({...mock,sourceType:'tap',fastloaderActive:false})`, context);
 assert.equal(elements.get('fastProgress').hidden, true);
 assert.equal(elements.get('remainingLabel').textContent, 'Signal remaining');
-assert.equal(elements.get('deck').style['--spin-period'], '1.6s');
+assert.equal(elements.get('deck').classList.values.has('fastloading'), false);
 assert.equal(vm.runInContext('pollDelay(progressState,false)',context),100); // Fully uploaded PRG still polls quickly.
 assert.equal(vm.runInContext("pollDelay({sourceType:'tap',playing:false},false)",context),350);
 assert.equal(vm.runInContext("pollDelay({sourceType:'tap',playing:true},true)",context),80);

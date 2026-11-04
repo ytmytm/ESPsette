@@ -100,8 +100,9 @@ For a fast session, `totalCycles` and `playedCycles` are presentation values:
 the standard bootstrap duration plus the ordinary ROM duration of both copies
 of the total/sent payload. The encoder computes this arithmetically; no extra
 TAP or file copy is generated. The VFD/counter therefore accelerate with the
-actual byte count. Reels accelerate with the measured virtual-tape speed ratio,
-capped visually at a 0.12 s rotation; reduced-motion settings still apply.
+actual byte count. During the fast receiver and payload stages reels switch from 1.6 s to 0.28 s per rotation,
+independent of the first rate sample. This is a visual speed cue, not a measured
+RPM display; reduced-motion settings still apply.
 Progress is polled at 100 ms during fast stages even after the whole file has
 been uploaded. The completed session remains available at 100% until explicit
 rewind/ejection, so the final report cannot disappear between polls.

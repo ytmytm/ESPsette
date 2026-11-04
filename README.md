@@ -94,8 +94,9 @@ PRGs remain at 100% until rewound or ejected.
 
 The VFD and mechanical counter show **virtual tape time**: the standard ROM
 signal duration of the transmitted bytes, including both ordinary copies.
-They advance rapidly as fast data arrives. Reels also speed up, with a visual
-speed cap and the existing reduced-motion preference. The payload meter and
+They advance rapidly as fast data arrives. Reels switch to a clearly faster animation during the fast receiver and payload stages
+(0.28 s per turn instead of 1.6 s).
+The existing reduced-motion preference still applies. The payload meter and
 ETA show actual transfer progress; virtual tape minutes are not wall-clock
 minutes. Preview simulates fast speed from the saved timing settings.
 

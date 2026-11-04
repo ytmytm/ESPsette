@@ -129,12 +129,12 @@ main{max-width:760px;margin:auto;padding:18px}p{line-height:1.45;color:#abb7c3}
 .fast-progress-heading{display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;font-size:.8rem}
 .fast-progress progress{display:block;width:100%;height:14px;margin-top:8px;accent-color:#f4c354}
 .fast-progress p{margin:6px 0 0;color:#a4b3bf;font-size:.75rem}
-.playing .reel{animation:spin var(--spin-period,1.6s) linear infinite}@keyframes spin{from{transform:translate(-50%,-50%) rotate(0)}to{transform:translate(-50%,-50%) rotate(-360deg)}}
+.playing .reel{animation:spin 1.6s linear infinite}.playing.fastloading .reel{animation-duration:.28s}@keyframes spin{from{transform:translate(-50%,-50%) rotate(0)}to{transform:translate(-50%,-50%) rotate(-360deg)}}
 .ejected .cassette{display:none}.ejected .window:after{content:'EMPTY DECK';color:#9aa6b2;letter-spacing:.2em}
 .keys{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:15px}.key{margin:0;font:700 clamp(.66rem,2vw,.9rem) system-ui;background:linear-gradient(#34393d,#0c1015);border:2px solid #535a62;border-radius:5px 5px 10px 10px;min-height:52px;padding:8px 3px;box-shadow:0 5px 2px #080a0d;color:#d2dce3;cursor:pointer}.key.pressed{transform:translateY(4px);box-shadow:0 1px 2px #080a0d;color:#fff}.key:disabled{cursor:not-allowed;opacity:.45}.key:active{transform:translateY(4px);box-shadow:0 1px 2px #080a0d}#deckMessage{margin:12px 0 0;min-height:1.5em;text-align:center;font-size:.9rem}.key:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid #f4c354;outline-offset:2px}
 .debug{margin-top:12px;border-top:1px solid #42505d;padding-top:10px}.debug summary{cursor:pointer;color:#d7e0e8}.debug pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px ui-monospace,monospace;color:#b8c9d8;background:#10171e;border-radius:8px;padding:12px;max-height:330px;overflow:auto}
 @media(max-width:480px){main{padding:12px}.deck{padding:11px}.keys{gap:3px}.key{min-height:46px;padding:5px 2px}}
-@media(prefers-reduced-motion:reduce){.playing .reel{animation-duration:5s}.counter-strip.rolling{animation:none;transform:translateY(-1.15em)}}
+@media(prefers-reduced-motion:reduce){.playing .reel,.playing.fastloading .reel{animation-duration:5s}.counter-strip.rolling{animation:none;transform:translateY(-1.15em)}}
 .card{background:#202832;border:1px solid #36414b;border-radius:12px;padding:16px;margin-top:18px}
 label{display:block;margin:12px 0}input[type=file],select{display:block;width:100%;margin-top:8px}select{font:inherit;padding:10px;background:#111923;color:#fff;border:1px solid #566472;border-radius:8px}button{font:inherit;border:0;border-radius:8px;background:#d5a43a;color:#17191a;padding:10px 15px;margin:4px 5px 4px 0;font-weight:700}button.secondary{background:#414e5b;color:#fff}button:disabled{opacity:.45}a{color:#9fcfff}
 .stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.stats div{background:#131a22;border-radius:7px;padding:12px}.stats b{display:block;overflow-wrap:anywhere}.stats b{font-family:inherit;font-size:1.2rem;font-style:normal;font-weight:700;color:#edf0f2}small{color:#a4b3bf}#error{color:#ffaaa6;min-height:1.3em}
@@ -710,12 +710,10 @@ const sent = Math.max(0, Math.min(total, Math.floor(Number(s.fastloaderBytes) ||
 const elapsed = Number(s.fastloaderElapsedMs);
 const rate = elapsed > 0 && Number.isFinite(elapsed) ? sent * 1000 / elapsed : 0;
 const remaining = total - sent;
-const spinning = s.tapeState === 'loaded' && s.phase === 'fastload' && remaining > 0 &&
+const spinning = s.tapeState === 'loaded' && ['bootstrap', 'fastload'].includes(s.phase) && remaining > 0 &&
 !s.fastloaderWaitingForData && !s.fastloaderWaitingForMotor && !s.error;
-const speed = rate > 0 ? rate * prgDataCycles(1, s.machine) / s.clockHz : 2;
 return {total, sent, remaining, rate, percent:sent * 100 / total,
-eta:rate > 0 && !s.fastloaderWaitingForData && !s.fastloaderWaitingForMotor ? remaining / rate : null, spinning,
-spinPeriod:Math.max(.12, Math.min(5, 1.6 / speed))};
+eta:rate > 0 && !s.fastloaderWaitingForData && !s.fastloaderWaitingForMotor ? remaining / rate : null, spinning};
 }
 function fastRemainingSeconds(seconds) {
 return seconds < 10 ? seconds.toFixed(1) + ' s' : Math.ceil(seconds) + ' s';
@@ -817,7 +815,7 @@ drawVfdText($('vfdDigits'), text);
 function render(s) {
 last = s;
 const fast = fastloaderView(s);
-const playing = fast && s.phase === 'fastload' ? fast.spinning : !!s.playing;
+const playing = fast && ['bootstrap', 'fastload'].includes(s.phase) ? fast.spinning : !!s.playing;
 // During fast transfer MOTOR requests blocks and SENSE carries data.
 // Keep protection through signature/buffer waits and ROM MOTOR pauses too.
 const fastPrgTransfer = s.sourceType === 'prg' && s.fastloaderActive &&
@@ -850,7 +848,6 @@ $('rewindLabel').textContent = indexed ? 'PREV' : 'REW';
 $('forwardLabel').textContent = indexed ? 'NEXT' : 'FF';
 $('deck').classList.toggle('playing', playing);
 $('deck').classList.toggle('fastloading', !!fast?.spinning);
-$('deck').style.setProperty('--spin-period', fast?.spinning ? fast.spinPeriod + 's' : '1.6s');
 $('fastProgress').hidden = !fast;
 if (fast) {
 const count = value => value.toLocaleString('en-US');
