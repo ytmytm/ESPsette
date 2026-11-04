@@ -85,7 +85,7 @@ static void checkMachine(PrgEncoder::Machine machine, Timings t, bool ntsc = fal
          PrgEncoder::Result::END);
 
   if (c16) {
-    // Pi1551's synthetic native SAVE pulses have 240/480/960 us halfwaves.
+    // Pi1551's synthetic native tape pulses have 240/480/960 us halfwaves.
     // Compare wholewave durations with our PAL cycle values (WAV-PRG).
     const uint32_t clock = encoder.clockHz();
     assert(clock == (ntsc ? 894886 : 886724));
@@ -98,9 +98,59 @@ static void checkMachine(PrgEncoder::Machine machine, Timings t, bool ntsc = fal
   } else assert(encoder.clockHz() == (ntsc ? 1022730 : 985248));
 }
 
+static void checkAutostart(bool c16, bool ntsc, size_t codeLength) {
+  const Timings t = c16 ? Timings{448, 896, 1792} : Timings{384, 536, 680};
+  const auto machine = c16 ? PrgEncoder::Machine::C16 : PrgEncoder::Machine::C64;
+  const uint16_t entry = c16 ? 0x0347 : 0x0351;
+  const uint8_t stream[] = {2, 3, (uint8_t)entry, (uint8_t)(entry >> 8),
+                                  (uint8_t)entry, (uint8_t)(entry >> 8)};
+  TapeSource source;
+  source.useEmbedded(stream, sizeof(stream));
+  std::array<uint8_t, 172> code;
+  for (size_t i = 0; i < code.size(); ++i) code[i] = (uint8_t)(i * 73);
+  PrgEncoder encoder;
+  assert(!encoder.beginAutostart(nullptr, 1, "BOOT", machine, ntsc));
+  assert(!encoder.beginAutostart(code.data(), 0, "BOOT", machine, ntsc));
+  assert(!encoder.beginAutostart(code.data(), 172, "BOOT", machine, ntsc));
+  assert(encoder.beginAutostart(code.data(), codeLength, "BOOT", machine, ntsc));
+  encoder.observeFirstCopy(2, stream + 2, 2);
+  std::array<uint8_t, 192> header;
+  header.fill(0x20);
+  header[0] = 3;
+  header[1] = 2; header[2] = 3;
+  header[3] = 4; header[4] = 3;
+  header[5] = 'B'; header[6] = 'O'; header[7] = 'O'; header[8] = 'T';
+  for (size_t i = 0; i < codeLength; ++i) header[21 + i] = code[i];
+  std::vector<uint32_t> expected;
+  referenceBlock(expected, header.data(), header.size(), true, true, t, c16);
+  referenceBlock(expected, header.data(), header.size(), false, true, t, c16);
+  expected.push_back(200000);
+  referenceBlock(expected, stream + 2, 2, true, false, t, c16);
+  referenceBlock(expected, stream + 4, 2, false, false, t, c16);
+  expected.insert(expected.end(), 200, t.shortPulse);
+  // The browser ring now contains a real PRG, not the autostart vector.
+  // Bootstrap must emit its own vector and retain all payload bytes.
+  const uint8_t address[] = {1, 8};
+  const uint8_t payload[] = {0xde, 0xad, 0xbe, 0xef};
+  source.usePrg(address, 6, 1);
+  assert(source.append(2, payload, sizeof(payload)));
+  uint64_t total = 0;
+  assert(encoder.totalPulses() == expected.size());
+  for (size_t i = 0; i < expected.size(); ++i) {
+    uint32_t cycles = 0, offset = 0;
+    assert(encoder.pulseAt(i, source, cycles, offset) == PrgEncoder::Result::PULSE);
+    assert(cycles == expected[i]);
+    assert(offset == 2);
+    total += cycles;
+  }
+  assert(encoder.totalCycles() == total);
+}
+
 int main() {
   checkMachine(PrgEncoder::Machine::C16, {448, 896, 1792});
   checkMachine(PrgEncoder::Machine::C64, {384, 536, 680});
   checkMachine(PrgEncoder::Machine::C16, {448, 896, 1792}, true);
   checkMachine(PrgEncoder::Machine::C64, {384, 536, 680}, true);
+  for (bool c16 : {false, true}) for (bool ntsc : {false, true})
+    for (size_t length : {size_t(1), size_t(171)}) checkAutostart(c16, ntsc, length);
 }

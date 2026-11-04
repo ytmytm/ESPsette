@@ -16,6 +16,7 @@ uint32_t PrgEncoder::blockPulses(uint32_t pilotPulses, uint32_t bodyBytes) {
 bool PrgEncoder::begin(uint16_t loadAddress, uint32_t dataLength,
                        const String& name, Machine machine, bool ntsc) {
   if (!dataLength || (uint32_t)loadAddress + dataLength > 65535) return false;
+  autostart_ = false;
   machine_ = machine;
   ntsc_ = ntsc;
   dataLength_ = dataLength;
@@ -56,6 +57,22 @@ bool PrgEncoder::begin(uint16_t loadAddress, uint32_t dataLength,
   return true;
 }
 
+bool PrgEncoder::beginAutostart(const uint8_t* code, size_t length,
+                               const String& name, Machine machine, bool ntsc) {
+  if (!code || !length || length > HEADER_BYTES - 21) return false;
+  if (!begin(0x0302, 2, name, machine, ntsc)) return false;
+  autostart_ = true;
+  autostartEntry_[0] = machine == Machine::C16 ? 0x47 : 0x51;
+  autostartEntry_[1] = 3;
+  header_[0] = 3; // Absolute load, independent of the current BASIC start.
+  memcpy(header_ + 21, code, length);
+  headerChecksum_ = 0;
+  for (uint8_t value : header_) headerChecksum_ ^= value;
+  totalPulses_ += 200;
+  totalCycles_ += 200u * shortCycles();
+  return true;
+}
+
 void PrgEncoder::observeFirstCopy(uint32_t offset, const uint8_t* bytes, size_t length) {
   for (size_t i = 0; i < length; ++i) {
     const uint32_t logicalOffset = offset + i;
@@ -84,7 +101,7 @@ PrgEncoder::Result PrgEncoder::blockPulse(uint32_t index, uint32_t pilotPulses,
                                           uint32_t& sourceOffset) const {
   const uint32_t bodyBytes = headerBlock ? HEADER_BYTES : dataLength_;
   const uint32_t dataBase = 2 + (uint32_t)dataCopy * dataLength_;
-  sourceOffset = headerBlock ? 2 : dataBase;
+  sourceOffset = headerBlock || autostart_ ? 2 : dataBase;
   if (index < pilotPulses) { cycles = shortCycles(); return Result::PULSE; }
   index -= pilotPulses;
   if (index < 9 * BYTE_PULSES) {
@@ -99,18 +116,21 @@ PrgEncoder::Result PrgEncoder::blockPulse(uint32_t index, uint32_t pilotPulses,
     uint8_t value;
     if (byteIndex == bodyBytes) {
       value = headerBlock ? headerChecksum_ : dataChecksum_;
-      sourceOffset = headerBlock ? 2 : dataBase + bodyBytes;
+      sourceOffset = headerBlock || autostart_ ? 2 : dataBase + bodyBytes;
     } else if (headerBlock) {
       value = header_[byteIndex];
     } else {
       sourceOffset = dataBase + byteIndex;
-      if (!source.read(sourceOffset, value)) return Result::MISSING_DATA;
+      if (autostart_) {
+        value = autostartEntry_[byteIndex];
+        sourceOffset = 2; // The PRG stream belongs to the later GPIO transfer.
+      } else if (!source.read(sourceOffset, value)) return Result::MISSING_DATA;
     }
     cycles = bytePulse(value, index % BYTE_PULSES);
     return Result::PULSE;
   }
   index -= (bodyBytes + 1) * BYTE_PULSES;
-  sourceOffset = headerBlock ? 2 : dataBase + bodyBytes;
+  sourceOffset = headerBlock || autostart_ ? 2 : dataBase + bodyBytes;
   cycles = index == 0 ? longCycles() :
            (machine_ == Machine::C16 ? mediumCycles() : shortCycles());
   return Result::PULSE;
@@ -119,6 +139,9 @@ PrgEncoder::Result PrgEncoder::blockPulse(uint32_t index, uint32_t pilotPulses,
 PrgEncoder::Result PrgEncoder::pulseAt(uint32_t index, const TapeSource& source,
                                        uint32_t& cycles, uint32_t& sourceOffset) const {
   if (index >= totalPulses_) return Result::END;
+  if (autostart_ && index >= totalPulses_ - 200) {
+    cycles = shortCycles(); sourceOffset = 2; return Result::PULSE;
+  }
   const uint32_t header1 = blockPulses(FIRST_HEADER_PILOT, HEADER_BYTES);
   if (index < header1)
     return blockPulse(index, FIRST_HEADER_PILOT, true, true, 0,

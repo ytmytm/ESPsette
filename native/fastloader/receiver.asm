@@ -1,9 +1,11 @@
-; ACME: -DC16=0 or -DC16=1. Experimental receiver entered by VICE monitor.
+; ACME: -DC16=0 or -DC16=1. BOOT=1 selects the tape-bootstrap handoff.
 ; Descriptor: destination, length, execution address (three little-endian words).
 ; Owns $f7..$ff and stack. Payload must not overlap receiver/tables.
 !cpu 6502
 !ifndef BLOCK_SIZE { BLOCK_SIZE = 256 }
-* = $0800
+!ifndef BOOT { BOOT = 0 }
+!ifndef ORIGIN { ORIGIN = $0800 }
+* = ORIGIN
 dest = $f7
 remaining = $f9
 entry = $fb
@@ -105,6 +107,10 @@ write_bit = $ff
 
 start:
     sei
+!if BOOT {
+    !if C16 { lda #$09 } else { lda #$27 }
+    sta $00                     ; bootstrap already released WRITE
+}
     ldx #$ff
     txs
 !if C16 {
@@ -128,10 +134,12 @@ start:
     sta $dd0d
     lda $dc0d
     lda $dd0d
+!if BOOT = 0 {
     lda #$2f
     sta $00
     lda #$0f
-    sta $01                     ; WRITE high before switching to input
+    sta $01                     ; cold monitor test primes input pull-up
+}
     lda #$27
     sta $00
     lda #$07                    ; keep ROM/I/O visible, MOTOR on
@@ -157,6 +165,12 @@ header_store:
     cpy #6
     bne header
 header_end:
+!if BOOT {
+    lda dest
+    sta saved_start
+    lda dest+1
+    sta saved_start+1
+}
     ldy #0
 next_block:
 !if BLOCK_SIZE = 256 {
@@ -217,7 +231,31 @@ payload_store:
     jmp next_block
 load_end:
 done:
+!if BOOT {
+    ; Relocate the final handoff into the now-unused tape buffer. Screen
+    ; initialization can then clear screen/color RAM containing this code.
+    lda entry
+    sta finish_source+(launch_entry-finish)
+    lda entry+1
+    sta finish_source+(launch_entry-finish)+1
+    lda saved_start
+    sta finish_source+(program_start-finish)
+    lda saved_start+1
+    sta finish_source+(program_start-finish)+1
+    lda dest
+    sta finish_source+(program_end-finish)
+    lda dest+1
+    sta finish_source+(program_end-finish)+1
+    ldx #finish_end-finish-1
+copy_finish:
+    lda finish_source,x
+    sta finish,x
+    dex
+    bpl copy_finish
+    jmp finish
+} else {
     jmp (entry)                 ; test stops before executing the payload
+}
 
 request_block:
     lda port_value              ; never derive output latch from live $01
@@ -231,5 +269,49 @@ port_value: !byte 0
 upper_table:
 !for i, 0, 15 {
     !byte i << 4
+}
+!if BOOT {
+saved_start: !word 0
+finish_source:
+!if C16 { FINISH_ADDR = $0333 } else { FINISH_ADDR = $033c }
+!pseudopc FINISH_ADDR {
+finish:
+    sei
+    jsr $ff84                   ; IOINIT: ports/timers back to KERNAL state
+    jsr $ff8a                   ; restore KERNAL vectors
+!if C16 { jsr $8117 } else { jsr $e453 } ; restore BASIC vectors, including $0302
+    jsr $ff81                   ; screen/color init can overwrite receiver
+    lda program_start
+    sta $2b
+    lda program_start+1
+    sta $2c
+    lda program_end
+    sta $2d
+    lda program_end+1
+    sta $2e
+    lda #0
+    sta $90                     ; clear cassette status
+!if C16 { sta $ef } else { sta $c6 }
+    lda launch_entry
+    ora launch_entry+1
+    beq run_basic
+    cli
+    jmp (launch_entry)
+run_basic:
+!if C16 {
+    jsr $8bbe                   ; CLR / reset BASIC execution pointers
+    cli
+    jmp $8bea
+} else {
+    jsr $a659                   ; CLR / reset BASIC execution pointers
+    cli
+    jmp $a7ae
+}
+launch_entry: !word 0            ; zero selects BASIC RUN
+program_start: !word 0
+program_end: !word 0
+finish_end:
+}
+!if finish_end-finish > 128 { !error "finish trampoline exceeds copy loop" }
 }
 receiver_end:

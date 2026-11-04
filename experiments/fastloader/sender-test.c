@@ -75,6 +75,36 @@ static void queued_request(int c16)
     assert(s.sent == sizeof(bytes) && s.requests == 3);
 }
 
+static void bootstrap_pages(int c16) {
+    uint8_t bytes[768];
+    for (unsigned i = 0; i < sizeof(bytes); ++i) bytes[i] = (uint8_t)i;
+    fl_config config = {3, 80, 3, 5, 1000, 80, 0, 0, 256};
+    config.c16 = c16;
+    fl_sender s;
+    fl_init_bootstrap(&s, config, bytes, sizeof(bytes));
+    size_t received = 0;
+    unsigned value = 0, pairs = 0;
+    int high = 1;
+    while (received < sizeof(bytes)) {
+        fl_motor(&s, received * 100000, !s.motor);
+        while (s.next != UINT64_MAX) {
+            fl_step(&s);
+            if (s.read_high != high) {
+                if (c16 || !s.read_high) {
+                    value = (value << 2) | (s.write_high << 1) | s.sense_high;
+                    if (++pairs == 4) {
+                        assert(value == bytes[received++]);
+                        pairs = value = 0;
+                    }
+                }
+                high = s.read_high;
+            }
+        }
+        assert(received == s.requests * 256);
+    }
+    assert(s.requests == 3);
+}
+
 int main(void)
 {
     const size_t lengths[] = {1, 255, 256, 257, 512, 513};
@@ -84,6 +114,7 @@ int main(void)
             transfer(c16, lengths[i], 1);
         }
         queued_request(c16);
+        bootstrap_pages(c16);
     }
     puts("sender: both READ variants, block boundaries, stalls, latency and queued block request passed");
     return 0;

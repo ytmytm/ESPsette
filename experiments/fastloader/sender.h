@@ -21,10 +21,14 @@ typedef struct {
     size_t size, sent, block_end;
     uint64_t next, request_time;
     unsigned symbol, phase, random, requests;
+    unsigned header_bytes;
+    int bootstrap_pairs;
     int motor, pending, read_high, write_high, sense_high;
 } fl_sender;
 
 void fl_init(fl_sender *s, fl_config config, const uint8_t *data, size_t size);
+/* Compact first-stage receiver: raw pages, MSB-first pairs, no descriptor. */
+void fl_init_bootstrap(fl_sender *s, fl_config config, const uint8_t *data, size_t size);
 void fl_motor(fl_sender *s, uint64_t now, int on);
 /* Call at s->next, then apply the three physical output levels. UINT64_MAX
  * means waiting for MOTOR. The descriptor is a separate six-byte block,

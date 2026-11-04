@@ -22,11 +22,12 @@ CLOCKS = {"c64":(985248,1022730), "c16":(1773447,1789772)}
 PROFILES = {"c64":(16,19), "c16":(16,11)}
 
 
-def analyze(c16, directory):
+def analyze(c16, directory, boot=False):
     family = "c16" if c16 else "c64"
     prg, symbols = directory/f"{family}.prg", directory/f"{family}.labels"
-    subprocess.run(["acme",f"-DC16={c16}","-f","cbm","-o",str(prg),
-                    "-l",str(symbols),str(ROOT/"receiver.asm")],check=True)
+    subprocess.run(["acme",f"-DC16={c16}",f"-DBOOT={int(boot)}",
+                    f"-DORIGIN={0x0800 if c16 or not boot else 0x0400}","-f","cbm","-o",str(prg),
+                    "-l",str(symbols),str(ROOT.parents[1]/"native/fastloader/receiver.asm")],check=True)
     raw = prg.read_bytes()
     origin = int.from_bytes(raw[:2],"little")
     memory = dict(enumerate(raw[2:],origin))
@@ -133,9 +134,10 @@ def analyze(c16, directory):
 if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out",type=Path)
+    parser.add_argument("--boot",action="store_true",help="Analyze the low-RAM bootstrap receiver")
     args=parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="ESPsette-timing-") as directory:
-        results=[analyze(c16,Path(directory)) for c16 in (0,1)]
+        results=[analyze(c16,Path(directory),args.boot) for c16 in (0,1)]
     output=json.dumps(results,indent=2)+"\n"
     print(output,end="")
     if args.out:

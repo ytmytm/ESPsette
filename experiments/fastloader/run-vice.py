@@ -50,7 +50,7 @@ for machine in machines:
     receiver = case / "receiver.prg"
     labels = case / "labels.txt"
     subprocess.run(["acme", f"-DC16={int(machine != 'c64')}", f"-DBLOCK_SIZE={args.block_bytes}", "-f", "cbm",
-                    "-o", str(receiver), "-l", str(labels), str(ROOT / "receiver.asm")],
+                    "-o", str(receiver), "-l", str(labels), str(ROOT.parents[1] / "native/fastloader/receiver.asm")],
                    check=True)
     done = int(re.search(r"\bdone\s*=\s*\$([0-9a-f]+)", labels.read_text())[1], 16)
     # Deliberately exercise every byte value and adjacent repeated data pairs.

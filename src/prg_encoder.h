@@ -15,6 +15,11 @@ class PrgEncoder {
 
   bool begin(uint16_t loadAddress, uint32_t dataLength, const String& name,
              Machine machine, bool ntsc = false);
+  // Absolute two-byte load at $0302; code lives in the header's spare tail.
+  // Vector bytes are generated internally; observeFirstCopy receives that
+  // vector once for its checksum. The PRG ring remains untouched.
+  bool beginAutostart(const uint8_t* code, size_t length, const String& name,
+                      Machine machine, bool ntsc = false);
   void observeFirstCopy(uint32_t offset, const uint8_t* bytes, size_t length);
   Result pulseAt(uint32_t index, const TapeSource& source,
                  uint32_t& cycles, uint32_t& sourceOffset) const;
@@ -31,6 +36,8 @@ class PrgEncoder {
   uint8_t header_[HEADER_BYTES] = {};
   uint8_t headerChecksum_ = 0;
   uint8_t dataChecksum_ = 0;
+  bool autostart_ = false;
+  uint8_t autostartEntry_[2] = {};
   uint32_t dataLength_ = 0;
   uint32_t dataStartPulse_ = 0;
   uint32_t totalPulses_ = 0;
