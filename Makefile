@@ -14,15 +14,11 @@ SERIAL_ENV := esp01_512k_serial
 else ifeq ($(PROFILE),1m)
 SERIAL_ENV := esp01_1m_serial
 OTA_ENV := esp01_1m_ota
-else ifeq ($(PROFILE),1m-write)
-SERIAL_ENV := esp01_1m_write_serial
 else ifeq ($(PROFILE),4m)
 SERIAL_ENV := esp01_4m_serial
 OTA_ENV := esp01_4m_ota
-else ifeq ($(PROFILE),4m-write)
-SERIAL_ENV := esp01_4m_write_serial
 else
-$(error PROFILE must be 512k, 1m, 4m, 1m-write, or 4m-write)
+$(error PROFILE must be 512k, 1m, or 4m)
 endif
 
 ESPTOOL := ESPTOOL_CFGFILE="$(CURDIR)/esptool.cfg" ./tools/venv/bin/python -m esptool --chip esp8266 --port "$(PORT)"

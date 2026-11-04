@@ -19,7 +19,6 @@ Hardware tests on **1 November 2026**:
 | PRG → standard tape pulses, C64 and C16/Plus/4 PAL/NTSC | Host tests pass; hardware test pending |
 | C16/Plus/4 playback; all supported TAP v1/v2 variants | Full hardware coverage pending |
 | IDX seeking and counter-based REW/FF | Host tests pass; hardware test pending |
-| WRITE / SAVE header decoding | Host tests pass; hardware test pending; disabled by default |
 | Turbo loader | [Isolated C64/C16/Plus/4 host/VICE experiment](experiments/fastloader/README.md); firmware option pending |
 | OTA updates | Disabled in the default firmware; use serial flashing |
 
@@ -51,7 +50,6 @@ Tools are installed in `tools/`, with Python and PlatformIO packages/caches unde
 | `1m` (default) | 1 MB flash, 64 KB LittleFS |
 | `4m` | ESP-01 with 4 MB flash |
 | `512k` | 512 KB flash; current firmware may not fit |
-| `1m-write`, `4m-write` | Optional WRITE input; requires protected, boot-safe wiring |
 
 ## Flash over USB-UART
 
@@ -129,7 +127,7 @@ The hosted demo is built from the same `web/player.html` by `scripts/build-demo.
 
 GitHub Actions runs host tests and compiles the default 1 MB firmware on code pushes, pull requests and manual runs. Download the package from the run's **Artifacts** section; it contains the `.bin`, debug ELF, build metadata, checksums and flashing instructions.
 
-To release, publish a GitHub Release with a tag such as `v2026-11-01` pointing to the desired commit. The workflow builds that tag and automatically attaches the same files to the release. Tags must use `vYYYY-MM-DD` with a valid calendar date. Pushing a tag alone does not publish a release. Experimental WRITE/OTA profiles are not included.
+To release, publish a GitHub Release with a tag such as `v2026-11-01` pointing to the desired commit. The workflow builds that tag and automatically attaches the same files to the release. Tags must use `vYYYY-MM-DD` with a valid calendar date. Pushing a tag alone does not publish a release. Experimental OTA profiles are not included.
 
 ## References
 

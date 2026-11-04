@@ -314,10 +314,7 @@ vm.runInContext('mock.playedCycles = 1234; render({...mock})', context);
 await vm.runInContext("document.getElementById('rewind').onclick()", context);
 assert.equal(vm.runInContext('mock.playedCycles', context), 0);
 assert.equal(vm.runInContext('mock.sensePressed', context), true);
-vm.runInContext("document.getElementById('saveMock').onclick()", context);
-assert.match(elements.get('writeDetail').textContent, /ESP:TEST/);
-vm.runInContext("mock.writeMachine = 'c16'; render({...mock})", context);
-assert.match(elements.get('writeDetail').textContent, /C16\/Plus4/);
+
 vm.runInContext("mock.tapeState = 'loaded'; mock.fileName = 'game.tap'; mock.machine = 'c16'; mock.sourceType = 'tap'; render({...mock})", context);
 assert.match(elements.get('loaded').textContent, /game\.tap/);
 assert.equal(elements.get('machineLabel').textContent, 'C16');
@@ -556,4 +553,4 @@ const reloaded = vm.createContext({...context});
 vm.runInContext(script, reloaded);
 assert.equal(vm.runInContext('mock.defaultMachine', reloaded), 'c16-pal');
 assert.equal(vm.runInContext('mock.autoPlay', reloaded), false);
-console.log('IDX/TAP, VICE counter, English UI, session recovery and WRITE preview OK');
+console.log('IDX/TAP, VICE counter, English UI, session recovery OK');

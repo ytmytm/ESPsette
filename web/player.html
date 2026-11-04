@@ -94,8 +94,8 @@ details.card{margin-top:12px}summary{cursor:pointer;color:#d7e0e8;font-weight:60
 </section>
 
 <details class="card"><summary>Playback settings</summary><label>Default computer for PRG<select id="defaultMachine"><option value="c64-pal">C64 PAL</option><option value="c64-ntsc">C64 NTSC</option><option value="c16-pal">C16 PAL</option><option value="c16-ntsc">C16 NTSC</option></select></label><p>TAP files identify their computer and PAL/NTSC standard automatically.</p></details>
-<details class="card"><summary>Playback details</summary><div class="playback-status" aria-label="Playback status"><p id="deckMessage" role="status" aria-live="polite"></p><p id="error" role="alert"></p></div><div class="stats"><div><small>Signal remaining</small><b id="remaining">—</b></div><div><small>ESP buffer</small><b id="buffer">—</b></div><div><small>Motor</small><b id="motor">—</b></div><div><small>WRITE / SAVE</small><b id="writeStatus">—</b></div></div><div class="scope-wrap"><canvas id="scope" width="640" height="72" aria-label="READ waveform"></canvas><small id="scopeLabel">READ · waiting for playback</small></div><p id="writeDetail"></p><p id="phase">Connecting…</p><p id="indexInfo"></p><p id="transport"></p><p id="awakeStatus" role="status">Screen sleep protection: idle.</p><button id="retryAwake" class="secondary" type="button" hidden>Keep screen awake</button><details id="debugPanel" class="debug"><summary>Debug / ESP state</summary><p id="diagnostics"></p><pre id="debugJson"></pre></details></details>
-<details id="networkCard" class="card"><summary>Network / OTA</summary><p id="networkInfo">Connecting…</p><pre id="otaCmd" class="ota-cmd"></pre><p id="otaHint"></p><p><a id="wifiLink" href="/wifi">Forget Wi-Fi…</a> (not OTA)</p></details><section id="previewPanel" class="card" hidden><h2>Local preview</h2><p>Simulation without an ESP-01. Select a TAP or PRG and toggle MOTOR to check the animation, buffer and page layout.</p><button id="motorToggle" class="secondary">MOTOR on/off</button><button id="saveMock" class="secondary">Simulate SAVE</button></section></main>
+<details class="card"><summary>Playback details</summary><div class="playback-status" aria-label="Playback status"><p id="deckMessage" role="status" aria-live="polite"></p><p id="error" role="alert"></p></div><div class="stats"><div><small>Signal remaining</small><b id="remaining">—</b></div><div><small>ESP buffer</small><b id="buffer">—</b></div><div><small>Motor</small><b id="motor">—</b></div></div><div class="scope-wrap"><canvas id="scope" width="640" height="72" aria-label="READ waveform"></canvas><small id="scopeLabel">READ · waiting for playback</small></div><p id="phase">Connecting…</p><p id="indexInfo"></p><p id="transport"></p><p id="awakeStatus" role="status">Screen sleep protection: idle.</p><button id="retryAwake" class="secondary" type="button" hidden>Keep screen awake</button><details id="debugPanel" class="debug"><summary>Debug / ESP state</summary><p id="diagnostics"></p><pre id="debugJson"></pre></details></details>
+<details id="networkCard" class="card"><summary>Network / OTA</summary><p id="networkInfo">Connecting…</p><pre id="otaCmd" class="ota-cmd"></pre><p id="otaHint"></p><p><a id="wifiLink" href="/wifi">Forget Wi-Fi…</a> (not OTA)</p></details><section id="previewPanel" class="card" hidden><h2>Local preview</h2><p>Simulation without an ESP-01. Select a TAP or PRG and toggle MOTOR to check the animation, buffer and page layout.</p><button id="motorToggle" class="secondary">MOTOR on/off</button></section></main>
 <script src="assets/playback-awake.js"></script>
 <script>
 const $ = id => document.getElementById(id);
@@ -143,11 +143,10 @@ let mockType = 'tap';
 const mock = {tapeState:'loaded', sourceType:'tap', machine:'c64', videoStandard:'pal', clockHz:985248, fileName:'draxcaught (demo)', motorOn:false,
   sensePressed:true, autoPlay:true, defaultMachine:'c64-pal', playing:false, phase:'idle', playedCycles:0,
   totalCycles:117000000, bufferedMillis:null, fileOffsetReceived:0,
-  freeBytes:8192, sessionId:0, logicalSize:0, error:null, writeEnabled:false, gpioDisabled:false,
+  freeBytes:8192, sessionId:0, logicalSize:0, error:null, gpioDisabled:false,
   freeHeap:32000, maxFreeBlock:24000, maxLoopUs:0, maxHttpUs:0,
   i2sUnderruns:0, sourceUnderruns:0, uploadErrors:0,
-  writeStatus:'idle', writeMachine:'unknown', writeName:'', writeType:0, writeStart:0, writeEnd:0,
-  writeHeaders:0, writeErrors:0, writeOverflows:0, scope:'', scopeHz:0, otaReady:false};
+scope:'', scopeHz:0, otaReady:false};
 let mockScopeLevel = 0;
 function previewSetting(key, value) {
   try {
@@ -538,25 +537,6 @@ function render(s) {
     ' · max loop/HTTP ' + s.maxLoopUs + '/' + s.maxHttpUs + ' µs' +
     ' · I2S/source underruns ' + s.i2sUnderruns + '/' + s.sourceUnderruns +
     ' · upload errors ' + s.uploadErrors;
-  const writeLabels = {idle:'Waiting', listening:'Listening', receiving_header:'Receiving header',
-    header_verified_no_action:'Header verified', incomplete:'Incomplete header',
-    capture_overflow:'Capture overflow', checksum_error:'Checksum error',
-    copy_mismatch:'Copies differ', parity_error:'Parity error',
-    sync_error:'Sync error', pulse_error:'Pulse error',
-    invalid_header:'Invalid header',
-    missing_terminator:'Missing block terminator', unexpected_terminator:'Unexpected block terminator'};
-  $('writeStatus').textContent = s.writeEnabled ?
-    (writeLabels[s.writeStatus] || s.writeStatus) : 'Disabled';
-  $('writeDetail').textContent = s.writeStatus === 'header_verified_no_action' ?
-    (s.writeMachine === 'c16' ? 'C16/Plus4' : 'C64') + ' · SAVE "' + s.writeName + '" · type ' + s.writeType + ' · $' +
-    s.writeStart.toString(16).toUpperCase().padStart(4, '0') + '–$' +
-    s.writeEnd.toString(16).toUpperCase().padStart(4, '0') +
-    ' · no action assigned' :
-    (s.writeEnabled ? 'Verified headers: ' + s.writeHeaders +
-      ' · errors: ' + s.writeErrors + ' · overflows: ' + s.writeOverflows :
-      'GPIO2/WRITE requires protected hardware and a WRITE profile.');
-  selectedFilesText();
-  if (s.error) $('error').textContent = 'Player error: ' + s.error;
   $('seek').disabled = !source || source.type !== 'tap' || source.id !== s.sessionId;
   drawScope(s);
 }
@@ -1115,11 +1095,7 @@ if (preview) {
   mock.gpioDisabled = true;
   mock.motorOn = true;
   $('motorToggle').onclick = () => { mock.motorOn = !mock.motorOn; updateMock(); render({...mock}); };
-  $('saveMock').onclick = () => { mock.writeEnabled = true;
-    mock.writeStatus = 'header_verified_no_action'; mock.writeMachine = 'c64';
-    mock.writeName = 'ESP:TEST';
-    mock.writeType = 1; mock.writeStart = 0x0801; mock.writeEnd = 0x0810;
-    mock.writeHeaders++; render({...mock}); };
+
 }
 async function loop() {
   await step();

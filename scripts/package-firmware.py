@@ -41,7 +41,7 @@ def package(build_dir, output_dir, tag, revision):
         'release_tag': tag or None, 'git_commit': revision,
         'environment': ENVIRONMENT, 'flash_size_bytes': 1048576,
         'flash_address': '0x0', 'flash_mode': 'dout',
-        'flash_frequency': '40m', 'ota': False, 'write_capture': False,
+        'flash_frequency': '40m', 'ota': False,
     }
     (output_dir / (stem + '.json')).write_text(json.dumps(metadata, indent=2) + '\n')
     (output_dir / 'FLASHING.txt').write_text(

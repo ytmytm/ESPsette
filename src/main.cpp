@@ -9,7 +9,7 @@
 // revised on 27.4, 1.5
 #define PIN_MOTOR 0 // GPIO0       <- MOTOR (C,3) $01 bit 5 (through optocoupler with gnd pulldown 10k) // 0 = motor off, 1 = motor on
 #define PIN_SENSE 1 // GPIO1 (TxD) -> SENSE (F,6) $01 bit 4 (with pullup to 3.3V, 10k) // 0 = pushed, 1 = released
-#define PIN_WRITE 2 // GPIO2 <- buffered C64 WRITE; optional diagnostic input only
+#define PIN_WRITE 2
 #define PIN_READ  3 // GPIO3 (RxD) -> READ  (D,4) CIA#1 /FLAG, I2S, pulled to 5V in C64, normal high (input pullup), impulse low
 
 #include <Arduino.h>
@@ -32,7 +32,6 @@
 #include "network_config.h"
 #include "tape_source.h"
 #include "prg_encoder.h"
-#include "write_decoder.h"
 #include "player_page.h"
 #include <ArduinoJson.h>
 #include <LittleFS.h>
@@ -80,52 +79,6 @@ ESP8266WebServer HTTPServer(80);
 NetworkConfig networkConfig(HTTPServer, PIN_MOTOR);
 TapeSource tapeSource;
 PrgEncoder prgEncoder;
-WriteDecoder writeDecoder;
-#ifndef ESPSETTE_WRITE_CAPTURE
-#define ESPSETTE_WRITE_CAPTURE 0
-#endif
-#if ESPSETTE_WRITE_CAPTURE && !defined(I2S_HAS_BEGIN_RXTX_DRIVE_CLOCKS)
-#error "WRITE capture requires I2S without GPIO2 clock output"
-#endif
-#if ESPSETTE_WRITE_CAPTURE
-static constexpr uint16_t WRITE_RING_SIZE = 512;
-volatile uint16_t writeRing[WRITE_RING_SIZE];
-volatile uint16_t writeHead = 0, writeTail = 0;
-volatile uint32_t writeLastEdgeUs = 0, writeCaptureOverflows = 0;
-volatile bool writeActive = false;
-uint32_t reportedWriteOverflows = 0;
-
-void IRAM_ATTR onWriteEdge() {
-  if (!writeActive) return;
-  const uint32_t now = micros();
-  const uint32_t previous = writeLastEdgeUs;
-  writeLastEdgeUs = now;
-  if (!previous) return;
-  const uint16_t next = (writeHead + 1) % WRITE_RING_SIZE;
-  if (next == writeTail) { ++writeCaptureOverflows; return; }
-  const uint32_t duration = now - previous;
-  writeRing[writeHead] = duration > UINT16_MAX ? UINT16_MAX : duration;
-  writeHead = next;
-}
-
-void drainWriteCapture() {
-  uint32_t overflows;
-  noInterrupts(); overflows = writeCaptureOverflows; interrupts();
-  if (overflows != reportedWriteOverflows) {
-    reportedWriteOverflows = overflows;
-    noInterrupts(); writeTail = writeHead; interrupts();
-    writeDecoder.overflow();
-  }
-  for (uint16_t count = 0; count < WRITE_RING_SIZE; ++count) {
-    noInterrupts();
-    if (writeTail == writeHead) { interrupts(); break; }
-    const uint16_t duration = writeRing[writeTail];
-    writeTail = (writeTail + 1) % WRITE_RING_SIZE;
-    interrupts();
-    writeDecoder.feedMicros(duration);
-  }
-}
-#endif
 enum class SourceFormat : uint8_t { TAP, PRG };
 SourceFormat sourceFormat = SourceFormat::TAP;
 
@@ -523,7 +476,7 @@ void startTape() {
     return;
   }
 #else
-  i2s_begin(); // GPIO2 is not connected to C64 WRITE.
+  i2s_begin();
 #endif
   i2s_set_callback(onDmaBufferDone);
   realBitRate = (uint32_t)(i2s_get_real_rate() * 32.0f + 0.5f);
@@ -740,7 +693,7 @@ void setupPins() {
   softSensePressed = false;
 #else
   pinMode(PIN_MOTOR, INPUT);
-  pinMode(PIN_WRITE, INPUT_PULLUP); // GPIO2 must stay high at boot.
+  pinMode(PIN_WRITE, INPUT_PULLUP);
   pinMode(PIN_SENSE, FUNCTION_3); // Release UART TX for GPIO1.
   digitalWrite(PIN_SENSE, HIGH); // Release PLAY until the embedded TAP is ready.
   pinMode(PIN_SENSE, OUTPUT);
@@ -861,11 +814,6 @@ void setup() {
 #else
   lastMotor = digitalRead(PIN_MOTOR);
   attachInterrupt(digitalPinToInterrupt(PIN_MOTOR), onMotorFalling, FALLING);
-#if ESPSETTE_WRITE_CAPTURE
-  writeActive = lastMotor == HIGH;
-  if (writeActive) writeDecoder.motorStart();
-  attachInterrupt(digitalPinToInterrupt(PIN_WRITE), onWriteEdge, RISING);
-#endif
 #endif
   lastcall = millis();
   debugI("setup completed; TAP bytes=%lu", (unsigned long)tapEnd);
@@ -905,16 +853,6 @@ void loop() {
   if (motor != lastMotor) {
     lastMotor = motor;
     debugI("Motor state changed to %u", motor);
-#if ESPSETTE_WRITE_CAPTURE
-    if (motor == HIGH) {
-      noInterrupts(); writeLastEdgeUs = 0; writeActive = true; interrupts();
-      writeDecoder.motorStart();
-    } else {
-      writeActive = false;
-      drainWriteCapture();
-      writeDecoder.motorStop();
-    }
-#endif
   }
 
   if (state == State::FINISHED) {
@@ -961,9 +899,6 @@ void loop() {
   if (httpElapsedUs > maxHttpUs) maxHttpUs = httpElapsedUs;
   networkConfig.handle(motor == HIGH);
   if (networkReady) Debug.handle();
-#endif
-#if ESPSETTE_WRITE_CAPTURE
-  drainWriteCapture();
 #endif
   yield();
   if ((uint32_t)(millis() - lastcall) >= 10000) {
@@ -1193,16 +1128,6 @@ void handleState() {
   doc["sourceUnderruns"] = sourceUnderrunCount;
   doc["uploadErrors"] = uploadErrorCount;
   doc["error"] = playerError;
-  doc["writeEnabled"] = bool(ESPSETTE_WRITE_CAPTURE);
-  doc["writeStatus"] = writeDecoder.status();
-  doc["writeMachine"] = writeDecoder.machineName();
-  doc["writeName"] = writeDecoder.name();
-  doc["writeType"] = writeDecoder.fileType();
-  doc["writeStart"] = writeDecoder.startAddress();
-  doc["writeEnd"] = writeDecoder.endAddress();
-  doc["writeHeaders"] = writeDecoder.receivedCount();
-  doc["writeErrors"] = writeDecoder.errorCount();
-  doc["writeOverflows"] = writeDecoder.overflowCount();
   doc["otaReady"] = otaReady;
   {
     char scopeStr[SCOPE_LEN + 1];
