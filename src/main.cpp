@@ -47,8 +47,6 @@
 
 #include "circles_demo.h"
 
-#include <RemoteDebug.h>
-
 #ifndef ESPSETTE_GPIO_DISABLED
 #define ESPSETTE_GPIO_DISABLED 0
 #endif
@@ -80,9 +78,6 @@ static inline bool tapeShouldRun() {
   return motorIsOn() && senseIsPressed();
 }
 
-#ifndef DEBUG_DISABLED
-RemoteDebug Debug;
-#endif
 ESP8266WebServer HTTPServer(80);
 NetworkConfig networkConfig(HTTPServer, PIN_MOTOR);
 TapeSource tapeSource;
@@ -472,8 +467,6 @@ static void insertEmbeddedDemo() {
   state = ok ? State::WAITING : State::ERROR;
   demoInsertFailed = !ok;
   if (!ok) tapeSource.eject();
-  debugI("Circles demo %s; PRG bytes=%u fast=%u", ok ? "loaded" : "invalid",
-         unsigned(sizeof(circlesPrg)), unsigned(fast));
 }
 
 void idleReadPin() {
@@ -650,14 +643,12 @@ void pauseTape() {
     resetPlayer(sourceFormat == SourceFormat::PRG ? 2 : 20);
     playbackComplete = true;
     state = State::WAITING;
-    debugI("TAP completed at MOTOR stop");
     return;
   }
   if (playedBits > generatedTapBits) {
     state = State::ERROR; // DMA ran ahead of the source; LOAD is invalid.
     playerError = "i2s_underrun";
     ++i2sUnderrunCount;
-    debugE("I2S underrun before MOTOR stop");
     return;
   }
   playedBaseCycles += (uint64_t)playedBits * CYCLES_PER_BIT;
@@ -669,7 +660,6 @@ void pauseTape() {
     if (checkpointNumber[slot] != buffer) {
       state = State::ERROR;
       playerError = "missing_checkpoint";
-      debugE("Missing DMA checkpoint at %lu", (unsigned long)buffer);
       return;
     }
     player.decoder = checkpoints[slot];
@@ -678,7 +668,6 @@ void pauseTape() {
       if (!nextTapeBit(bit)) {
         state = State::ERROR;
         playerError = "restore_failed";
-        debugE("Cannot restore TAP bit %lu", (unsigned long)playedBits);
         return;
       }
     }
@@ -689,8 +678,6 @@ void pauseTape() {
   player.drainWordsLeft = 0;
   player.emptySince = 0;
   state = State::WAITING;
-  debugI("Paused TAP after %lu output bits at offset %lu",
-         (unsigned long)playedBits, (unsigned long)player.decoder.offset);
 }
 
 void startTape() {
@@ -716,8 +703,6 @@ void startTape() {
   // Soft READ stream: advance the decoder on wall time for counter/scope UI.
   softPlayLastUs = micros();
   state = State::STREAMING;
-  debugI("Start soft tape at %lu; %lu bits/s",
-         (unsigned long)player.decoder.offset, (unsigned long)realBitRate);
   return;
 #else
   // This rate is remembered by the core and applied during i2s_begin(),
@@ -726,14 +711,11 @@ void startTape() {
   if (!i2s_rxtxdrive_begin(false, true, false, false)) {
     state = State::ERROR;
     playerError = "i2s_alloc_failed";
-    debugE("I2S allocation failed");
     return;
   }
   i2s_set_callback(onDmaBufferDone);
   realBitRate = (uint32_t)(i2s_get_real_rate() * 32.0f + 0.5f);
   state = State::STREAMING;
-  debugI("Start tape at %lu; I2S %lu bits/s",
-         (unsigned long)player.decoder.offset, (unsigned long)realBitRate);
 #endif
 }
 
@@ -748,8 +730,6 @@ bool loadPulse() {
       state = State::ERROR;
       playerError = "buffer_underrun";
       ++sourceUnderrunCount;
-      debugE("PRG source exhausted at logical offset %lu",
-             (unsigned long)sourceOffset);
       return false;
     }
     player.decoder.offset = sourceOffset;
@@ -762,7 +742,6 @@ bool loadPulse() {
       state = State::ERROR;
       playerError = "buffer_underrun";
       ++sourceUnderrunCount;
-      debugE("TAP source exhausted at %lu", (unsigned long)recordOffset);
       return false;
     }
     ++player.decoder.offset;
@@ -772,7 +751,6 @@ bool loadPulse() {
       if (tapEnd - player.decoder.offset < 3) {
         state = State::ERROR;
         playerError = "truncated_pulse";
-        debugE("Truncated TAP pulse at %lu", (unsigned long)recordOffset);
         return false;
       }
       uint8_t lo, mid, hi;
@@ -782,7 +760,6 @@ bool loadPulse() {
         state = State::ERROR;
         playerError = "buffer_underrun";
         ++sourceUnderrunCount;
-        debugE("TAP source exhausted at %lu", (unsigned long)recordOffset);
         return false;
       }
       cycles = (uint32_t)lo | ((uint32_t)mid << 8) | ((uint32_t)hi << 16);
@@ -791,7 +768,6 @@ bool loadPulse() {
     if (cycles == 0) {
       state = State::ERROR;
       playerError = "zero_pulse";
-      debugE("Zero-length TAP pulse at %lu", (unsigned long)recordOffset);
       return false;
     }
   }
@@ -839,7 +815,6 @@ void pumpTapeSoft() {
       if (totalTapeCycles) playedBaseCycles = totalTapeCycles;
       else playedBaseCycles += (uint64_t)generatedTapBits * CYCLES_PER_BIT;
       generatedTapBits = 0;
-      debugI("Soft TAP completed");
       return;
     }
     ++generatedTapBits;
@@ -861,7 +836,6 @@ void pumpTape() {
     state = State::ERROR;
     playerError = "i2s_underrun";
     ++i2sUnderrunCount;
-    debugE("I2S underrun during TAP");
     return;
   }
   // Release only bytes preceding the earliest DMA checkpoint that can still
@@ -935,7 +909,6 @@ void pumpTape() {
     playbackComplete = true;
     if (totalTapeCycles) playedBaseCycles = totalTapeCycles;
     else playedBaseCycles += (uint64_t)generatedTapBits * CYCLES_PER_BIT;
-    debugI("TAP completed");
   }
 }
 
@@ -986,18 +959,9 @@ void initializeOTA() {
     setSensePressed(false);
     stopI2S();
     processWriteCommands();
-    debugI("* OTA: Start");
   });
-  ArduinoOTA.onEnd([]() {
-    debugI("\n*OTA: End");
-  });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    const unsigned int percent = total ? (unsigned int)((uint64_t)progress * 100 / total) : 0;
-    debugV("*OTA: Progress: %u%%\r", percent);
-  });
-  ArduinoOTA.onError([](ota_error_t error) {
+  ArduinoOTA.onError([](ota_error_t) {
     otaUpdating = false;
-    debugE("*OTA: Error[%u]", error);
   });
   ArduinoOTA.setHostname(networkConfig.hostname().c_str());
 #if defined(ESPSETTE_OTA_PASSWORD)
@@ -1008,19 +972,6 @@ void initializeOTA() {
   otaReady = true;
 #endif
 }
-
-void setupDebug() {
-#ifndef DEBUG_DISABLED
-  if (!networkReady) return;
-  Debug.begin(networkConfig.hostname().c_str()); // Initialize the WiFi server
-  Debug.setResetCmdEnabled(false); // Do not expose remote reset without authentication.
-  Debug.showProfiler(true); // Profiler (Good to measure times, to optimize codes)
-  Debug.showColors(true); // Colors
-#endif
-}
-
-uint32_t lastcall;
-uint8_t lastMotor = 0;
 
 #if ESPSETTE_WIFI_DISABLED
 // Linking ESP8266WiFi replaces the core's weak disable with a no-op that leaves
@@ -1138,34 +1089,18 @@ void setup() {
   }
 #if !ESPSETTE_WIFI_DISABLED
   initializeOTA();
-  setupDebug();
   setupWebserver();
 #endif
   // Demo insertion is deferred to loop() after /demo.
   state = State::WAITING;
   tapeLoaded = false;
   setSensePressed(false);
-#if ESPSETTE_GPIO_DISABLED
-  lastMotor = LOW;
-#else
-  lastMotor = digitalRead(PIN_MOTOR);
+#if !ESPSETTE_GPIO_DISABLED
   attachInterrupt(digitalPinToInterrupt(PIN_MOTOR), onMotorChange, CHANGE);
   processWriteCommands();
 #endif
-  lastcall = millis();
-  debugI("setup completed; TAP bytes=%lu", (unsigned long)tapEnd);
 #if ESPSETTE_GPIO_DISABLED
   Serial.println(F("ESPsette setup done"));
-#endif
-}
-
-void debugGPIOs() {
-#if ESPSETTE_GPIO_DISABLED
-  debugI("* GPIO disabled (soft sense=%i motor=%i)",
-         senseIsPressed() ? 1 : 0, motorIsOn() ? 1 : 0);
-#else
-  debugI("* GPIO0=%i GPIO1=%i GPIO2=%i GPIO3=%i",
-         digitalRead(0), digitalRead(1), digitalRead(2), digitalRead(3));
 #endif
 }
 
@@ -1185,12 +1120,7 @@ void loop() {
     insertEmbeddedDemo();
   }
   const uint32_t loopStartUs = micros();
-  const uint32_t timeBeginLoop = millis();
   const uint8_t motor = motorIsOn() ? HIGH : LOW;
-  if (motor != lastMotor) {
-    lastMotor = motor;
-    debugI("Motor state changed to %u", motor);
-  }
 
   processWriteCommands();
   pumpFastloader();
@@ -1244,24 +1174,12 @@ void loop() {
   const uint32_t httpElapsedUs = micros() - httpStartUs;
   if (httpElapsedUs > maxHttpUs) maxHttpUs = httpElapsedUs;
   networkConfig.handle(motor == HIGH);
-#ifndef DEBUG_DISABLED
-  if (networkReady) Debug.handle();
-#endif
 #endif
   processWriteCommands();
   yield();
-  if ((uint32_t)(millis() - lastcall) >= 10000) {
-    lastcall = millis();
-    debugGPIOs();
-  }
   const uint32_t loopElapsedUs = micros() - loopStartUs;
   if (loopElapsedUs > maxLoopUs) maxLoopUs = loopElapsedUs;
-  const uint32_t elapsed = millis() - timeBeginLoop;
-  if (elapsed > 200) {
-    debugW("Loop took %lu ms", (unsigned long)elapsed);
-  } else if (elapsed > 100) {
-    debugI("Loop took %lu ms", (unsigned long)elapsed);
-  }
+
 }
 
 //// web

@@ -188,7 +188,7 @@ retained during firmware OTA. The optional password is documented in
 
 The embedded page is also stored as gzip and served with `Content-Encoding: gzip`;
 it keeps its fonts, graphics and screen-wake media. To fit 1 MB OTA,
-production builds disable the Telnet debug server and WiFiManager debug logs,
+production builds omit network logging and disable WiFiManager debug logs,
 and stop forcing unused floating-point stdio implementations into the image.
 JSON still supports numeric values; reset, stack and heap diagnostics remain
 available in the web page. OTA is serviced only while MOTOR and transfers are
@@ -217,11 +217,8 @@ Keep the browser tab visible while streaming. During actual playback (PLAY press
 
 ## Debug and local UI preview
 
-Expand **Playback details → Debug / ESP state** on the page, or connect to colored RemoteDebug logs:
-
-```sh
-nc DEVICE_IP 23
-```
+Expand **Playback details → Debug / ESP state** on the page to inspect reset
+reason, stack/heap headroom, transfer state and error counters.
 
 Normal firmware has no UART log: GPIO1 and GPIO3 are used for SENSE and READ.
 
