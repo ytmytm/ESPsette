@@ -62,6 +62,9 @@ For manual browser checks, [fixtures/](fixtures/README.md) contains a synthetic 
 copy matching, ignored filenames/program data, maximum request length, overflow
 and fastloader suspension/resumption. Browser tests cover received-request
 metadata and suspension status. No test or decoder stores a program file.
+WRITE preview tests require ejection even after a completed PRG. Active TAP
+READ, paused files, partly buffered streams and embedded demos cannot publish
+headers or increment WRITE errors; an empty deck can receive again.
 
 `test_write_vice.py` replays twelve actual ROM SAVE captures from C64, C16 and
 Plus/4 PAL/NTSC through the firmware decoder. It checks direct WRITE polarity,

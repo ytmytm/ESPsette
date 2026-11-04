@@ -125,15 +125,16 @@ minutes. Preview simulates fast speed from the saved timing settings.
 
 The computer can send an `ESP:` request name through a standard WRITE header,
 for example `SAVE "ESP:TEST",1`. The ESP verifies both copies and publishes the
-request in **Playback details** and `/state`. Ordinary names such as
+request in **Playback details** and `/state`. **The deck must be empty:** eject
+any TAP, PRG or embedded demo, then press PLAY before SAVE. Ordinary names such as
 `SAVE "NAZWA",1` also appear there as the last verified header, without becoming
 commands. The ESP ignores all following program
 data and creates no file. This restores the command transport, not recording.
 Command handlers are not implemented yet, so verified requests are shown as
-received without execution. GPIO2 is reserved for fastloading throughout a
-selected fast PRG session; finish or eject it before sending WRITE requests.
-The WRITE ISR checks MOTOR high on each edge and rejects capture throughout
-a selected fastloader session; its interrupt is detached during that session.
+received without execution. The WRITE interrupt is detached whenever a file is inserted, including while
+paused, buffering or finished. The page shows **Eject tape to receive WRITE**.
+The WRITE ISR checks that the deck is empty and MOTOR is high on each edge;
+fastloader and OTA ownership also block capture.
 See [WRITE command protocol](docs/WRITE-COMMANDS.md) for the procedure, validation,
 state fields and GPIO ownership.
 
@@ -222,7 +223,7 @@ reason, stack/heap headroom, transfer state and error counters.
 
 Normal firmware has no UART log: GPIO1 and GPIO3 are used for SENSE and READ.
 
-Open [web/player.html](web/player.html) directly in a browser or run `make preview` to try the UI with simulated ESP state. Caveat is bundled as WOFF2 assets and embedded in the firmware, so it works offline without installed fonts or external requests. Font sources and OFL licenses are in [web/assets/fonts](web/assets/fonts). **Fastload PRG demo** runs a built-in sample with a shortened bootstrap, byte progress, accelerated counter/reels and configured timing. **Pause receiver** demonstrates a stalled transfer while keeping screen protection active. **Simulate SAVE "NAZWA"** and **Simulate ESP:TEST** show received header/request metadata; they wait until the fastload has finished or is ejected. These controls are available only in preview/demo mode and do not contact hardware. Preview saves the default computer, autoplay and fastloader settings in browser local storage; real firmware saves these settings on the ESP. See [tests/README.md](tests/README.md) for host tests and `make help` for build targets.
+Open [web/player.html](web/player.html) directly in a browser or run `make preview` to try the UI with simulated ESP state. Caveat is bundled as WOFF2 assets and embedded in the firmware, so it works offline without installed fonts or external requests. Font sources and OFL licenses are in [web/assets/fonts](web/assets/fonts). **Fastload PRG demo** runs a built-in sample with a shortened bootstrap, byte progress, accelerated counter/reels and configured timing. **Pause receiver** demonstrates a stalled transfer while keeping screen protection active. **Simulate SAVE "NAZWA"** and **Simulate ESP:TEST** show received header/request metadata; they require an empty deck, including after a fastload has finished. These controls are available only in preview/demo mode and do not contact hardware. Preview saves the default computer, autoplay and fastloader settings in browser local storage; real firmware saves these settings on the ESP. See [tests/README.md](tests/README.md) for host tests and `make help` for build targets.
 
 For manual UI testing, use [ui-test.tap](tests/fixtures/ui-test.tap) with [ui-test.idx](tests/fixtures/ui-test.idx): a two-minute synthetic tape with six navigation markers. See [fixture instructions](tests/fixtures/README.md).
 

@@ -17,15 +17,15 @@ an executable operation.
 - `SAVE "NAZWA",1`: display the last verified filename; no command is published.
 - `SAVE "ESP:TEST",1`: publish request `TEST`; no handler executes it yet.
 - The ESP stores neither program. Press PLAY to supply SENSE for a real SAVE.
-- Reception requires MOTOR high on every captured edge and no selected fastloader session.
+- Reception requires an empty deck, MOTOR high on every captured edge, and no active fastloader or OTA ownership.
 
 The browser demo has **Simulate SAVE "NAZWA"** and **Simulate ESP:TEST** buttons.
-They reproduce the UI metadata and fastloader ownership rules without hardware.
+They reproduce the UI metadata and empty-deck requirement without hardware.
 
 ## Sending a request
 
-1. Eject the current tape/PRG in the browser, then press PLAY. No source file
-   needs to be inserted. PLAY supplies SENSE; the computer controls MOTOR.
+1. Eject the current tape/PRG in the browser, then press PLAY. The deck must
+   stay empty, including after a completed fastload. PLAY supplies SENSE; the computer controls MOTOR.
 2. On C64 or C16/Plus/4, enter:
 
    ```basic
@@ -69,8 +69,14 @@ checks the physical MOTOR level on every edge, not only when a session starts:
 if (!writeActive || !writeCommandsAllowed() || !(GPI & (1u << PIN_MOTOR))) return;
 ```
 
-`writeCommandsAllowed()` accepts only fastloader phases OFF or DONE. The
-interrupt is detached in all other phases, including the standard bootstrap.
+`writeCommandsAllowed()` requires `TapeSource::Kind::EMPTY`, fastloader phase
+OFF or DONE, and no OTA update. It reads the source kind directly through a
+volatile inline load in IRAM. The interrupt is detached whenever any TAP, PRG
+or embedded demo is present, even while stopped, buffering, paused, failed or
+finished. Checking only `tapeLoaded` would miss an inserted, partly buffered
+stream. Insertion blocks ISR decoding immediately; the loop then detaches the
+interrupt and clears the partial frame. Ejection re-arms capture and samples
+the current MOTOR level.
 OTA also suspends capture and releases PLAY before writing flash; updates are
 accepted only while MOTOR and playback/fastloader transfers are stopped.
 
@@ -107,15 +113,20 @@ its ID across subsequent bad/non-command headers. IDs reset when ESP restarts.
 Command reception is suspended for the **entire selected fastloader session**:
 from inserting a fast PRG, through standard LOAD, mode signature and both fast
 stages, until completion, cancellation or ejection releases that session.
-Before using WRITE commands again, finish the transfer or eject the fast PRG.
+Before using WRITE commands again, eject the fast PRG; completion alone keeps
+the file inserted and WRITE disabled.
 
 The WRITE interrupt is detached while fastloading to avoid interrupts from
 ESP-generated data. Both ISRs also check ownership before decoding, so output
 data cannot enter the command decoder during a mode transition. Suspending
 disables capture and resets the partial decoder frame. The decoder itself
 rejects input while suspended. After completion or cancellation, GPIO2 returns
-to input and reception can restart on MOTOR. The fastloader's `$CA65` mode
+to input; reception can restart on MOTOR once the deck is empty. The fastloader's `$CA65` mode
 signature remains a separate protocol, not a standard WRITE command header.
+
+The page displays **Eject tape to receive WRITE** for every inserted source.
+Blocked READ playback cannot increment WRITE errors or publish new headers;
+previously verified filename/request history is retained.
 
 ## State API
 
@@ -124,8 +135,8 @@ signature remains a separate protocol, not a standard WRITE command header.
 | Field | Meaning |
 | --- | --- |
 | `writeEnabled` | Physical WRITE capture is available in this build |
-| `writeListening` | Capture is currently armed with MOTOR on and GPIO2 available |
-| `writeStatus` | Decoder status, including `suspended_fastloader`, `command_received_no_action`, `header_ignored`, or an error |
+| `writeListening` | Capture is armed with an empty deck, MOTOR on and GPIO2 available |
+| `writeStatus` | Decoder status, including `requires_empty_deck`, `suspended_ota`, `suspended_fastloader`, `command_received_no_action`, `header_ignored`, or an error |
 | `writeCommand` | Last verified request without the `ESP:` prefix |
 | `writeCommandId` | Count of verified command requests since boot |
 | `writeName` / `writeMachine` | Last verified header filename and detected computer family |

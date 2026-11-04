@@ -766,7 +766,7 @@ assert.equal(elements.get('fastProgress').hidden,false);
 const previewHeaderCount = vm.runInContext('mock.writeHeaders',context);
 elements.get('previewSaveName').onclick();
 assert.equal(vm.runInContext('mock.writeHeaders',context),previewHeaderCount);
-assert.match(elements.get('previewMessage').textContent,/WRITE reception is paused/);
+assert.match(elements.get('previewMessage').textContent,/Eject the tape or PRG/);
 elements.get('previewPauseReceiver').onclick();
 const pausedPreviewBytes=vm.runInContext('mock.fastloaderBytes',context);
 vm.runInContext('advanceMockFast(.5);render({...mock})',context);
@@ -783,6 +783,14 @@ for(let i=0;i<50 && vm.runInContext('mock.phase',context)!=='done';i++) {
 }
 assert.equal(vm.runInContext('mock.phase',context),'done');
 assert.match(elements.get('fastProgressBytes').textContent,/100%/);
+// A completed fast PRG is still inserted: WRITE stays blocked until ejection.
+const finishedHeaderCount=vm.runInContext('mock.writeHeaders',context);
+elements.get('previewSaveName').onclick();
+assert.equal(vm.runInContext('mock.writeHeaders',context),finishedHeaderCount);
+assert.match(elements.get('previewMessage').textContent,/Eject the tape or PRG/);
+vm.runInContext('mock.motorOn=false',context);
+await vm.runInContext("document.getElementById('deckEject').onclick()",context);
+assert.equal(elements.get('previewSaveName').disabled,false);
 elements.get('previewSaveName').onclick();
 assert.match(elements.get('writeDetail').textContent,/Last header: "NAZWA"/);
 assert.equal(elements.get('playbackDetails').open,true);
@@ -792,6 +800,30 @@ assert.equal(vm.runInContext('mock.writeCommandId',context),previousRequestId+1)
 assert.match(elements.get('writeDetail').textContent,/ESP:TEST/);
 assert.equal(elements.get('writeStatus').textContent,'Request received (not executed)');
 vm.runInContext('mock.motorOn=false;mock.gpioDisabled=false;',context);
+// WRITE is exclusive to an empty deck, including active READ, paused tapes,
+// partly buffered streams, embedded demos and completed ordinary PRGs.
+vm.runInContext('globalThis.emptyWriteSnapshot={...mock}',context);
+for (const inserted of [
+  {tapeState:'loaded',sourceType:'tap',phase:'data',playing:true,motorOn:true,sessionId:7,embedded:false},
+  {tapeState:'loaded',sourceType:'tap',phase:'paused',playing:false,motorOn:false,sessionId:7,embedded:false},
+  {tapeState:'ejected',sourceType:'tap',phase:'idle',playing:false,motorOn:false,sessionId:7,embedded:false},
+  {tapeState:'loaded',sourceType:'prg',phase:'idle',playing:false,motorOn:false,sessionId:0,embedded:true},
+  {tapeState:'loaded',sourceType:'prg',phase:'done',playing:false,motorOn:false,sessionId:7,embedded:false}
+]) {
+  context.insertedWriteState=inserted;
+  vm.runInContext('Object.assign(mock,insertedWriteState,{fastloaderActive:false});render({...mock})',context);
+  assert.equal(elements.get('previewSaveName').disabled,true);
+  assert.equal(elements.get('previewWriteCommand').disabled,true);
+  const before=vm.runInContext('JSON.stringify([mock.writeHeaders,mock.writeErrors,mock.writeCommandId])',context);
+  elements.get('previewWriteCommand').onclick();
+  assert.equal(vm.runInContext('JSON.stringify([mock.writeHeaders,mock.writeErrors,mock.writeCommandId])',context),before);
+  assert.equal(elements.get('writeStatus').textContent,'Eject tape to receive WRITE');
+}
+vm.runInContext('Object.assign(mock,emptyWriteSnapshot);render({...mock})',context);
+assert.equal(elements.get('previewWriteCommand').disabled,false);
+const emptyRequestId=vm.runInContext('mock.writeCommandId',context);
+elements.get('previewWriteCommand').onclick();
+assert.equal(vm.runInContext('mock.writeCommandId',context),emptyRequestId+1);
 // Preview settings survive reloading the page; real hardware uses LittleFS.
 await vm.runInContext("mockApi('/autoplay', {body:new URLSearchParams({enabled:'0'})})", context);
 // The real built-in demo is a fixed C64 PAL PRG, independent of upload defaults.
