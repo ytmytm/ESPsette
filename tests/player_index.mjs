@@ -13,7 +13,9 @@ function element() {
   return {
     files: [], paused: true, hidden: false, textContent: '',
     width: 640, height: 72,
-    classList: {add(){}, remove(){}, toggle(){}},
+    style: {setProperty(name, value){ this[name] = value; }},
+    classList: {values:new Set(), add(name){this.values.add(name)}, remove(name){this.values.delete(name)},
+      toggle(name, enabled){if(enabled) this.values.add(name); else this.values.delete(name);}},
     replaceChildren(){this.children = []}, append(child){(this.children ||= []).push(child)},
     play(){this.paused = false; return Promise.resolve()},
     pause(){this.paused = true}, removeAttribute(){},
@@ -583,6 +585,78 @@ vm.runInContext('render({...mock, writeEnabled:false})', context);
 assert.equal(elements.get('writeStatus').textContent, 'Disabled');
 assert.equal(elements.get('writeDetail').textContent, '');
 vm.runInContext('render({...mock})', context);
+// Fastload progress uses transmitted payload bytes, measured time and virtual ROM duration.
+context.progressState = {sourceType:'prg', sessionId:98765, fileName:'FAST.PRG',
+  fastloaderActive:true, fastloaderTotalBytes:4096, fastloaderBytes:0,
+  fastloaderElapsedMs:0, fastloaderWaitingForData:false,
+  clockHz:985248, machine:'c64', tapeState:'loaded', phase:'fastload',
+  motorOn:false, sensePressed:false, playing:true, error:null};
+vm.runInContext(`progressState.playedCycles = prgTotalCycles(2) + 200*384;
+  progressState.totalCycles = progressState.playedCycles + prgDataCycles(4096);
+  render({...mock,...progressState})`, context);
+const fastCounterStart = vm.runInContext('lastCounterValue', context);
+vm.runInContext(`progressState.fastloaderBytes=1024;progressState.fastloaderElapsedMs=125;
+  progressState.playedCycles += prgDataCycles(1024); render({...mock,...progressState})`, context);
+assert.equal(elements.get('fastProgress').hidden, false);
+assert.equal(elements.get('fastProgressBar').max, 4096);
+assert.equal(elements.get('fastProgressBar').value, 1024);
+assert.equal(elements.get('fastProgressBytes').textContent, '1,024 / 4,096 B · 25%');
+assert.match(elements.get('fastProgressDetail').textContent, /3,072 B left/);
+assert.match(elements.get('fastProgressDetail').textContent, /8.19 kB\/s average/);
+assert.equal(elements.get('remainingLabel').textContent, 'Transfer remaining');
+assert.equal(elements.get('remaining').textContent, '3,072 B · ~0.4 s');
+assert.ok(vm.runInContext('lastCounterValue', context) > fastCounterStart);
+assert.equal(elements.get('deck').classList.values.has('fastloading'), true);
+assert.ok(parseFloat(elements.get('deck').style['--spin-period']) < 1.6);
+vm.runInContext('render({...mock,...progressState,fastloaderWaitingForData:true,playing:false})', context);
+assert.match(elements.get('fastProgressDetail').textContent, /Waiting for data/);
+assert.equal(elements.get('deck').classList.values.has('playing'), false);
+assert.equal(awakeUpdates.at(-1), true); // A data stall still needs screen protection.
+vm.runInContext('render({...mock,...progressState,fastloaderWaitingForMotor:true,playing:false})', context);
+assert.match(elements.get('fastProgressDetail').textContent, /Waiting for receiver/);
+assert.equal(elements.get('deck').classList.values.has('playing'), false);
+assert.equal(awakeUpdates.at(-1), true);
+vm.runInContext(`render({...mock,...progressState,fastloaderBytes:4096,phase:'done',playing:false,
+  playedCycles:progressState.totalCycles})`, context);
+assert.equal(elements.get('fastProgressBar').value, 4096);
+assert.match(elements.get('fastProgressBytes').textContent, /100%/);
+assert.match(elements.get('fastProgressDetail').textContent, /^Complete · 0 B left/);
+assert.equal(elements.get('deck').classList.values.has('fastloading'), false);
+assert.equal(awakeUpdates.at(-1), false);
+assert.equal(vm.runInContext('fastloaderView({...progressState,fastloaderBytes:5000}).sent',context),4096);
+assert.equal(vm.runInContext('fastloaderView({...progressState,fastloaderBytes:-2}).sent',context),0);
+assert.equal(vm.runInContext('fastloaderView({...progressState,fastloaderElapsedMs:0}).eta',context),null);
+assert.equal(vm.runInContext('fastloaderView({...progressState,fastloaderWaitingForData:true}).eta',context),null);
+assert.equal(vm.runInContext('fastloaderView({...progressState,fastloaderTotalBytes:0})',context),null);
+vm.runInContext(`render({...mock,sourceType:'tap',fastloaderActive:false})`, context);
+assert.equal(elements.get('fastProgress').hidden, true);
+assert.equal(elements.get('remainingLabel').textContent, 'Signal remaining');
+assert.equal(elements.get('deck').style['--spin-period'], '1.6s');
+assert.equal(vm.runInContext('pollDelay(progressState,false)',context),100); // Fully uploaded PRG still polls quickly.
+assert.equal(vm.runInContext("pollDelay({sourceType:'tap',playing:false},false)",context),350);
+assert.equal(vm.runInContext("pollDelay({sourceType:'tap',playing:true},true)",context),80);
+vm.runInContext(`render({...mock,writeEnabled:true,writeName:'NAZWA',writeCommand:'',
+  writeHeaders:1,writeStatus:'header_ignored'})`, context);
+assert.match(elements.get('writeDetail').textContent, /Last header: "NAZWA"/);
+assert.equal(elements.get('writeStatus').textContent, 'Non-command header ignored');
+
+// Preview uses the configured fast rate, waits for refill and ignores MOTOR/SENSE as data controls.
+vm.runInContext(`globalThis.progressSnapshot = {state:{...mock},bytes:mockBytes,bootstrap:mockBootstrapCycles};
+  Object.assign(mock,progressState,{phase:'fastload',fastloaderBytes:0,fastloaderElapsedMs:0,
+    fastloaderTotalBytes:16384,playedCycles:1000,fastloaderWaitingForData:false});
+  mockBootstrapCycles=1000;mockBytes=0;advanceMockFast(.25)`,context);
+assert.equal(vm.runInContext('mock.fastloaderBytes',context),0);
+assert.equal(vm.runInContext('mock.fastloaderWaitingForData',context),true);
+assert.equal(vm.runInContext('mock.error',context),null);
+vm.runInContext('mockBytes=8192;advanceMockFast(.1)',context);
+assert.ok(vm.runInContext('mock.fastloaderBytes',context)>800);
+assert.ok(vm.runInContext('mock.fastloaderBytes',context)<1100);
+vm.runInContext('mock.fastloaderTotalBytes=mock.fastloaderBytes+100;mockBytes=100;advanceMockFast(1)',context);
+assert.equal(vm.runInContext('mock.phase',context),'done');
+assert.equal(vm.runInContext('mock.playing',context),false);
+vm.runInContext(`for(const key of Object.keys(mock)) delete mock[key];
+  Object.assign(mock,progressSnapshot.state);mockBytes=progressSnapshot.bytes;
+  mockBootstrapCycles=progressSnapshot.bootstrap;render({...mock})`,context);
 // Persistent fastloader settings: validation, dirty edits, defaults, activation.
 vm.runInContext("mock.motorOn = false; mock.gpioDisabled = false; mock.phase = 'idle'; render({...mock})", context);
 assert.equal(elements.get('fastloaderEnabled').checked, false);

@@ -27,7 +27,12 @@ main{max-width:760px;margin:auto;padding:18px}p{line-height:1.45;color:#abb7c3}
 .cassette{width:min(100%,570px);aspect-ratio:720/314;background:url('assets/cassette.webp') center/contain no-repeat;position:relative;filter:drop-shadow(0 5px 8px #0009)}
 .reel{position:absolute;width:9%;aspect-ratio:1;border-radius:50%;background:repeating-conic-gradient(#cabfa8 0 12deg,#443d37 12deg 38deg,#e7dcc6 38deg 55deg,#292522 55deg 60deg);box-shadow:inset 0 0 0 6px #292522,0 0 3px #000;transform:translate(-50%,-50%);left:29.9%;top:48.4%}
 .reel.right{left:70.3%;top:48.4%}
-.playing .reel{animation:spin 1.6s linear infinite}@keyframes spin{from{transform:translate(-50%,-50%) rotate(0)}to{transform:translate(-50%,-50%) rotate(-360deg)}}
+.fastloading .counter-strip.rolling{animation-duration:.1s}
+.fast-progress{margin-top:12px;padding:10px;background:#111923;border:1px solid #525b61;border-radius:7px}
+.fast-progress-heading{display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;font-size:.8rem}
+.fast-progress progress{display:block;width:100%;height:14px;margin-top:8px;accent-color:#f4c354}
+.fast-progress p{margin:6px 0 0;color:#a4b3bf;font-size:.75rem}
+.playing .reel{animation:spin var(--spin-period,1.6s) linear infinite}@keyframes spin{from{transform:translate(-50%,-50%) rotate(0)}to{transform:translate(-50%,-50%) rotate(-360deg)}}
 .ejected .cassette{display:none}.ejected .window:after{content:'EMPTY DECK';color:#9aa6b2;letter-spacing:.2em}
 .keys{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:15px}.key{margin:0;font:700 clamp(.66rem,2vw,.9rem) system-ui;background:linear-gradient(#34393d,#0c1015);border:2px solid #535a62;border-radius:5px 5px 10px 10px;min-height:52px;padding:8px 3px;box-shadow:0 5px 2px #080a0d;color:#d2dce3;cursor:pointer}.key.pressed{transform:translateY(4px);box-shadow:0 1px 2px #080a0d;color:#fff}.key:disabled{cursor:not-allowed;opacity:.45}.key:active{transform:translateY(4px);box-shadow:0 1px 2px #080a0d}#deckMessage{margin:12px 0 0;min-height:1.5em;text-align:center;font-size:.9rem}.key:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid #f4c354;outline-offset:2px}
 .debug{margin-top:12px;border-top:1px solid #42505d;padding-top:10px}.debug summary{cursor:pointer;color:#d7e0e8}.debug pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px ui-monospace,monospace;color:#b8c9d8;background:#10171e;border-radius:8px;padding:12px;max-height:330px;overflow:auto}
@@ -87,7 +92,7 @@ details.card{margin-top:12px}summary{cursor:pointer;color:#d7e0e8;font-weight:60
   <div class="vfd-modes" role="group" aria-label="Computer type"><span id="machineC64" class="vfd-mode" aria-hidden="true" data-active="false"></span><span id="machineC16" class="vfd-mode" aria-hidden="true" data-active="false"></span><span id="machineLabel" class="sr-only">—</span></div>
   <div class="vfd-time"><div class="vfd-caption" aria-hidden="true">ELAPSED / TOTAL</div><div id="vfdDigits" class="vfd-digits" aria-hidden="true"></div><span id="played" class="sr-only" aria-label="Playback time">—</span></div>
   <div class="vfd-right"><div class="vfd-modes" role="group" aria-label="Video standard"><span id="standardPAL" class="vfd-mode" aria-hidden="true" data-active="false"></span><span id="standardNTSC" class="vfd-mode" aria-hidden="true" data-active="false"></span><span id="standardLabel" class="sr-only">—</span></div><span id="bufferIcon" class="vfd-buffer" role="img" aria-label="ESP buffer inactive" data-level="0"><span class="vfd-buffer-caption" aria-hidden="true">BUF</span><span class="vfd-meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></span></div>
-</div></div></div><div class="deck-right"><output id="counter" class="counter" aria-label="Tape counter 000"><span class="counter-digit"><span id="counterStrip0" class="counter-strip"><span id="counterOld0">0</span><span id="counterNext0">0</span></span></span><span class="counter-digit"><span id="counterStrip1" class="counter-strip"><span id="counterOld1">0</span><span id="counterNext1">0</span></span></span><span class="counter-digit"><span id="counterStrip2" class="counter-strip"><span id="counterOld2">0</span><span id="counterNext2">0</span></span></span></output></div></div><div id="indexControls" class="index-navigation" hidden><label for="idxPositions">TAPE POSITION</label><select id="idxPositions" aria-label="Tape position"></select><button id="seek" class="key" type="button">↦<br>JUMP</button></div><div class="deck-footer"><p class="deck-hint">Keep this tab open during LOAD.</p><a href="https://github.com/ytmytm/ESPsette" target="_blank" rel="noopener noreferrer">ESPsette on GitHub</a></div></div>
+</div></div></div><div class="deck-right"><output id="counter" class="counter" aria-label="Tape counter 000"><span class="counter-digit"><span id="counterStrip0" class="counter-strip"><span id="counterOld0">0</span><span id="counterNext0">0</span></span></span><span class="counter-digit"><span id="counterStrip1" class="counter-strip"><span id="counterOld1">0</span><span id="counterNext1">0</span></span></span><span class="counter-digit"><span id="counterStrip2" class="counter-strip"><span id="counterOld2">0</span><span id="counterNext2">0</span></span></span></output></div></div><section id="fastProgress" class="fast-progress" hidden aria-label="PRG fastloader progress"><div class="fast-progress-heading"><strong>PRG FASTLOAD</strong><output id="fastProgressBytes"></output></div><progress id="fastProgressBar" max="100" value="0" aria-label="PRG bytes sent"></progress><p id="fastProgressDetail"></p><p>VFD and counter: virtual tape time.</p></section><div id="indexControls" class="index-navigation" hidden><label for="idxPositions">TAPE POSITION</label><select id="idxPositions" aria-label="Tape position"></select><button id="seek" class="key" type="button">↦<br>JUMP</button></div><div class="deck-footer"><p class="deck-hint">Keep this tab open during LOAD.</p><a href="https://github.com/ytmytm/ESPsette" target="_blank" rel="noopener noreferrer">ESPsette on GitHub</a></div></div>
 <section id="dropzone" class="card tape-picker" aria-label="Insert a tape">
   <div class="picker-actions"><label class="file-action" for="file">TAP / TAP+IDX / PRG<input id="file" class="file-input" type="file" accept=".tap,.prg,.idx" multiple></label><button id="demo" class="secondary" type="button">Demo</button></div>
   <p id="selectedFiles" class="pending-file" hidden></p>
@@ -95,7 +100,7 @@ details.card{margin-top:12px}summary{cursor:pointer;color:#d7e0e8;font-weight:60
 </section>
 
 <details class="card"><summary>Playback settings</summary><label>Default computer for PRG<select id="defaultMachine"><option value="c64-pal">C64 PAL</option><option value="c64-ntsc">C64 NTSC</option><option value="c16-pal">C16 PAL</option><option value="c16-ntsc">C16 NTSC</option></select></label><p>TAP files identify their computer and PAL/NTSC standard automatically.</p><label><input id="fastloaderEnabled" type="checkbox"> Use fastloader for PRG</label><p>Experimental. Changes apply to the next inserted PRG. If loading fails, increase the timings or turn fastloader off.</p><div class="fastloader-grid"><label>Data setup (µs)<input id="fast_setupUs" type="number" min="1" max="1000" step="1" value="3"></label><label>C64 data hold (µs)<input id="fast_holdC64Us" type="number" min="1" max="1000" step="1" value="16"></label><label>C16 data hold (µs)<input id="fast_holdTedUs" type="number" min="1" max="1000" step="1" value="16"></label><label>Gap between pairs (µs)<input id="fast_gapUs" type="number" min="1" max="1000" step="1" value="3"></label><label>C64 gap between bytes (µs)<input id="fast_bytePauseC64Us" type="number" min="0" max="5000" step="1" value="19"></label><label>C16 gap between bytes (µs)<input id="fast_bytePauseTedUs" type="number" min="0" max="5000" step="1" value="11"></label><label>Bootstrap data hold (µs)<input id="fast_bootHoldUs" type="number" min="1" max="1000" step="1" value="80"></label><label>Bootstrap gap between bytes (µs)<input id="fast_bootPauseUs" type="number" min="0" max="5000" step="1" value="80"></label><label>MOTOR on settling (µs)<input id="fast_motorOnUs" type="number" min="0" max="10000" step="1" value="5"></label><label>MOTOR off settling (µs)<input id="fast_motorOffUs" type="number" min="0" max="10000" step="1" value="1000"></label></div><button id="fastloaderSave" class="secondary" type="button">Save fastloader settings</button> <button id="fastloaderDefaults" class="secondary" type="button">Default timings</button><p id="fastloaderMessage" role="status"></p></details>
-<details class="card"><summary>Playback details</summary><div class="playback-status" aria-label="Playback status"><p id="deckMessage" role="status" aria-live="polite"></p><p id="error" role="alert"></p></div><div class="stats"><div><small>Signal remaining</small><b id="remaining">—</b></div><div><small>ESP buffer</small><b id="buffer">—</b></div><div><small>Motor</small><b id="motor">—</b></div><div><small>WRITE commands</small><b id="writeStatus">—</b></div></div><div class="scope-wrap"><canvas id="scope" width="640" height="72" aria-label="READ waveform"></canvas><small id="scopeLabel">READ · waiting for playback</small></div><p id="writeDetail"></p><p id="phase">Connecting…</p><p id="indexInfo"></p><p id="transport"></p><p id="awakeStatus" role="status">Screen sleep protection: idle.</p><button id="retryAwake" class="secondary" type="button" hidden>Keep screen awake</button><details id="debugPanel" class="debug"><summary>Debug / ESP state</summary><p id="diagnostics"></p><pre id="debugJson"></pre></details></details>
+<details class="card"><summary>Playback details</summary><div class="playback-status" aria-label="Playback status"><p id="deckMessage" role="status" aria-live="polite"></p><p id="error" role="alert"></p></div><div class="stats"><div><small id="remainingLabel">Signal remaining</small><b id="remaining">—</b></div><div><small>ESP buffer</small><b id="buffer">—</b></div><div><small>Motor</small><b id="motor">—</b></div><div><small>WRITE commands</small><b id="writeStatus">—</b></div></div><div class="scope-wrap"><canvas id="scope" width="640" height="72" aria-label="READ waveform"></canvas><small id="scopeLabel">READ · waiting for playback</small></div><p id="writeDetail"></p><p id="phase">Connecting…</p><p id="indexInfo"></p><p id="transport"></p><p id="awakeStatus" role="status">Screen sleep protection: idle.</p><button id="retryAwake" class="secondary" type="button" hidden>Keep screen awake</button><details id="debugPanel" class="debug"><summary>Debug / ESP state</summary><p id="diagnostics"></p><pre id="debugJson"></pre></details></details>
 <details id="networkCard" class="card"><summary>Network / OTA</summary><p id="networkInfo">Connecting…</p><pre id="otaCmd" class="ota-cmd"></pre><p id="otaHint"></p><p><a id="wifiLink" href="/wifi">Forget Wi-Fi…</a> (not OTA)</p></details><section id="previewPanel" class="card" hidden><h2>Local preview</h2><p>Simulation without an ESP-01. Select a TAP or PRG and toggle MOTOR to check the animation, buffer and page layout.</p><button id="motorToggle" class="secondary">MOTOR on/off</button></section></main>
 <script src="assets/playback-awake.js"></script>
 <script>
@@ -155,6 +160,7 @@ let lastCounterValue = null;
 let counterOriginCycles = 0;
 let mockBytes = 0, mockSize = 0, mockDemo = true, mockTick = Date.now();
 let mockType = 'tap';
+let mockBootstrapCycles = 0;
 const mock = {tapeState:'loaded', sourceType:'tap', machine:'c64', videoStandard:'pal', clockHz:985248, fileName:'draxcaught (demo)', motorOn:false,
   sensePressed:true, autoPlay:true, defaultMachine:'c64-pal', playing:false, phase:'idle', playedCycles:0,
   totalCycles:117000000, bufferedMillis:null, fileOffsetReceived:0,
@@ -228,9 +234,45 @@ function motorBlocksEdit(s) {
   return !!s?.motorOn && !s?.gpioDisabled;
 }
 
+function advanceMockFast(seconds) {
+  if (mock.phase === 'done' || mock.phase === 'error') { mock.playing = false; return; }
+  const payload = mock.phase === 'fastload';
+  if (!payload && !(mock.motorOn && mock.sensePressed)) { mock.playing = false; return; }
+  let remainingTime = seconds;
+  if (!payload) {
+    const bootTime = Math.max(0, (mockBootstrapCycles - mock.playedCycles) / mock.clockHz);
+    const step = Math.min(remainingTime, bootTime);
+    mock.playedCycles += Math.round(step * mock.clockHz);
+    remainingTime -= step;
+    mock.phase = remainingTime > 0 || bootTime === 0 ? 'fastload' : 'header';
+  }
+  if (mock.phase === 'fastload') {
+    const f = mock.fastloader;
+    const period = 4 * f.setupUs + 4 * (mock.machine === 'c16' ? f.holdTedUs : f.holdC64Us) +
+      3 * f.gapUs + (mock.machine === 'c16' ? f.bytePauseTedUs : f.bytePauseC64Us) +
+      (f.motorOnUs + f.motorOffUs) / 512;
+    const wanted = Math.floor(remainingTime * 1000000 / period);
+    const count = Math.min(wanted, mockBytes, mock.fastloaderTotalBytes - mock.fastloaderBytes);
+    mock.fastloaderBytes += count;
+    mockBytes -= count;
+    mock.fastloaderElapsedMs += Math.round(remainingTime * 1000);
+    mock.fastloaderWaitingForData = mockBytes === 0 && mock.fastloaderBytes < mock.fastloaderTotalBytes;
+    mock.playedCycles = mockBootstrapCycles + prgDataCycles(mock.fastloaderBytes, mock.machine);
+    if (mock.fastloaderBytes === mock.fastloaderTotalBytes) {
+      mock.phase = 'done'; mock.sensePressed = false;
+    }
+  }
+  mock.playing = mock.phase !== 'done' && !mock.fastloaderWaitingForData;
+}
+
 function updateMock() {
   const now = Date.now(), seconds = Math.min(1, (now - mockTick) / 1000);
   mockTick = now;
+  if (mock.fastloaderActive && mockType === 'prg' && mock.tapeState === 'loaded') {
+    advanceMockFast(seconds);
+    mock.freeBytes = 8192 - mockBytes;
+    return;
+  }
   if (mock.motorOn && mock.sensePressed && mock.tapeState === 'loaded' &&
       mock.phase !== 'error') {
     if (!mockDemo) mockBytes = Math.max(0, mockBytes - Math.ceil(seconds *
@@ -264,6 +306,10 @@ async function mockApi(path, options = {}) {
     const pressed = options.body?.get('pressed');
     if (pressed !== '0' && pressed !== '1') throw new Error('Invalid PLAY state');
     mock.sensePressed = pressed === '1';
+    if (pressed === '0' && mock.fastloaderActive && ['bootstrap', 'fastload'].includes(mock.phase)) {
+      mock.fastloaderActive = false; mock.playing = false;
+      mock.phase = 'error'; mock.error = 'fastloader_cancelled';
+    }
     return {sensePressed:mock.sensePressed};
   }
   if (path === '/autoplay') {
@@ -313,8 +359,12 @@ async function mockApi(path, options = {}) {
     if (!profile) throw new Error('Invalid computer/video standard');
     mock.clockHz = profile.clockHz;
     mock.fileName = args.get('displayName') || args.get('name');
-    mock.totalCycles = mockType === 'prg' ? prgTotalCycles(fileSize - 2, mock.machine) :
-      Number(args.get('cycles'));
+    mock.fastloaderTotalBytes = mock.fastloaderActive ? fileSize - 2 : 0;
+    mock.fastloaderBytes = mock.fastloaderElapsedMs = 0;
+    mock.fastloaderWaitingForData = false;
+    mockBootstrapCycles = prgTotalCycles(2, mock.machine) + 200 * (mock.machine === 'c16' ? 448 : 384);
+    mock.totalCycles = mock.fastloaderActive ? mockBootstrapCycles + prgDataCycles(fileSize - 2, mock.machine) :
+      mockType === 'prg' ? prgTotalCycles(fileSize - 2, mock.machine) : Number(args.get('cycles'));
     mock.playedCycles = 0; mock.tapeState = 'ejected'; mock.phase = 'idle'; mock.error = null;
     mock.sensePressed = mock.autoPlay;
     return {sessionId:mock.sessionId, nextOffset:mock.fileOffsetReceived,
@@ -349,6 +399,7 @@ async function mockApi(path, options = {}) {
     mock.tapeState = 'ejected'; mockBytes = 0; mock.phase = 'idle';
     mock.totalCycles = 0; mock.playedCycles = 0; mock.logicalSize = 0;
     mock.sessionId = 0; mock.fileOffsetReceived = 0; mock.sensePressed = false; source = null;
+    mock.fastloaderActive = false; mock.fastloaderTotalBytes = mock.fastloaderBytes = 0;
     return {tapeState:'ejected'};
   }
   if (path === '/nav') {
@@ -367,6 +418,7 @@ async function mockApi(path, options = {}) {
     mockDemo = true; mockType = 'tap'; mock.sourceType = 'tap'; mock.embedded = true;
     mock.machine = 'c64'; mock.videoStandard = 'pal'; mock.clockHz = 985248;
     mock.sessionId = 0; mock.logicalSize = 0; mock.fileOffsetReceived = 0;
+    mock.fastloaderActive = false; mock.fastloaderTotalBytes = mock.fastloaderBytes = 0;
     mock.playedCycles = 0; mock.sensePressed = mock.autoPlay; mock.scope = '';
     mock.totalCycles = 117000000; mock.phase = 'idle'; mock.error = null;
     return {tapeState:'loaded'};
@@ -388,6 +440,36 @@ function prgTotalCycles(length, machine = 'c64') {
   return (20000 + 79 + 5000 + 79) * short +
     (2 * (9 + 192 + 1) + 2 * (9 + length + 1)) * byteCycles +
     4 * (long + (machine === 'c16' ? medium : short)) + 200000;
+}
+
+function prgDataCycles(bytes, machine = 'c64') {
+  const [short, medium, long] = machine === 'c16' ? [448, 896, 1792] : [384, 536, 680];
+  return 2 * bytes * (long + medium + 9 * (short + medium));
+}
+
+function fastloaderView(s) {
+  const total = Number(s.fastloaderTotalBytes);
+  if (s.sourceType !== 'prg' || !s.fastloaderActive || !Number.isSafeInteger(total) || total <= 0) return null;
+  const sent = Math.max(0, Math.min(total, Math.floor(Number(s.fastloaderBytes) || 0)));
+  const elapsed = Number(s.fastloaderElapsedMs);
+  const rate = elapsed > 0 && Number.isFinite(elapsed) ? sent * 1000 / elapsed : 0;
+  const remaining = total - sent;
+  const spinning = s.tapeState === 'loaded' && s.phase === 'fastload' && remaining > 0 &&
+    !s.fastloaderWaitingForData && !s.fastloaderWaitingForMotor && !s.error;
+  const speed = rate > 0 ? rate * prgDataCycles(1, s.machine) / s.clockHz : 2;
+  return {total, sent, remaining, rate, percent:sent * 100 / total,
+    eta:rate > 0 && !s.fastloaderWaitingForData && !s.fastloaderWaitingForMotor ? remaining / rate : null, spinning,
+    spinPeriod:Math.max(.12, Math.min(5, 1.6 / speed))};
+}
+
+function fastRemainingSeconds(seconds) {
+  return seconds < 10 ? seconds.toFixed(1) + ' s' : Math.ceil(seconds) + ' s';
+}
+
+function pollDelay(state, uploading) {
+  if (state?.sourceType === 'prg' && state.fastloaderActive &&
+      ['bootstrap', 'fastload'].includes(state.phase)) return 100;
+  return uploading ? (state?.playing ? 80 : 250) : 350;
 }
 
 function time(cycles, clockHz = 985248) {
@@ -486,7 +568,8 @@ function renderVfd(text) {
 
 function render(s) {
   last = s;
-  const playing = !!s.playing;
+  const fast = fastloaderView(s);
+  const playing = fast && s.phase === 'fastload' ? fast.spinning : !!s.playing;
   // During fast transfer MOTOR requests blocks and SENSE carries data.
   // Keep protection through signature/buffer waits and ROM MOTOR pauses too.
   const fastPrgTransfer = s.sourceType === 'prg' && s.fastloaderActive &&
@@ -512,6 +595,24 @@ function render(s) {
   $('rewindLabel').textContent = indexed ? 'PREV' : 'REW';
   $('forwardLabel').textContent = indexed ? 'NEXT' : 'FF';
   $('deck').classList.toggle('playing', playing);
+  $('deck').classList.toggle('fastloading', !!fast?.spinning);
+  $('deck').style.setProperty('--spin-period', fast?.spinning ? fast.spinPeriod + 's' : '1.6s');
+  $('fastProgress').hidden = !fast;
+  if (fast) {
+    const count = value => value.toLocaleString('en-US');
+    $('fastProgressBytes').textContent = count(fast.sent) + ' / ' + count(fast.total) + ' B · ' +
+      Math.floor(fast.percent) + '%';
+    $('fastProgressBar').max = fast.total;
+    $('fastProgressBar').value = fast.sent;
+    const stage = s.phase === 'done' ? 'Complete' : s.phase === 'error' || s.error ? 'Interrupted' :
+      s.phase === 'bootstrap' ? 'Loading fast receiver' : s.phase === 'idle' ? 'Waiting for LOAD' :
+      s.phase !== 'fastload' ? 'Loading standard bootstrap' :
+      s.fastloaderWaitingForData ? 'Waiting for data' :
+      s.fastloaderWaitingForMotor ? 'Waiting for receiver' : 'Transferring PRG';
+    $('fastProgressDetail').textContent = stage + ' · ' + count(fast.remaining) + ' B left' +
+      (fast.rate > 0 ? ' · ' + (fast.rate / 1000).toFixed(2) + ' kB/s average' : '') +
+      (fast.eta !== null && fast.remaining > 0 ? ' · ~' + fastRemainingSeconds(fast.eta) + ' left' : '');
+  }
   $('deck').classList.toggle('ejected', s.tapeState === 'ejected' && !sessionTape);
   $('play').classList.toggle('pressed', !!s.sensePressed);
   $('stop').classList.toggle('pressed', !s.sensePressed);
@@ -559,7 +660,10 @@ function render(s) {
   const elapsed = browserTape ? absoluteCycles : s.playedCycles;
   renderVfd(vfdTime(inserted ? elapsed : 0, s.clockHz) + ' / ' +
     vfdTime(inserted && total > 0 ? total : null, s.clockHz));
-  $('remaining').textContent = total ? time(Math.max(0, total - elapsed), s.clockHz) : '—';
+  $('remainingLabel').textContent = fast ? 'Transfer remaining' : 'Signal remaining';
+  $('remaining').textContent = fast ? fast.remaining.toLocaleString('en-US') + ' B' +
+    (fast.eta !== null ? ' · ~' + fastRemainingSeconds(fast.eta) : '') :
+    total ? time(Math.max(0, total - elapsed), s.clockHz) : '—';
   $('buffer').textContent = s.embedded ?
     ('ROM · ' + (s.logicalSize || 0) + ' B') :
     (s.fileOffsetReceived ? (8192 - s.freeBytes) + ' B' : '—');
@@ -598,6 +702,7 @@ function render(s) {
     unexpected_terminator:'Unexpected terminator', capture_overflow:'Capture overflow'};
   $('writeStatus').textContent = s.writeEnabled ? (writeLabels[s.writeStatus] || s.writeStatus || 'Ready') : 'Disabled';
   $('writeDetail').textContent = s.writeEnabled ?
+    (s.writeName ? 'Last header: "' + s.writeName + '" · ' : '') +
     (s.writeCommand ? 'Last request #' + s.writeCommandId + ': ESP:' + s.writeCommand + ' · ' : '') +
     'Verified headers: ' + (s.writeHeaders || 0) + ' · errors: ' + (s.writeErrors || 0) +
     ' · overflows: ' + (s.writeOverflows || 0) : '';
@@ -1187,8 +1292,7 @@ if (preview) {
 }
 async function loop() {
   await step();
-  setTimeout(loop, source && source.offset < source.logicalSize ?
-    (last?.playing ? 80 : 250) : 350);
+  setTimeout(loop, pollDelay(last, !!(source && source.offset < source.logicalSize)));
 }
 loop();
 </script></html>

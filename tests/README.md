@@ -45,3 +45,8 @@ For manual browser checks, [fixtures/](fixtures/README.md) contains a synthetic 
 copy matching, ignored filenames/program data, maximum request length, overflow
 and fastloader suspension/resumption. Browser tests cover received-request
 metadata and suspension status. No test or decoder stores a program file.
+
+Fastloader UI tests check byte-based progress/ETA, accelerated counters/reels,
+data/MOTOR stalls without releasing wake protection, completion, ordinary WRITE
+filenames and configured-rate preview behavior. Encoder tests compare virtual
+payload duration with the independently generated standard pulse stream.

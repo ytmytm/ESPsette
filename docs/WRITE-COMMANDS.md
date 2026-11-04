@@ -27,7 +27,9 @@ an executable operation.
    and the last request should be `ESP:TEST` with an increased request ID.
 
 SAVE is used only to make the computer emit its standard WRITE waveform.
-The ESP decodes the header and ignores the following program bytes; it does
+The ESP shows every verified header filename in **Playback details**, including
+ordinary names such as `SAVE "NAZWA",1`. Only `ESP:` names publish command
+requests. It decodes the header and ignores the following program bytes; it does
 not create a file or retain a copy of the program in RAM or LittleFS. Ordinary
 filenames without the exact uppercase `ESP:` prefix are ignored as commands.
 The prefix must be followed by a nonempty request, up to 12 characters, within

@@ -83,11 +83,27 @@ settings, wire-order and cycle-budget tests, then builds the ESP image.
 [Protocol, timing and emulator tests](experiments/fastloader/README.md) describe
 the three stages and the limits of simulation. Hardware verification is pending.
 
+During fastloading the deck shows payload bytes sent/remaining, percentage,
+measured average kB/s and an estimated remaining transfer time. Counts come
+from completed ESP payload blocks, not browser upload progress or a fixed
+9 kB/s assumption. Pauses for source data or the receiver hold the progress
+and reel animation while screen sleep protection remains active. Completed
+PRGs remain at 100% until rewound or ejected.
+
+The VFD and mechanical counter show **virtual tape time**: the standard ROM
+signal duration of the transmitted bytes, including both ordinary copies.
+They advance rapidly as fast data arrives. Reels also speed up, with a visual
+speed cap and the existing reduced-motion preference. The payload meter and
+ETA show actual transfer progress; virtual tape minutes are not wall-clock
+minutes. Preview simulates fast speed from the saved timing settings.
+
 ## WRITE command requests
 
 The computer can send an `ESP:` request name through a standard WRITE header,
 for example `SAVE "ESP:TEST",1`. The ESP verifies both copies and publishes the
-request in **Playback details** and `/state`; it ignores all following program
+request in **Playback details** and `/state`. Ordinary names such as
+`SAVE "NAZWA",1` also appear there as the last verified header, without becoming
+commands. The ESP ignores all following program
 data and creates no file. This restores the command transport, not recording.
 Command handlers are not implemented yet, so verified requests are shown as
 received without execution. GPIO2 is reserved for fastloading throughout a

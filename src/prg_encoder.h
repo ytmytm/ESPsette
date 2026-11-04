@@ -27,6 +27,12 @@ class PrgEncoder {
   uint32_t totalPulses() const { return totalPulses_; }
   uint32_t dataStartPulse() const { return dataStartPulse_; }
   uint64_t totalCycles() const { return totalCycles_; }
+  // Virtual standard-tape duration of payload bytes in both ROM copies.
+  // Excludes pilots, sync, checksums and header; no pulses are materialized.
+  uint64_t standardDataCycles(uint32_t bytes) const {
+    return 2ULL * bytes * (longCycles() + mediumCycles() +
+                           9 * (shortCycles() + mediumCycles()));
+  }
   uint32_t clockHz() const { return profileClockHz(computerProfile(machine_ == Machine::C16, ntsc_)); }
   Machine machine() const { return machine_; }
 

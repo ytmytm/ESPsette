@@ -84,6 +84,11 @@ static void checkMachine(PrgEncoder::Machine machine, Timings t, bool ntsc = fal
   assert(encoder.pulseAt(expected.size(), source, cycles, offset) ==
          PrgEncoder::Result::END);
 
+  assert(encoder.standardDataCycles(0) == 0);
+  PrgEncoder longer;
+  assert(longer.begin(0x1001, encoder.dataLength() + 256, "PROGRAM", machine, ntsc));
+  assert(longer.totalCycles() - encoder.totalCycles() == encoder.standardDataCycles(256));
+
   if (c16) {
     // Pi1551's synthetic native tape pulses have 240/480/960 us halfwaves.
     // Compare wholewave durations with our PAL cycle values (WAV-PRG).

@@ -97,6 +97,8 @@ volatile uint32_t fastRequestUs = 0;
 bool fastTed = false;
 uint16_t fastAddress = 0, fastLength = 0, fastEntry = 0;
 uint32_t fastSent = 0, fastStageSent = 0;
+uint32_t fastDataStartedMs = 0, fastDataFinishedMs = 0;
+bool fastDataStarted = false, fastWaitingForData = false;
 uint8_t fastBlock[256];
 static bool fastloaderBusy() {
   return (fastPhase == FastPhase::TAPE && fastSelecting) || fastPhase == FastPhase::RECEIVER ||
@@ -555,6 +557,8 @@ void resetFastloader() {
   fastDmaStopped = false;
   interrupts();
   fastSent = fastStageSent = 0;
+  fastDataStartedMs = fastDataFinishedMs = 0;
+  fastDataStarted = fastWaitingForData = false;
 #if !ESPSETTE_GPIO_DISABLED
   pinMode(PIN_WRITE, INPUT_PULLUP);
 #endif
@@ -580,6 +584,10 @@ void pumpFastloader() {
   if (fastPhase != FastPhase::RECEIVER && fastPhase != FastPhase::DESCRIPTOR &&
       fastPhase != FastPhase::PAYLOAD) return;
   if (!fastRequestPending) return;
+  if (fastPhase == FastPhase::PAYLOAD && !fastDataStarted) {
+    fastDataStarted = true;
+    fastDataStartedMs = millis();
+  }
   const bool requestOn = fastRequestOn;
   const uint32_t requestedAt = fastRequestUs;
   if (uint32_t(micros() - requestedAt) < fastSessionSettings.us[requestOn ? 8 : 9]) return;
@@ -598,7 +606,11 @@ void pumpFastloader() {
   } else {
     count = (fastLength - fastSent) < 256 ? fastLength - fastSent : 256;
     for (uint16_t i = 0; i < count; ++i)
-      if (!tapeSource.read(2 + fastSent + i, fastBlock[i])) return;
+      if (!tapeSource.read(2 + fastSent + i, fastBlock[i])) {
+        fastWaitingForData = true;
+        return;
+      }
+    fastWaitingForData = false;
   }
   noInterrupts();
   fastRequestPending = false;
@@ -626,6 +638,7 @@ void pumpFastloader() {
     fastSent += count;
     tapeSource.releaseBefore(2 + fastSent);
     if (fastSent == fastLength) {
+      fastDataFinishedMs = millis();
       fastPhase = FastPhase::DONE;
 #if !ESPSETTE_GPIO_DISABLED
       pinMode(PIN_WRITE, INPUT_PULLUP);
@@ -1193,6 +1206,8 @@ void loop() {
                             fastPhase == FastPhase::PAYLOAD;
   if (gpioTransfer || (fastPhase == FastPhase::TAPE && (fastSelecting || state == State::FINISHED))) {
     // The receiver uses MOTOR as a block request and SENSE as data.
+  } else if (state == State::FINISHED && fastPhase == FastPhase::DONE) {
+    // Preserve the completed PRG and 100% progress until explicit rewind/eject.
   } else if (state == State::FINISHED) {
     // After end of tape, release PLAY (or MOTOR) before a fresh run from the start.
     if (!tapeShouldRun()) {
@@ -1428,6 +1443,11 @@ void handleState() {
   writeFastloaderConfig(doc.createNestedObject("fastloader"), fastloaderSettings);
   doc["fastloaderActive"] = fastPhase != FastPhase::OFF;
   doc["fastloaderBytes"] = fastSent;
+  doc["fastloaderTotalBytes"] = fastPhase == FastPhase::OFF ? 0 : fastLength;
+  doc["fastloaderElapsedMs"] = fastDataStarted ?
+      uint32_t((fastPhase == FastPhase::DONE ? fastDataFinishedMs : millis()) - fastDataStartedMs) : 0;
+  doc["fastloaderWaitingForData"] = fastWaitingForData;
+  doc["fastloaderWaitingForMotor"] = fastPhase == FastPhase::PAYLOAD && !fastRequestPending;
   doc["playing"] = (fastPhase == FastPhase::RECEIVER || fastPhase == FastPhase::DESCRIPTOR || fastPhase == FastPhase::PAYLOAD) || (motorOn && senseIsPressed() && tapeLoaded &&
       (state == State::STREAMING || state == State::DRAINING));
   const char* phase = "idle";
@@ -1445,6 +1465,8 @@ void handleState() {
   doc["phase"] = phase;
   uint64_t played = playedBaseCycles + (uint64_t)currentRunBits() * CYCLES_PER_BIT;
   if (totalTapeCycles && played > totalTapeCycles) played = totalTapeCycles;
+  if (fastPhase != FastPhase::OFF && fastPhase != FastPhase::TAPE)
+    played = totalTapeCycles + prgEncoder.standardDataCycles(fastSent);
   doc["playedCycles"] = (double)played;
   if (reportedTotalCycles) doc["totalCycles"] = (double)reportedTotalCycles;
   else doc["totalCycles"] = nullptr;
@@ -1577,7 +1599,7 @@ void handleSession() {
     logicalSize = useFast ? fileSize : 2 + 2 * dataLength;
     firstOffset = 2;
     totalTapeCycles = prgEncoder.totalCycles();
-    reportedTotalCycles = totalTapeCycles;
+    reportedTotalCycles = totalTapeCycles + (useFast ? prgEncoder.standardDataCycles(dataLength) : 0);
     sourceProfile = computerProfile(machine == PrgEncoder::Machine::C16, video == "ntsc");
     sourceClockHz = prgEncoder.clockHz();
     tapHalfWaves = false;

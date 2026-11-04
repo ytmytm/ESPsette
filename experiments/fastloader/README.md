@@ -86,6 +86,26 @@ correct reception. Reduce delays only with receiver-cycle and hardware evidence.
 The compact bootstrap uses serial MSB-first pairs, then switches to the layout
 above for the descriptor and program.
 
+## Progress telemetry and display
+
+`/state` reports `fastloaderBytes` and `fastloaderTotalBytes` for the PRG payload,
+excluding the PRG load-address prefix, descriptor and receiver download.
+Counts advance after completed blocks. `fastloaderElapsedMs` measures elapsed
+wall time from the first payload request, includes source/MOTOR waits and freezes
+at completion. The UI derives average bytes/second and ETA from these values.
+`fastloaderWaitingForData` and `fastloaderWaitingForMotor` identify source and
+receiver stalls; the reels pause while wake protection remains active.
+
+For a fast session, `totalCycles` and `playedCycles` are presentation values:
+the standard bootstrap duration plus the ordinary ROM duration of both copies
+of the total/sent payload. The encoder computes this arithmetically; no extra
+TAP or file copy is generated. The VFD/counter therefore accelerate with the
+actual byte count. Reels accelerate with the measured virtual-tape speed ratio,
+capped visually at a 0.12 s rotation; reduced-motion settings still apply.
+Progress is polled at 100 ms during fast stages even after the whole file has
+been uploaded. The completed session remains available at 100% until explicit
+rewind/ejection, so the final report cannot disappear between polls.
+
 ## Build and tests
 
 Firmware builds require ACME; `make native` assembles both computers and generates
