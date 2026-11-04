@@ -22,7 +22,7 @@ Hardware tests on **1 and 4 November 2026**:
 | C16/Plus/4 playback; all supported TAP v1/v2 variants | Full hardware coverage pending |
 | IDX seeking and counter-based REW/FF | Host tests pass; hardware test pending |
 | WRITE command requests | Header validation and ESP: request publication pass host tests; hardware test pending; no command handlers yet |
-| Turbo loader | C64 PAL fastloading confirmed on real hardware (4 November); C16/Plus/4 and NTSC hardware tests pending |
+| PRG + fastloader | Passed on real C64 PAL hardware (4 November); C16/Plus/4 and NTSC hardware tests pending |
 | OTA updates | Disabled in the default firmware; use serial flashing |
 
 ## Hardware
