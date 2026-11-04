@@ -4,6 +4,8 @@
 
 **A Wi-Fi cassette deck for your Commodore, built around an ESP-01.** Open its page, drop a tape file and type `LOAD` on the computer. Your browser streams the file over Wi-Fi; the ESP8266 turns it into timed I2S pulses on the datasette READ line. The computer controls MOTOR, and the page controls the virtual PLAY key through SENSE.
 
+Small as a *pesette* — a little scale for your LOADs.
+
 Files stay in the browser and pass through an 8 KB buffer on the ESP. No SD card or tape storage in flash is needed.
 
 ![Cassette in the web player](web/assets/cassette.webp)
