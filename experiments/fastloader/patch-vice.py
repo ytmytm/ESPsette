@@ -26,4 +26,5 @@ else:
 tape = source / "src/tapeport"
 for name in ("sender.c", "sender.h", "vice-device.c"):
     shutil.copyfile(root / name, tape / name)
+shutil.copyfile(root.parent / "write/vice-device.c", tape / "write-device.c")
 print(f"Patched disposable VICE source: {source}")

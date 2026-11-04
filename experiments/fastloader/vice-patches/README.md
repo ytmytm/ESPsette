@@ -2,10 +2,12 @@
 
 `espsette-fastloader.patch` targets VICE revision
 `eaf9b61f5560f921ebaa25349b09e797f351eb1e`, following the separate-patch layout
-used in Parobek. It registers the test tape-port device and fixes the released
+used in Parobek. It registers the fastloader and WRITE-capture tape-port devices and fixes the released
 SENSE input on C16 without a user port. The sender and adapter remain separate
 in `sender.c`, `sender.h` and `vice-device.c`; the helper copies them into the
 disposable emulator source after applying the integration patch.
+The WRITE adapter is copied from `experiments/write/vice-device.c` as
+`write-device.c`; it exports direct pin levels without a tape encoder or decoder.
 
 ```sh
 python3 experiments/fastloader/patch-vice.py /path/to/disposable/vice-source

@@ -14,6 +14,7 @@ on:
       - 'tests/**'
       - 'native/**'
       - 'experiments/fastloader/**'
+      - 'experiments/write/**'
   pull_request:
   workflow_dispatch:
   release:
@@ -48,6 +49,7 @@ jobs:
           /tmp/profile-test
           c++ -std=c++17 -Isrc tests/write_decoder_test.cpp src/write_decoder.cpp -o /tmp/write-command-test
           /tmp/write-command-test
+          python3 -m unittest discover -s tests -p 'test_write_vice.py' -v
           make fastloader-test
           c++ -std=c++17 -Isrc tests/fastloader_settings_test.cpp -o /tmp/fastloader-settings-test
           /tmp/fastloader-settings-test

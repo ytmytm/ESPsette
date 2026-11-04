@@ -21,7 +21,7 @@ Hardware tests on **1 and 4 November 2026**:
 | PRG → standard tape pulses, C64 and C16/Plus/4 PAL/NTSC | Host tests pass; hardware test pending |
 | C16/Plus/4 playback; all supported TAP v1/v2 variants | Full hardware coverage pending |
 | IDX seeking and counter-based REW/FF | Host tests pass; hardware test pending |
-| WRITE command requests | Header validation and ESP: request publication pass host tests; hardware test pending; no command handlers yet |
+| WRITE command requests | Real ROM SAVE traces pass VICE/host tests on C64, C16 and Plus/4 PAL/NTSC; hardware retest pending; no command handlers yet |
 | PRG + fastloader | Passed on real C64 PAL hardware (4 November); C16/Plus/4 and NTSC hardware tests pending |
 | OTA updates | Disabled in the default firmware; use serial flashing |
 

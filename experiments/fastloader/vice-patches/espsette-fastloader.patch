@@ -1,26 +1,29 @@
 diff --git a/vice/src/tapeport/tapeport.h b/vice/src/tapeport/tapeport.h
 --- a/vice/src/tapeport/tapeport.h
 +++ b/vice/src/tapeport/tapeport.h
-@@ -45,6 +45,7 @@
+@@ -45,6 +45,8 @@
      TAPEPORT_DEVICE_TAPE_DIAG_586220_HARNESS,
      TAPEPORT_DEVICE_TAPECART,
      TAPEPORT_DEVICE_WORDCRAFT_DONGLE,
 +    TAPEPORT_DEVICE_ESPSETTE_FL,
++    TAPEPORT_DEVICE_ESPSETTE_WRITE,
  
      /* This item always needs to be at the end */
      TAPEPORT_MAX_DEVICES
 diff --git a/vice/src/tapeport/tapeport.c b/vice/src/tapeport/tapeport.c
 --- a/vice/src/tapeport/tapeport.c
 +++ b/vice/src/tapeport/tapeport.c
-@@ -342,8 +342,11 @@
+@@ -342,8 +342,13 @@
      RESOURCE_INT_LIST_END
  };
  
 +#include "vice-device.c"
++#include "write-device.c"
 +
  static int tapeport_device_resources_init(int amount)
  {
 +    tapeport_device_register(TAPEPORT_DEVICE_ESPSETTE_FL, &fl_device);
++    tapeport_device_register(TAPEPORT_DEVICE_ESPSETTE_WRITE, &wc_device);
      datasette_resources_init(amount);
  
      if (tapertc_resources_init(amount) < 0) {

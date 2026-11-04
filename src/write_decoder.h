@@ -5,14 +5,16 @@
 
 // C64/C16 standard WRITE-header command channel. File data is discarded.
 // A verified ESP:<request> publishes a request; command handlers are not installed.
-// feedMicros() accepts time between successive WRITE rising edges (full pulses).
+// feedEdgeMicros() accepts same-polarity periods from the direct WRITE pin.
+// A pilot selects C64 rising or TED falling edges before byte decoding.
 class WriteDecoder {
  public:
   enum class Machine : uint8_t { UNKNOWN, C64, C16 };
-  void motorStart();
+  void motorStart(uint32_t quietMicros = UINT32_MAX);
   void motorStop();
   void suspend();
   void feedMicros(uint16_t duration);
+  void feedEdgeMicros(uint16_t duration, bool high);
   void overflow();
   const char* status() const { return status_; }
   const char* name() const { return name_; }
@@ -32,7 +34,7 @@ class WriteDecoder {
   enum class Pulse : uint8_t { INVALID, SHORT, MEDIUM, LONG };
   enum class Stage : uint8_t {
     SEARCH, FIRST_SYNC, FIRST_HEADER, FIRST_CHECKSUM, FIRST_END,
-    SECOND_SYNC, SECOND_HEADER, SECOND_CHECKSUM, SECOND_END, DONE
+    SECOND_SYNC, SECOND_HEADER, SECOND_CHECKSUM, DISCARD, DONE
   };
   static constexpr uint16_t HEADER_BYTES = 192;
   Pulse firstPulse_ = Pulse::INVALID;
@@ -43,6 +45,8 @@ class WriteDecoder {
   uint8_t parity_ = 1;
   Stage stage_ = Stage::SEARCH;
   Machine machine_ = Machine::UNKNOWN;
+  uint8_t c64Pilot_ = 0, tedPilot_ = 0;
+  uint32_t discardBytes_ = 0;
   uint8_t expectedSync_ = 0;
   uint16_t headerIndex_ = 0;
   uint8_t checksum_ = 0;

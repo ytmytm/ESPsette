@@ -48,9 +48,17 @@ Non-printable filename bytes are displayed as `?`.
 
 ## Framing and validation
 
-A GPIO rising-edge ISR timestamps full WRITE periods while MOTOR is on and
-GPIO2 belongs to the command receiver. A bounded 512-entry ring transfers the
-periods to the main loop; protocol decoding runs outside the ISR. The ISR
+A GPIO CHANGE ISR timestamps full, same-polarity WRITE periods while MOTOR is
+on and GPIO2 belongs to the command receiver. **WRITE is wired directly, with
+no inverter.** C64 ROM symbols are measured between rising edges; C16/Plus/4
+ROM symbols are measured between falling edges. The decoder requires 32
+consecutive short pilot periods to select the family and its edge polarity,
+then ignores the other polarity. It does not infer the machine from one long
+pulse: TED rising-edge periods can resemble C64 byte markers.
+
+A bounded 512-entry ring transfers periods and edge polarity to the main loop;
+protocol decoding runs outside the ISR. Each entry holds a 15-bit microsecond
+period and one polarity bit; long gaps saturate at 32767 us. The ISR
 checks the physical MOTOR level on every edge, not only when a session starts:
 
 ```cpp
@@ -58,8 +66,7 @@ if (!writeActive || !writeCommandsAllowed() || !(GPI & (1u << PIN_MOTOR))) retur
 ```
 
 `writeCommandsAllowed()` accepts only fastloader phases OFF or DONE. The
-interrupt is detached in all other phases, including the standard bootstrap. Pulse timing
-automatically distinguishes C64 and C16/Plus/4.
+interrupt is detached in all other phases, including the standard bootstrap.
 
 A request is published only after checking:
 
@@ -67,9 +74,23 @@ A request is published only after checking:
 - all 192 header bytes, byte parity and both XOR checksums;
 - identical header copies;
 - header type 1 or 3 and an end address greater than the start address;
-- C64 terminators, or the supported native TED block endings.
+- the first C64 block terminator, or the supported native TED block ending.
 
-After a verified header, further data is ignored until a new MOTOR session.
+The second copy is accepted immediately after its verified checksum. C64 ROM
+SAVE turns MOTOR off before the final terminator's last rising edge, so
+requiring that edge while also gating capture on MOTOR loses a valid header.
+
+After a verified header, the decoder counts but never stores the bytes in both
+following program copies (including countdowns and checksums). Their contents,
+parity failures and capture overflows cannot publish requests or overwrite the
+verified result. ROM SAVE briefly toggles MOTOR between the header and program
+records: about 32 ms on C64 and under 1 ms on TED in the captured traces. This
+pause preserves the discard state. A subsequent SAVE can begin as soon as the
+two program copies have been consumed. If SAVE is aborted or program capture
+is damaged, leave MOTOR off for at least one second before retrying; a restart
+after that quiet interval resets an unfinished discard. Brief TED pauses can
+be missed by main-loop polling without losing the discard state.
+
 A damaged, partial or overflowing capture cannot publish a request. There is
 no per-byte command acknowledgement on READ or SENSE; reception is observable
 in the web UI and `/state`. The decoder keeps the last verified request and
@@ -116,6 +137,7 @@ a partial frame; only the command/ID pair is published after full validation.
 ```sh
 c++ -std=c++17 -Isrc tests/write_decoder_test.cpp src/write_decoder.cpp -o /tmp/write-command-test
 /tmp/write-command-test
+python3 -m unittest discover -s tests -p 'test_write_vice.py' -v
 node tests/player_index.mjs
 make build PROFILE=1m
 ```
@@ -125,4 +147,15 @@ errors, mismatched copies, suspension/resumption, ignored program data,
 non-command names, maximum-length requests and overflow. Browser tests check
 request status/history and the fastloader suspension display. The ESP build
 uses the existing I2S mode which does not drive clock outputs on GPIO2.
-Physical WRITE reception and timing still need validation on the actual board.
+
+[VICE WRITE tests](../experiments/write/README.md) execute the actual KERNAL
+`SAVE "TEST",1` and `SAVE "ESP:TEST",1`, with device-1 traps disabled, on C64,
+C16 and Plus/4 in PAL and NTSC. Twelve raw physical-edge captures are retained
+as small compressed delta-event fixtures for ROM-free CI replay. Tests also
+exercise consecutive SAVEs, motor gating, incorrect polarity, missing edges,
+truncation, timestamp jitter, `micros()` wraparound and aborted-SAVE recovery.
+
+The previous receiver failed a real C64 PAL `SAVE "TEST",1` with `pulse_error`
+and `unexpected_terminator`. The missing-final-edge failure was reproduced in
+VICE before this fix. The revised path still needs a hardware retest; VICE
+does not validate ESP interrupt latency, Wi-Fi load or electrical timing.

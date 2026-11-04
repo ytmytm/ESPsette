@@ -28,15 +28,22 @@ void WriteDecoder::resetFrame() {
   firstPulse_ = Pulse::INVALID;
 }
 
-void WriteDecoder::motorStart() {
+void WriteDecoder::motorStart(uint32_t quietMicros) {
+  // SAVE pulses MOTOR off between the header and its data record (about
+  // 32 ms on C64, a fraction of a millisecond on TED). Keep discarding that
+  // record across the pause. A second of MOTOR off recovers an aborted SAVE.
+  if (stage_ == Stage::DISCARD && quietMicros < 1000000) return;
   suspended_ = false;
   resetFrame();
+  discardBytes_ = 0;
   machine_ = Machine::UNKNOWN;
+  c64Pilot_ = tedPilot_ = 0;
   status_ = "listening";
 }
 
 void WriteDecoder::motorStop() {
-  if (stage_ != Stage::SEARCH && stage_ != Stage::DONE) status_ = "incomplete";
+  if (stage_ == Stage::DISCARD || stage_ == Stage::DONE) return;
+  if (stage_ != Stage::SEARCH) status_ = "incomplete";
   resetFrame();
 }
 
@@ -47,13 +54,19 @@ void WriteDecoder::suspend() {
 }
 
 void WriteDecoder::fail(const char* reason) {
+  if (stage_ == Stage::DISCARD) {
+    // Program contents are neither retained nor validated as command data.
+    byteBits_ = ambiguousEnd_ = false;
+    firstPulse_ = Pulse::INVALID;
+    return;
+  }
   ++errorCount_;
   status_ = reason;
   resetFrame();
 }
 
 void WriteDecoder::overflow() {
-  if (suspended_ || stage_ == Stage::DONE) return; // Discarded payload must never reopen a completed frame.
+  if (suspended_ || stage_ == Stage::DISCARD || stage_ == Stage::DONE) return;
   ++overflowCount_;
   fail("capture_overflow");
 }
@@ -78,7 +91,10 @@ void WriteDecoder::finishHeader() {
   } else {
     status_ = "header_ignored";
   }
-  stage_ = Stage::DONE;
+  // Count (but never store) both data copies, including their countdowns and
+  // checksum bytes. MOTOR is not a reliable header/data record boundary.
+  discardBytes_ = 2UL * (9UL + endAddress() - startAddress() + 1UL);
+  stage_ = Stage::DISCARD;
 }
 
 void WriteDecoder::onByte(uint8_t value) {
@@ -127,8 +143,10 @@ void WriteDecoder::onByte(uint8_t value) {
       break;
     case Stage::SECOND_CHECKSUM:
       if (value != checksum_) fail("checksum_error");
-      else if (machine_ == Machine::C16) finishHeader();
-      else stage_ = Stage::SECOND_END;
+      // Real C64 SAVE drops MOTOR before the last rising edge of the final
+      // terminator. Both complete copies, parity and checksums already agree;
+      // publish now so capture can stop strictly at MOTOR low.
+      else finishHeader();
       break;
     case Stage::FIRST_END:
       // Plus/4 recordings may go straight from the first block checksum to
@@ -140,8 +158,8 @@ void WriteDecoder::onByte(uint8_t value) {
       }
       fail("missing_terminator");
       break;
-    case Stage::SECOND_END:
-      fail("missing_terminator");
+    case Stage::DISCARD:
+      if (--discardBytes_ == 0) stage_ = Stage::DONE;
       break;
     case Stage::DONE:
       break;
@@ -152,19 +170,36 @@ void WriteDecoder::onTerminator() {
   if (stage_ == Stage::FIRST_END) {
     stage_ = Stage::SECOND_SYNC;
     expectedSync_ = 0;
-  } else if (stage_ == Stage::SECOND_END) {
-    finishHeader();
-  } else if (stage_ != Stage::SEARCH && stage_ != Stage::DONE) {
+  } else if (stage_ != Stage::SEARCH && stage_ != Stage::DISCARD && stage_ != Stage::DONE) {
     fail("unexpected_terminator");
   }
 }
 
+void WriteDecoder::feedEdgeMicros(uint16_t duration, bool high) {
+  if (suspended_ || stage_ == Stage::DONE) return;
+  if (machine_ == Machine::UNKNOWN) {
+    // Distinguish the long ROM pilot, not a single data pulse: TED's rising
+    // edges straddle adjacent halfwaves and can look like C64 byte markers.
+    // These non-overlapping windows cover captured PAL and NTSC ROM pilots.
+    uint8_t& count = high ? c64Pilot_ : tedPilot_;
+    const bool shortPilot = high ? duration >= 260 && duration <= 440
+                                 : duration >= 450 && duration <= 680;
+    count = shortPilot ? count + 1 : 0;
+    if (count < 32) return;
+    machine_ = high ? Machine::C64 : Machine::C16;
+  }
+  // The physical WRITE wire is not inverted. VICE SAVE traces verify that
+  // C64 complete symbols end on rising edges, TED symbols on falling edges.
+  if (high == (machine_ == Machine::C64)) feedMicros(duration);
+}
+
 void WriteDecoder::feedMicros(uint16_t duration) {
-  if (suspended_ || stage_ == Stage::DONE) return; // Never accept program data or our fastloader output.
-  if (stage_ == Stage::SEARCH && !byteBits_ && firstPulse_ == Pulse::INVALID) {
+  if (suspended_ || stage_ == Stage::DONE) return;
+  if (machine_ == Machine::UNKNOWN && stage_ == Stage::SEARCH &&
+      !byteBits_ && firstPulse_ == Pulse::INVALID) {
     if (duration > 615 && duration <= 850) machine_ = Machine::C64;
     else if (duration >= 1600 && duration <= 2400) machine_ = Machine::C16;
-    else return; // Ignore the pilot until a byte marker is seen.
+    else return; // Full-period unit-test input can omit the physical pilot.
   }
   const Pulse pulse = classify(duration);
   if (ambiguousEnd_) {

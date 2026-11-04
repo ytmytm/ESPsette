@@ -9,6 +9,7 @@ node tests/player_index.mjs
 node tests/playback_awake.mjs
 c++ -std=c++17 -Isrc tests/write_decoder_test.cpp src/write_decoder.cpp -o /tmp/ESPsette-write-test
 /tmp/ESPsette-write-test
+python3 -m unittest discover -s tests -p 'test_write_vice.py' -v
 c++ -std=c++17 -Isrc tests/computer_profile_test.cpp -o /tmp/ESPsette-profile-test
 /tmp/ESPsette-profile-test
 python3 -m unittest discover -s tests -p 'test_firmware_package.py' -v
@@ -45,6 +46,14 @@ For manual browser checks, [fixtures/](fixtures/README.md) contains a synthetic 
 copy matching, ignored filenames/program data, maximum request length, overflow
 and fastloader suspension/resumption. Browser tests cover received-request
 metadata and suspension status. No test or decoder stores a program file.
+
+`test_write_vice.py` replays twelve actual ROM SAVE captures from C64, C16 and
+Plus/4 PAL/NTSC through the firmware decoder. It checks direct WRITE polarity,
+MOTOR pauses between header and data, repeated SAVEs, incorrect polarity,
+damaged/incomplete headers, timestamp jitter/wraparound and aborted-SAVE
+recovery. Compressed delta events preserve every physical edge and the
+original trace hash; replay needs neither VICE nor ROMs. See the
+[capture procedure](../experiments/write/README.md) to regenerate them.
 
 Fastloader UI tests check byte-based progress/ETA, accelerated counters/reels,
 data/MOTOR stalls without releasing wake protection, completion, ordinary WRITE

@@ -108,11 +108,13 @@ WriteDecoder writeDecoder;
 static constexpr uint16_t WRITE_RING_SIZE = 512;
 volatile uint16_t writeRing[WRITE_RING_SIZE];
 volatile uint16_t writeHead = 0, writeTail = 0;
-volatile uint32_t writeLastEdgeUs = 0, writeCaptureOverflows = 0;
+volatile uint32_t writeLastEdgeUs[2] = {}, writeCaptureOverflows = 0;
 volatile bool writeActive = false;
 uint32_t reportedWriteOverflows = 0;
 bool writeWasAllowed = true;
 bool writeInterruptAttached = false;
+uint32_t writeMotorOffUs = 0;
+bool writeMotorStopped = false;
 
 // Reserve GPIO2 for the entire fastloader session, including its WRITE-output
 // signature. Commands resume after completion, cancellation or ejection.
@@ -123,13 +125,16 @@ static bool IRAM_ATTR writeCommandsAllowed() {
 void IRAM_ATTR onWriteEdge() {
   if (!writeActive || !writeCommandsAllowed() || !(GPI & (1u << PIN_MOTOR))) return;
   const uint32_t now = micros();
-  const uint32_t previous = writeLastEdgeUs;
-  writeLastEdgeUs = now;
+  const bool high = (GPI & (1u << PIN_WRITE)) != 0;
+  const uint32_t previous = writeLastEdgeUs[high];
+  writeLastEdgeUs[high] = now;
   if (!previous) return;
   const uint16_t next = (writeHead + 1) & (WRITE_RING_SIZE - 1);
   if (next == writeTail) { ++writeCaptureOverflows; return; }
   const uint32_t duration = now - previous;
-  writeRing[writeHead] = duration > UINT16_MAX ? UINT16_MAX : duration;
+  // Preserve edge polarity alongside its same-polarity period. Direct C64
+  // WRITE needs rising edges; direct TED WRITE needs falling edges.
+  writeRing[writeHead] = (duration > 0x7fff ? 0x7fff : duration) | (high ? 0x8000 : 0);
   writeHead = next;
 }
 
@@ -138,7 +143,7 @@ void drainWriteCommands() {
   noInterrupts(); overflows = writeCaptureOverflows; interrupts();
   if (overflows != reportedWriteOverflows) {
     reportedWriteOverflows = overflows;
-    noInterrupts(); writeTail = writeHead; writeLastEdgeUs = 0; interrupts();
+    noInterrupts(); writeTail = writeHead; writeLastEdgeUs[0] = writeLastEdgeUs[1] = 0; interrupts();
     writeDecoder.overflow();
   }
   for (uint16_t count = 0; count < WRITE_RING_SIZE; ++count) {
@@ -147,7 +152,7 @@ void drainWriteCommands() {
     const uint16_t duration = writeRing[writeTail];
     writeTail = (writeTail + 1) & (WRITE_RING_SIZE - 1);
     interrupts();
-    writeDecoder.feedMicros(duration);
+    writeDecoder.feedEdgeMicros(duration & 0x7fff, (duration & 0x8000) != 0);
   }
 }
 
@@ -157,7 +162,7 @@ void processWriteCommands() {
     noInterrupts();
     writeActive = false;
     writeTail = writeHead;
-    writeLastEdgeUs = 0;
+    writeLastEdgeUs[0] = writeLastEdgeUs[1] = 0;
     interrupts();
     if (writeInterruptAttached) {
       detachInterrupt(digitalPinToInterrupt(PIN_WRITE));
@@ -168,7 +173,7 @@ void processWriteCommands() {
     return;
   }
   if (!writeInterruptAttached) {
-    attachInterrupt(digitalPinToInterrupt(PIN_WRITE), onWriteEdge, RISING);
+    attachInterrupt(digitalPinToInterrupt(PIN_WRITE), onWriteEdge, CHANGE);
     writeInterruptAttached = true;
   }
   if (!writeWasAllowed) {
@@ -177,10 +182,10 @@ void processWriteCommands() {
   }
   if (motorIsOn()) {
     if (!writeActive) {
-      writeDecoder.motorStart();
+      writeDecoder.motorStart(writeMotorStopped ? uint32_t(micros() - writeMotorOffUs) : UINT32_MAX);
       noInterrupts();
       writeTail = writeHead;
-      writeLastEdgeUs = 0;
+      writeLastEdgeUs[0] = writeLastEdgeUs[1] = 0;
       writeActive = true;
       interrupts();
     }
@@ -189,6 +194,8 @@ void processWriteCommands() {
     noInterrupts(); writeActive = false; interrupts();
     drainWriteCommands();
     writeDecoder.motorStop();
+    writeMotorOffUs = micros();
+    writeMotorStopped = true;
   }
 #endif
 }
