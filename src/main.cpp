@@ -32,6 +32,9 @@
 #include "network_config.h"
 #include "tape_source.h"
 #include "prg_encoder.h"
+#include "fastloader_settings.h"
+#include "fastloader_native.h"
+#include "fastloader_wire.h"
 #include "player_page.h"
 #include <ArduinoJson.h>
 #include <LittleFS.h>
@@ -51,6 +54,8 @@
 #ifndef ESPSETTE_WIFI_DISABLED
 #define ESPSETTE_WIFI_DISABLED 0
 #endif
+static bool fastloaderBusy();
+
 #if ESPSETTE_GPIO_DISABLED
 // Bench: soft SENSE via PLAY/STOP; soft MOTOR stays on (as if the C64 asserted
 // it). Tape only runs while both motor and PLAY are active.
@@ -60,14 +65,14 @@ static bool softMotorOn = true;
 static inline void setSensePressed(bool pressed) { softSensePressed = pressed; }
 static inline bool senseIsPressed() { return softSensePressed; }
 static inline bool motorIsOn() { return softMotorOn; }
-static inline bool motorBlocksEdit() { return false; }
+static inline bool motorBlocksEdit() { return fastloaderBusy(); }
 #else
 static inline void setSensePressed(bool pressed) {
   digitalWrite(PIN_SENSE, pressed ? LOW : HIGH);
 }
 static inline bool senseIsPressed() { return digitalRead(PIN_SENSE) == LOW; }
 static inline bool motorIsOn() { return digitalRead(PIN_MOTOR) == HIGH; }
-static inline bool motorBlocksEdit() { return motorIsOn(); }
+static inline bool motorBlocksEdit() { return motorIsOn() || fastloaderBusy(); }
 #endif
 
 static inline bool tapeShouldRun() {
@@ -79,6 +84,23 @@ ESP8266WebServer HTTPServer(80);
 NetworkConfig networkConfig(HTTPServer, PIN_MOTOR);
 TapeSource tapeSource;
 PrgEncoder prgEncoder;
+FastloaderSettings fastloaderSettings;
+FastloaderSettings fastSessionSettings;
+enum class FastPhase : uint8_t { OFF, TAPE, RECEIVER, DESCRIPTOR, PAYLOAD, DONE };
+volatile FastPhase fastPhase = FastPhase::OFF;
+volatile uint16_t fastSignature = 0;
+volatile bool fastSignatureSeen = false, fastRequestPending = false, fastSelecting = false;
+bool fastDmaStopped = false;
+volatile bool fastRequestOn = false, fastHeaderWait = false;
+volatile uint32_t fastRequestUs = 0;
+bool fastTed = false;
+uint16_t fastAddress = 0, fastLength = 0, fastEntry = 0;
+uint32_t fastSent = 0, fastStageSent = 0;
+uint8_t fastBlock[256];
+static bool fastloaderBusy() {
+  return (fastPhase == FastPhase::TAPE && fastSelecting) || fastPhase == FastPhase::RECEIVER ||
+         fastPhase == FastPhase::DESCRIPTOR || fastPhase == FastPhase::PAYLOAD;
+}
 enum class SourceFormat : uint8_t { TAP, PRG };
 SourceFormat sourceFormat = SourceFormat::TAP;
 
@@ -181,6 +203,7 @@ static void scopeClear() {
 }
 
 static bool stopPlaybackForEdit() {
+  if (fastloaderBusy()) return false;
   if (state != State::STREAMING && state != State::DRAINING) return true;
 #if ESPSETTE_GPIO_DISABLED
   playedBaseCycles += (uint64_t)generatedTapBits * CYCLES_PER_BIT;
@@ -227,7 +250,11 @@ void handleEject();
 void handleSense();
 void handleAutoPlay();
 void handleDefaultMachine();
+void handleFastloaderConfig();
+static bool parseDecimal(const String&, uint32_t&);
 void handleDemo();
+void pumpFastloader();
+void resetFastloader();
 
 void IRAM_ATTR onDmaBufferDone() {
   ++dmaCallbacks;
@@ -242,6 +269,38 @@ void IRAM_ATTR onMotorFalling() {
   motorFallCallbacks = dmaCallbacks;
   motorFallElapsedUs = micros() - lastDmaCallbackUs;
   motorFell = true;
+}
+
+void IRAM_ATTR onMotorChange() {
+  const bool on = (GPI & (1u << PIN_MOTOR)) != 0;
+  if (!on) onMotorFalling();
+  if (fastPhase == FastPhase::TAPE && !fastSignatureSeen) {
+    if (on) {
+      fastSignature = (fastSignature << 1) | ((GPI >> PIN_WRITE) & 1);
+      if ((fastSignature & 7) == 6 && !fastSelecting) {
+        fastSelecting = true;
+#if !ESPSETTE_GPIO_DISABLED
+        // Stop at prefix 110, well before the stub clears FLAG. No allocation
+        // or flash code in this ISR; release DMA later from loop().
+        I2SC &= ~I2STXS;
+        GPOS = 1u << PIN_READ;
+        GPF3 = GPFFS(GPFFS_GPIO(3));
+        GPC3 &= 0xFu << GPCI;
+        GPES = 1u << PIN_READ;
+#endif
+      }
+      if (fastSignature == 0xca65) fastSignatureSeen = true;
+    }
+    return;
+  }
+  if (fastSignatureSeen && fastPhase != FastPhase::DONE && fastPhase != FastPhase::OFF) {
+    // The low-RAM receiver first normalizes MOTOR to ON; its first request is OFF.
+    if (fastHeaderWait && on) return;
+    fastHeaderWait = false;
+    fastRequestOn = on;
+    fastRequestUs = micros();
+    fastRequestPending = true;
+  }
 }
 
 void resetPlayer(uint32_t offset) {
@@ -318,6 +377,7 @@ static void insertEmbeddedDemo() {
   // so the Wi-Fi/soft WDT keep running.
   ESP.wdtFeed();
   yield();
+  resetFastloader();
   sourceFormat = SourceFormat::TAP;
   sourceProfile = ComputerProfile::C64_PAL;
   sourceClockHz = profileClockHz(sourceProfile);
@@ -356,7 +416,7 @@ static void insertEmbeddedDemo() {
 void idleReadPin() {
 #if !ESPSETTE_GPIO_DISABLED
   pinMode(PIN_READ, OUTPUT);
-  digitalWrite(PIN_READ, LOW); // The external transistor makes this READ high.
+  digitalWrite(PIN_READ, LOW);
 #endif
 }
 
@@ -365,6 +425,127 @@ void stopI2S() {
   i2s_end();
   idleReadPin();
 #endif
+}
+
+struct FastGpioOutput {
+  void IRAM_ATTR data(bool write, bool sense) {
+#if !ESPSETTE_GPIO_DISABLED
+    const uint32_t pins = (1u << PIN_WRITE) | (1u << PIN_SENSE);
+    const uint32_t high = (write ? 1u << PIN_WRITE : 0) | (sense ? 1u << PIN_SENSE : 0);
+    GPOC = pins & ~high;
+    GPOS = high;
+#endif
+  }
+  void IRAM_ATTR read(bool high) {
+#if !ESPSETTE_GPIO_DISABLED
+    if (high) GPOS = 1u << PIN_READ;
+    else GPOC = 1u << PIN_READ;
+#endif
+  }
+  void IRAM_ATTR wait(uint16_t us) {
+    const uint32_t start = ESP.getCycleCount();
+    const uint32_t cycles = uint32_t(us) * (F_CPU / 1000000u);
+    while (uint32_t(ESP.getCycleCount() - start) < cycles) {}
+  }
+};
+
+// Keep a concrete IRAM entry point: template COMDAT sections can otherwise
+// be placed in flash by the Xtensa linker even with an IRAM attribute.
+void IRAM_ATTR __attribute__((noinline, noclone)) sendFastByte(
+    uint8_t value, bool ted, bool bootstrap, const FastloaderSettings& settings) {
+  FastGpioOutput output;
+  fastloaderSendByte(output, value, ted, bootstrap, settings);
+}
+
+void resetFastloader() {
+  noInterrupts();
+  fastPhase = FastPhase::OFF;
+  fastSignature = 0;
+  fastSignatureSeen = fastRequestPending = fastHeaderWait = fastSelecting = false;
+  fastDmaStopped = false;
+  interrupts();
+  fastSent = fastStageSent = 0;
+#if !ESPSETTE_GPIO_DISABLED
+  pinMode(PIN_WRITE, INPUT_PULLUP);
+#endif
+}
+
+void pumpFastloader() {
+  if (fastPhase == FastPhase::TAPE && fastSelecting && !fastDmaStopped) {
+#if !ESPSETTE_GPIO_DISABLED
+    i2s_end();
+    digitalWrite(PIN_READ, HIGH);
+    pinMode(PIN_READ, OUTPUT);
+#endif
+    fastDmaStopped = true;
+  }
+  if (fastPhase == FastPhase::TAPE && fastSignatureSeen) {
+#if !ESPSETTE_GPIO_DISABLED
+    digitalWrite(PIN_READ, HIGH);
+#endif
+    motorFell = false;
+    fastPhase = FastPhase::RECEIVER;
+    state = State::STREAMING;
+  }
+  if (fastPhase != FastPhase::RECEIVER && fastPhase != FastPhase::DESCRIPTOR &&
+      fastPhase != FastPhase::PAYLOAD) return;
+  if (!fastRequestPending) return;
+  const bool requestOn = fastRequestOn;
+  const uint32_t requestedAt = fastRequestUs;
+  if (uint32_t(micros() - requestedAt) < fastSessionSettings.us[requestOn ? 8 : 9]) return;
+  const bool bootstrap = fastPhase == FastPhase::RECEIVER;
+  uint16_t count;
+  if (bootstrap) {
+    const uint8_t* code = fastTed ? tedReceiver : c64Receiver;
+    memcpy_P(fastBlock, code + fastStageSent, 256);
+    count = 256;
+  } else if (fastPhase == FastPhase::DESCRIPTOR) {
+    const uint16_t words[] = {fastAddress, fastLength, fastEntry};
+    for (unsigned i = 0; i < 3; ++i) {
+      fastBlock[i*2] = words[i]; fastBlock[i*2+1] = words[i] >> 8;
+    }
+    count = 6;
+  } else {
+    count = (fastLength - fastSent) < 256 ? fastLength - fastSent : 256;
+    for (uint16_t i = 0; i < count; ++i)
+      if (!tapeSource.read(2 + fastSent + i, fastBlock[i])) return;
+  }
+  noInterrupts();
+  fastRequestPending = false;
+  if (bootstrap && fastStageSent + count == (fastTed ? sizeof(tedReceiver) : sizeof(c64Receiver)))
+    fastHeaderWait = true;
+  interrupts();
+#if !ESPSETTE_GPIO_DISABLED
+  // The first request follows the computer's release of WRITE after the signature.
+  digitalWrite(PIN_WRITE, HIGH);
+  pinMode(PIN_WRITE, OUTPUT);
+#endif
+  FastGpioOutput output;
+  output.wait(fastSessionSettings.us[bootstrap ? 7 : fastTed ? 5 : 4]);
+  for (uint16_t i = 0; i < count; ++i) {
+    sendFastByte(fastBlock[i], fastTed, bootstrap, fastSessionSettings);
+    ESP.wdtFeed();
+  }
+  if (bootstrap) {
+    fastStageSent += count;
+    if (fastStageSent == (fastTed ? sizeof(tedReceiver) : sizeof(c64Receiver)))
+      fastPhase = FastPhase::DESCRIPTOR;
+  } else if (fastPhase == FastPhase::DESCRIPTOR) {
+    fastPhase = FastPhase::PAYLOAD;
+  } else {
+    fastSent += count;
+    tapeSource.releaseBefore(2 + fastSent);
+    if (fastSent == fastLength) {
+      fastPhase = FastPhase::DONE;
+#if !ESPSETTE_GPIO_DISABLED
+      pinMode(PIN_WRITE, INPUT_PULLUP);
+#endif
+      setSensePressed(false);
+      state = State::FINISHED;
+      playbackComplete = true;
+      playedBaseCycles = totalTapeCycles;
+    }
+  }
 }
 
 bool nextTapeBit(uint8_t &bit);
@@ -468,16 +649,12 @@ void startTape() {
   // This rate is remembered by the core and applied during i2s_begin(),
   // before the first (otherwise fast) DMA descriptor can finish.
   i2s_set_rate(realBitRate / 32);
-#ifdef I2S_HAS_BEGIN_RXTX_DRIVE_CLOCKS
   if (!i2s_rxtxdrive_begin(false, true, false, false)) {
     state = State::ERROR;
     playerError = "i2s_alloc_failed";
     debugE("I2S allocation failed");
     return;
   }
-#else
-  i2s_begin();
-#endif
   i2s_set_callback(onDmaBufferDone);
   realBitRate = (uint32_t)(i2s_get_real_rate() * 32.0f + 0.5f);
   state = State::STREAMING;
@@ -718,6 +895,7 @@ void setupWebserver() {
   HTTPServer.on("/sense", HTTP_POST, handleSense);
   HTTPServer.on("/autoplay", HTTP_POST, handleAutoPlay);
   HTTPServer.on("/default-machine", HTTP_POST, handleDefaultMachine);
+  HTTPServer.on("/fastloader-config", HTTP_POST, handleFastloaderConfig);
   HTTPServer.on("/demo", HTTP_POST, handleDemo);
   HTTPServer.onNotFound(handleNotFound);
   HTTPServer.begin();
@@ -774,6 +952,68 @@ extern "C" void __disableWiFiAtBootTime(void) {
 }
 #endif
 
+void writeFastloaderConfig(JsonObject object, const FastloaderSettings& settings) {
+  object["version"] = 1;
+  object["enabled"] = settings.enabled;
+  for (unsigned i = 0; i < FASTLOADER_FIELD_COUNT; ++i)
+    object[FASTLOADER_FIELDS[i].name] = settings.us[i];
+}
+
+bool readFastloaderConfig(JsonObjectConst object, FastloaderSettings& settings) {
+  if (object["version"] != 1 || !object["enabled"].is<bool>()) return false;
+  FastloaderSettings candidate;
+  candidate.enabled = object["enabled"];
+  for (unsigned i = 0; i < FASTLOADER_FIELD_COUNT; ++i) {
+    const JsonVariantConst value = object[FASTLOADER_FIELDS[i].name];
+    if (!value.is<uint32_t>() || !candidate.set(i, value.as<uint32_t>())) return false;
+  }
+  settings = candidate;
+  return true;
+}
+
+void loadFastloaderConfig() {
+  File file = LittleFS.open("/fastloader.json", "r");
+  if (!file || file.size() > 2048) return;
+  StaticJsonDocument<512> doc;
+  if (!deserializeJson(doc, file)) readFastloaderConfig(doc.as<JsonObjectConst>(), fastloaderSettings);
+}
+
+void handleFastloaderConfig() {
+  if (motorBlocksEdit() || (fastPhase != FastPhase::OFF && fastPhase != FastPhase::DONE && fastPhase != FastPhase::TAPE)) {
+    HTTPServer.send(409, "application/json", "{\"error\":\"transfer_active\"}");
+    return;
+  }
+  FastloaderSettings requested;
+  const String enabled = HTTPServer.arg("enabled");
+  if (enabled != "0" && enabled != "1") {
+    HTTPServer.send(400, "application/json", "{\"error\":\"invalid_fastloader_config\"}");
+    return;
+  }
+  requested.enabled = enabled == "1";
+  for (unsigned i = 0; i < FASTLOADER_FIELD_COUNT; ++i) {
+    uint32_t value;
+    if (!parseDecimal(HTTPServer.arg(FASTLOADER_FIELDS[i].name), value) || !requested.set(i, value)) {
+      HTTPServer.send(400, "application/json", "{\"error\":\"invalid_fastloader_config\"}");
+      return;
+    }
+  }
+  StaticJsonDocument<512> doc;
+  writeFastloaderConfig(doc.to<JsonObject>(), requested);
+  File file = LittleFS.open("/fastloader.tmp", "w");
+  const size_t expected = measureJson(doc);
+  const bool written = file && serializeJson(doc, file) == expected;
+  if (file) { file.flush(); file.close(); }
+  if (!written || !LittleFS.rename("/fastloader.tmp", "/fastloader.json")) {
+    LittleFS.remove("/fastloader.tmp");
+    HTTPServer.send(500, "application/json", "{\"error\":\"fastloader_save_failed\"}");
+    return;
+  }
+  fastloaderSettings = requested;
+  String response;
+  serializeJson(doc, response);
+  HTTPServer.send(200, "application/json", response);
+}
+
 void setup() {
 #if ESPSETTE_GPIO_DISABLED
   // Keep UART0 so bench can see a boot line at the ROM baud rate.
@@ -785,6 +1025,7 @@ void setup() {
 #endif
   setupPins();
   setupNetwork();
+  loadFastloaderConfig();
   File autoPlayFile = LittleFS.open("/autoplay.cfg", "r");
   if (autoPlayFile) {
     autoPlay = autoPlayFile.read() != '0';
@@ -813,7 +1054,7 @@ void setup() {
   lastMotor = LOW;
 #else
   lastMotor = digitalRead(PIN_MOTOR);
-  attachInterrupt(digitalPinToInterrupt(PIN_MOTOR), onMotorFalling, FALLING);
+  attachInterrupt(digitalPinToInterrupt(PIN_MOTOR), onMotorChange, CHANGE);
 #endif
   lastcall = millis();
   debugI("setup completed; TAP bytes=%lu", (unsigned long)tapEnd);
@@ -855,7 +1096,12 @@ void loop() {
     debugI("Motor state changed to %u", motor);
   }
 
-  if (state == State::FINISHED) {
+  pumpFastloader();
+  const bool gpioTransfer = fastPhase == FastPhase::RECEIVER || fastPhase == FastPhase::DESCRIPTOR ||
+                            fastPhase == FastPhase::PAYLOAD;
+  if (gpioTransfer || (fastPhase == FastPhase::TAPE && (fastSelecting || state == State::FINISHED))) {
+    // The receiver uses MOTOR as a block request and SENSE as data.
+  } else if (state == State::FINISHED) {
     // After end of tape, release PLAY (or MOTOR) before a fresh run from the start.
     if (!tapeShouldRun()) {
       if (tapeSource.kind() == TapeSource::Kind::STREAMED && !motorIsOn()) {
@@ -1082,12 +1328,15 @@ void handleState() {
   doc["clockHz"] = sourceClockHz;
   doc["fileName"] = tapeLoaded ? tapeName : "";
   doc["motorOn"] = motorOn;
-  doc["sensePressed"] = senseIsPressed();
+  doc["sensePressed"] = fastloaderBusy() || senseIsPressed();
   doc["gpioDisabled"] = bool(ESPSETTE_GPIO_DISABLED);
   doc["autoPlay"] = autoPlay;
   doc["defaultMachine"] = profileName(defaultProfile);
-  doc["playing"] = motorOn && senseIsPressed() && tapeLoaded &&
-      (state == State::STREAMING || state == State::DRAINING);
+  writeFastloaderConfig(doc.createNestedObject("fastloader"), fastloaderSettings);
+  doc["fastloaderActive"] = fastPhase != FastPhase::OFF;
+  doc["fastloaderBytes"] = fastSent;
+  doc["playing"] = (fastPhase == FastPhase::RECEIVER || fastPhase == FastPhase::DESCRIPTOR || fastPhase == FastPhase::PAYLOAD) || (motorOn && senseIsPressed() && tapeLoaded &&
+      (state == State::STREAMING || state == State::DRAINING));
   const char* phase = "idle";
   if (state == State::STREAMING || state == State::DRAINING)
     phase = sourceFormat == SourceFormat::PRG &&
@@ -1098,6 +1347,8 @@ void handleState() {
     phase = sourceFormat == SourceFormat::PRG &&
             player.decoder.prgPulseIndex >= prgEncoder.dataStartPulse() ?
             "headerPause" : "paused";
+  if (fastPhase == FastPhase::RECEIVER || (fastPhase == FastPhase::TAPE && fastSelecting)) phase = "bootstrap";
+  if (fastPhase == FastPhase::DESCRIPTOR || fastPhase == FastPhase::PAYLOAD) phase = "fastload";
   doc["phase"] = phase;
   uint64_t played = playedBaseCycles + (uint64_t)currentRunBits() * CYCLES_PER_BIT;
   if (totalTapeCycles && played > totalTapeCycles) played = totalTapeCycles;
@@ -1160,6 +1411,7 @@ void handleSession() {
   }
   const String type = HTTPServer.arg("type");
   const bool isPrg = type == "prg";
+  bool useFast = false;
   if ((type.length() && type != "tap" && !isPrg) ||
       !parseDecimal(HTTPServer.arg("size"), fileSize) ||
       HTTPServer.arg("name").length() > 64) {
@@ -1174,8 +1426,8 @@ void handleSession() {
     if (fileSize < 3 || addressHex.length() != 4 ||
         (HTTPServer.arg("machine") != "c64" && HTTPServer.arg("machine") != "c16") ||
         (video.length() && video != "pal" && video != "ntsc") ||
-        HTTPServer.arg("turbo") != "0") {
-      HTTPServer.send(400, "text/plain", "Only standard C64/C16 PRG is supported");
+        (HTTPServer.arg("turbo") != "0" && HTTPServer.arg("turbo") != "1")) {
+      HTTPServer.send(400, "text/plain", "Invalid C64/C16 PRG options");
       return;
     }
     for (uint8_t i = 0; i < 2; ++i) {
@@ -1197,7 +1449,26 @@ void handleSession() {
       HTTPServer.send(400, "text/plain", "PRG address range is invalid");
       return;
     }
-    logicalSize = 2 + 2 * dataLength;
+    useFast = HTTPServer.arg("turbo") == "1" && fastloaderSettings.enabled;
+    if (useFast) {
+      const bool ted = machine == PrgEncoder::Machine::C16;
+      uint32_t entry = 0;
+      if ((HTTPServer.hasArg("entry") && !parseDecimal(HTTPServer.arg("entry"), entry)) ||
+          entry > 65535 || loadAddress < (ted ? 0x1001 : 0x0801) ||
+          (uint32_t)loadAddress + dataLength > (ted ? 0x4000u : 0x8000u)) {
+        HTTPServer.send(400, "text/plain", "Fast PRG must fit BASIC RAM; invalid entry/address");
+        return;
+      }
+      uint8_t stub[171];
+      const uint8_t* code = ted ? tedBootstrap : c64Bootstrap;
+      const size_t count = ted ? sizeof(tedBootstrap) : sizeof(c64Bootstrap);
+      memcpy_P(stub, code, count);
+      prgEncoder.beginAutostart(stub, count, displayName, machine, video == "ntsc");
+      const uint8_t vector[] = {uint8_t(ted ? 0x47 : 0x51), 3};
+      prgEncoder.observeFirstCopy(2, vector, sizeof(vector));
+      fastTed = ted; fastAddress = loadAddress; fastLength = dataLength; fastEntry = entry;
+    }
+    logicalSize = useFast ? fileSize : 2 + 2 * dataLength;
     firstOffset = 2;
     totalTapeCycles = prgEncoder.totalCycles();
     reportedTotalCycles = totalTapeCycles;
@@ -1230,6 +1501,11 @@ void handleSession() {
     tapeSource.useStream(prefix, logicalSize, id);
     sourceFormat = SourceFormat::TAP;
     tapeName = HTTPServer.arg("name");
+  }
+  resetFastloader();
+  if (useFast) {
+    fastSessionSettings = fastloaderSettings;
+    fastPhase = FastPhase::TAPE;
   }
   tapEnd = logicalSize;
   tapeLoaded = false;
@@ -1392,7 +1668,7 @@ void handleChunkUpload() {
         !tapeSource.append(tapeSource.nextOffset(), upload.buf, upload.currentSize)) {
       uploadError = 2;
     } else {
-      if (sourceFormat == SourceFormat::PRG)
+      if (sourceFormat == SourceFormat::PRG && fastPhase == FastPhase::OFF)
         prgEncoder.observeFirstCopy(tapeSource.nextOffset() - upload.currentSize,
                                     upload.buf, upload.currentSize);
       uploadBytes += upload.currentSize;
@@ -1427,6 +1703,11 @@ void handleSense() {
   if (pressed != "0" && pressed != "1") {
     HTTPServer.send(400, "application/json", "{\"error\":\"invalid_sense\"}");
     return;
+  }
+  if (pressed == "0" && fastloaderBusy()) {
+    resetFastloader();
+    state = State::ERROR;
+    playerError = "fastloader_cancelled";
   }
   setSensePressed(pressed == "1");
   HTTPServer.send(200, "application/json", pressed == "1" ?
@@ -1491,6 +1772,7 @@ void handleEject() {
     HTTPServer.send(409, "text/plain", "Stop MOTOR before ejecting");
     return;
   }
+  resetFastloader();
   tapeSource.eject();
   tapeLoaded = false;
   setSensePressed(false);

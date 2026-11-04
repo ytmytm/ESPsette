@@ -19,7 +19,7 @@ Hardware tests on **1 November 2026**:
 | PRG → standard tape pulses, C64 and C16/Plus/4 PAL/NTSC | Host tests pass; hardware test pending |
 | C16/Plus/4 playback; all supported TAP v1/v2 variants | Full hardware coverage pending |
 | IDX seeking and counter-based REW/FF | Host tests pass; hardware test pending |
-| Turbo loader | [Isolated C64/C16/Plus/4 host/VICE experiment](experiments/fastloader/README.md); firmware option pending |
+| Turbo loader | Selectable PRG bootstrap + GPIO sender; C64/C16/Plus/4 host/VICE tests pass; hardware test pending |
 | OTA updates | Disabled in the default firmware; use serial flashing |
 
 ## Hardware
@@ -36,11 +36,13 @@ The [KiCad project](kicad/espsette.kicad_pro) includes the schematic, routed PCB
 
 ## Build
 
-Requires `make`, `curl` and internet access for the initial tool download. On macOS, install the Command Line Tools if needed (`xcode-select --install`). Run from the repository root:
+Requires `make`, `curl`, Python 3 and **ACME** (6502 assembler), plus internet access for the initial tool download.
+Install ACME with `sudo apt-get install acme` on Debian/Ubuntu or `brew install acme` on macOS. Host tests also use a C++17 compiler and Node.js. On macOS, install the Command Line Tools if needed (`xcode-select --install`). Run from the repository root:
 
 ```sh
 make setup                    # Install project tools once
-make build PROFILE=1m         # Build for a 1 MB ESP-01
+make native                   # Assemble C64 and C16/Plus4 loaders with ACME
+make build PROFILE=1m         # Assemble loaders and build for a 1 MB ESP-01
 ```
 
 Tools are installed in `tools/`, with Python and PlatformIO packages/caches under `~/.cache/ESPsette/`. No global PlatformIO installation is required. The default build enables real cassette GPIOs and includes the demo TAP. Build settings are in [platformio.ini](platformio.ini).
@@ -50,6 +52,35 @@ Tools are installed in `tools/`, with Python and PlatformIO packages/caches unde
 | `1m` (default) | 1 MB flash, 64 KB LittleFS |
 | `4m` | ESP-01 with 4 MB flash |
 | `512k` | 512 KB flash; current firmware may not fit |
+
+## PRG fastloader
+
+Open **Playback settings**, enable **Use fastloader for PRG**, and save before
+inserting a PRG. The default is off. With it off, PRGs use the standard ROM
+protocol. TAP playback keeps its recorded timing. With it on, normal `LOAD`
+autostarts a small header bootstrap, then direct GPIO drives READ together
+with WRITE/SENSE to transfer the receiver and program. I2S is stopped before
+the fast stage. The current firmware accepts fast PRGs in `$0801..$7FFF`
+on C64 and `$1001..$3FFF` on C16/Plus4, and selects BASIC RUN by default.
+The session API can supply a decimal `entry` address for machine code.
+
+The same panel edits setup, data hold, gaps between pairs/bytes, bootstrap
+hold/gap, and MOTOR settling times in microseconds. C64 and C16 have separate
+hold and byte-gap values. **Save fastloader settings** stores the complete
+configuration atomically in LittleFS at `/fastloader.json`; it survives resets
+and applies to the next inserted PRG. **Default timings** restores the fields
+without changing the enabled switch; save to apply. Settings cannot be changed
+during an active transfer. A missing or invalid file uses the tested defaults.
+If hardware fails to load, increase the relevant delays or switch fastloader off.
+
+Native sources live in [`native/fastloader/`](native/fastloader/).
+`make native` generates the ignored `include/fastloader_native.h`; PlatformIO's
+pre-build hook regenerates it automatically for all profiles. A post-link check
+verifies that the GPIO transmitter and busy wait reside in IRAM. The firmware
+GitHub Actions workflow installs ACME, assembles both targets, runs sender,
+settings, wire-order and cycle-budget tests, then builds the ESP image.
+[Protocol, timing and emulator tests](experiments/fastloader/README.md) describe
+the three stages and the limits of simulation. Hardware verification is pending.
 
 ## Flash over USB-UART
 
@@ -117,7 +148,7 @@ nc DEVICE_IP 23
 
 Normal firmware has no UART log: GPIO1 and GPIO3 are used for SENSE and READ.
 
-Open [web/player.html](web/player.html) directly in a browser or run `make preview` to try the UI with simulated ESP state. Caveat is bundled as WOFF2 assets and embedded in the firmware, so it works offline without installed fonts or external requests. Font sources and OFL licenses are in [web/assets/fonts](web/assets/fonts). Preview saves the default computer and autoplay in browser local storage; real firmware saves these settings on the ESP. See [tests/README.md](tests/README.md) for host tests and `make help` for build targets.
+Open [web/player.html](web/player.html) directly in a browser or run `make preview` to try the UI with simulated ESP state. Caveat is bundled as WOFF2 assets and embedded in the firmware, so it works offline without installed fonts or external requests. Font sources and OFL licenses are in [web/assets/fonts](web/assets/fonts). Preview saves the default computer, autoplay and fastloader settings in browser local storage; real firmware saves these settings on the ESP. See [tests/README.md](tests/README.md) for host tests and `make help` for build targets.
 
 For manual UI testing, use [ui-test.tap](tests/fixtures/ui-test.tap) with [ui-test.idx](tests/fixtures/ui-test.idx): a two-minute synthetic tape with six navigation markers. See [fixture instructions](tests/fixtures/README.md).
 

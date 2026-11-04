@@ -12,6 +12,8 @@ on:
       - 'web/**'
       - 'scripts/**'
       - 'tests/**'
+      - 'native/**'
+      - 'experiments/fastloader/**'
   pull_request:
   workflow_dispatch:
   release:
@@ -32,12 +34,24 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Install 6502 assembler
+        run: sudo apt-get update && sudo apt-get install -y acme
+
+      - name: Assemble native C64 and TED loaders
+        run: make native
+
       - name: Run host tests
         run: |
           node tests/player_index.mjs
           node tests/playback_awake.mjs
           c++ -std=c++17 -Isrc tests/computer_profile_test.cpp -o /tmp/profile-test
           /tmp/profile-test
+          make fastloader-test
+          c++ -std=c++17 -Isrc tests/fastloader_settings_test.cpp -o /tmp/fastloader-settings-test
+          /tmp/fastloader-settings-test
+          c++ -std=c++17 -Isrc tests/fastloader_wire_test.cpp -o /tmp/fastloader-wire-test
+          /tmp/fastloader-wire-test
+          python3 experiments/fastloader/analyze-timing.py --boot
           c++ -std=c++17 -Itests/support -Isrc tests/prg_vectors_test.cpp src/prg_encoder.cpp src/tape_source.cpp -o /tmp/prg-test
           /tmp/prg-test
           c++ -std=c++17 -Itests/support -Isrc tests/tape_source_ring_test.cpp src/tape_source.cpp -o /tmp/ring-test

@@ -80,6 +80,7 @@ details.card{margin-top:12px}summary{cursor:pointer;color:#d7e0e8;font-weight:60
 @media(max-width:640px){.deck-bottom{gap:6px}.vfd{zoom:.50}.deck .autoplay{padding:4px;gap:5px;min-height:40px}.autoplay strong{font-size:.55rem;letter-spacing:.03em}.autoplay input{width:32px;height:18px}.autoplay input:before{width:12px;height:12px}.autoplay input:checked:before{transform:translateX(14px)}.counter{font-size:1.05rem;padding:3px}.deck-brand{height:20px;left:8px}}
 @media(max-width:360px){.deck-bottom{gap:4px}.vfd{zoom:.34}.autoplay strong{font-size:.48rem}.counter{font-size:.9rem;padding:2px;gap:1px}}
 
+.fastloader-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}.fastloader-grid input{width:100%;box-sizing:border-box}
 </style>
 <main>
 <div id="deck" class="deck"><div class="window"><div class="cassette" id="cassette"><span id="loaded" class="tape-label">Connecting…</span><div class="reel" id="reelLeft"></div><div class="reel right" id="reelRight"></div></div><img class="deck-brand" src="assets/espsette-brand.png" alt="ESPsette"></div><div class="keys" role="group" aria-label="Datasette controls"><button id="rewind" class="key" type="button" aria-label="Previous tape position">◀◀<br><span id="rewindLabel">REW</span></button><button id="stop" class="key" type="button" aria-label="Release PLAY on SENSE">■<br>STOP</button><button id="play" class="key pressed" type="button" aria-label="Press PLAY on SENSE">▶<br>PLAY</button><button id="fastForward" class="key" type="button" aria-label="Next tape position">▶▶<br><span id="forwardLabel">FF</span></button><button id="deckEject" class="key" type="button" aria-label="Eject tape">⏏<br>EJECT</button></div><div class="deck-bottom"><div class="deck-left"><label class="autoplay" title="Autoplay automatically starts playback as soon as a tape is inserted."><input id="autoPlay" type="checkbox" role="switch" checked aria-label="Autoplay when tape is inserted"><strong>AUTOPLAY</strong></label></div><div class="deck-info"><div class="tape-progress"><div class="vfd" aria-label="Tape display">
@@ -93,7 +94,7 @@ details.card{margin-top:12px}summary{cursor:pointer;color:#d7e0e8;font-weight:60
   <p class="picker-hint">Drop TAP + IDX together, or TAP first, then IDX.</p>
 </section>
 
-<details class="card"><summary>Playback settings</summary><label>Default computer for PRG<select id="defaultMachine"><option value="c64-pal">C64 PAL</option><option value="c64-ntsc">C64 NTSC</option><option value="c16-pal">C16 PAL</option><option value="c16-ntsc">C16 NTSC</option></select></label><p>TAP files identify their computer and PAL/NTSC standard automatically.</p></details>
+<details class="card"><summary>Playback settings</summary><label>Default computer for PRG<select id="defaultMachine"><option value="c64-pal">C64 PAL</option><option value="c64-ntsc">C64 NTSC</option><option value="c16-pal">C16 PAL</option><option value="c16-ntsc">C16 NTSC</option></select></label><p>TAP files identify their computer and PAL/NTSC standard automatically.</p><label><input id="fastloaderEnabled" type="checkbox"> Use fastloader for PRG</label><p>Experimental. Changes apply to the next inserted PRG. If loading fails, increase the timings or turn fastloader off.</p><div class="fastloader-grid"><label>Data setup (µs)<input id="fast_setupUs" type="number" min="1" max="1000" step="1" value="3"></label><label>C64 data hold (µs)<input id="fast_holdC64Us" type="number" min="1" max="1000" step="1" value="16"></label><label>C16 data hold (µs)<input id="fast_holdTedUs" type="number" min="1" max="1000" step="1" value="16"></label><label>Gap between pairs (µs)<input id="fast_gapUs" type="number" min="1" max="1000" step="1" value="3"></label><label>C64 gap between bytes (µs)<input id="fast_bytePauseC64Us" type="number" min="0" max="5000" step="1" value="19"></label><label>C16 gap between bytes (µs)<input id="fast_bytePauseTedUs" type="number" min="0" max="5000" step="1" value="11"></label><label>Bootstrap data hold (µs)<input id="fast_bootHoldUs" type="number" min="1" max="1000" step="1" value="80"></label><label>Bootstrap gap between bytes (µs)<input id="fast_bootPauseUs" type="number" min="0" max="5000" step="1" value="80"></label><label>MOTOR on settling (µs)<input id="fast_motorOnUs" type="number" min="0" max="10000" step="1" value="5"></label><label>MOTOR off settling (µs)<input id="fast_motorOffUs" type="number" min="0" max="10000" step="1" value="1000"></label></div><button id="fastloaderSave" class="secondary" type="button">Save fastloader settings</button> <button id="fastloaderDefaults" class="secondary" type="button">Default timings</button><p id="fastloaderMessage" role="status"></p></details>
 <details class="card"><summary>Playback details</summary><div class="playback-status" aria-label="Playback status"><p id="deckMessage" role="status" aria-live="polite"></p><p id="error" role="alert"></p></div><div class="stats"><div><small>Signal remaining</small><b id="remaining">—</b></div><div><small>ESP buffer</small><b id="buffer">—</b></div><div><small>Motor</small><b id="motor">—</b></div></div><div class="scope-wrap"><canvas id="scope" width="640" height="72" aria-label="READ waveform"></canvas><small id="scopeLabel">READ · waiting for playback</small></div><p id="phase">Connecting…</p><p id="indexInfo"></p><p id="transport"></p><p id="awakeStatus" role="status">Screen sleep protection: idle.</p><button id="retryAwake" class="secondary" type="button" hidden>Keep screen awake</button><details id="debugPanel" class="debug"><summary>Debug / ESP state</summary><p id="diagnostics"></p><pre id="debugJson"></pre></details></details>
 <details id="networkCard" class="card"><summary>Network / OTA</summary><p id="networkInfo">Connecting…</p><pre id="otaCmd" class="ota-cmd"></pre><p id="otaHint"></p><p><a id="wifiLink" href="/wifi">Forget Wi-Fi…</a> (not OTA)</p></details><section id="previewPanel" class="card" hidden><h2>Local preview</h2><p>Simulation without an ESP-01. Select a TAP or PRG and toggle MOTOR to check the animation, buffer and page layout.</p><button id="motorToggle" class="secondary">MOTOR on/off</button></section></main>
 <script src="assets/playback-awake.js"></script>
@@ -135,6 +136,20 @@ function tapeProfile(machine, video) { return computerProfiles[machine + '-' + v
 let source = null, busy = false, last = null;
 let selectedFile = null, selectedIdx = null;
 let selectedDefaultMachine = null;
+const fastloaderFields = [["setupUs", 3, 1, 1000], ["holdC64Us", 16, 1, 1000], ["holdTedUs", 16, 1, 1000], ["gapUs", 3, 1, 1000], ["bytePauseC64Us", 19, 0, 5000], ["bytePauseTedUs", 11, 0, 5000], ["bootHoldUs", 80, 1, 1000], ["bootPauseUs", 80, 0, 5000], ["motorOnUs", 5, 0, 10000], ["motorOffUs", 1000, 0, 10000]];
+const fastloaderDefaults = Object.fromEntries(fastloaderFields.map(([name,value]) => [name,value]));
+let fastloaderDirty = false;
+let selectedFastloader = {version:1, enabled:false, ...fastloaderDefaults};
+function validFastloader(settings) {
+  return settings?.version === 1 && typeof settings.enabled === 'boolean' &&
+    fastloaderFields.every(([name,,low,high]) => Number.isInteger(settings[name]) &&
+      settings[name] >= low && settings[name] <= high);
+}
+function showFastloader(settings) {
+  $('fastloaderEnabled').checked = settings.enabled;
+  for (const [name] of fastloaderFields) $('fast_' + name).value = String(settings[name]);
+}
+
 let indexChoosing = false;
 let lastCounterValue = null;
 let counterOriginCycles = 0;
@@ -146,7 +161,7 @@ const mock = {tapeState:'loaded', sourceType:'tap', machine:'c64', videoStandard
   freeBytes:8192, sessionId:0, logicalSize:0, error:null, gpioDisabled:false,
   freeHeap:32000, maxFreeBlock:24000, maxLoopUs:0, maxHttpUs:0,
   i2sUnderruns:0, sourceUnderruns:0, uploadErrors:0,
-scope:'', scopeHz:0, otaReady:false};
+  fastloader:{...selectedFastloader}, scope:'', scopeHz:0, otaReady:false};
 let mockScopeLevel = 0;
 function previewSetting(key, value) {
   try {
@@ -159,6 +174,11 @@ if (preview) {
   if (normalizedProfile(machine)) mock.defaultMachine = normalizedProfile(machine);
   const autoplay = previewSetting('autoplay');
   if (autoplay !== null) mock.autoPlay = autoplay === '1';
+  const storedFastloader = previewSetting('fastloader');
+  try {
+    const settings = JSON.parse(storedFastloader);
+    if (validFastloader(settings)) mock.fastloader = settings;
+  } catch (_) {}
   mock.sensePressed = mock.autoPlay;
   mock.embedded = true;
 }
@@ -257,11 +277,28 @@ async function mockApi(path, options = {}) {
     previewSetting('machine', machine);
     return {defaultMachine:machine};
   }
+  if (path === '/fastloader-config') {
+    if (motorBlocksEdit(mock) || mock.phase === 'fastload' || mock.phase === 'bootstrap')
+      throw new Error('Stop transfer');
+    const args = options.body;
+    if (!['0','1'].includes(args.get('enabled'))) throw new Error('Invalid fastloader settings');
+    const settings = {version:1, enabled:args.get('enabled') === '1'};
+    for (const [name] of fastloaderFields) {
+      const raw = args.get(name);
+      if (!/^\d+$/.test(raw || '')) throw new Error('Invalid fastloader settings');
+      settings[name] = Number(raw);
+    }
+    if (!validFastloader(settings)) throw new Error('Invalid fastloader settings');
+    previewSetting('fastloader', JSON.stringify(settings));
+    mock.fastloader = settings;
+    return {...settings};
+  }
   if (path === '/session') {
     const args = options.body;
     mockType = args.get('type') === 'prg' ? 'prg' : 'tap';
     const fileSize = Number(args.get('size'));
-    mockSize = mockType === 'prg' ? 2 + 2 * (fileSize - 2) : fileSize;
+    mock.fastloaderActive = mockType === 'prg' && args.get('turbo') === '1' && mock.fastloader.enabled;
+    mockSize = mockType === 'prg' && !mock.fastloaderActive ? 2 + 2 * (fileSize - 2) : fileSize;
     mock.logicalSize = mockSize; mock.embedded = false;
     mockBytes = 0; mockDemo = false;
     mock.sessionId++; mock.fileOffsetReceived = mockType === 'prg' ? 2 : 20;
@@ -448,9 +485,17 @@ function renderVfd(text) {
 function render(s) {
   last = s;
   const playing = !!s.playing;
-  playbackAwake.update(playing && s.motorOn && s.sensePressed &&
+  playbackAwake.update(playing && (s.fastloaderActive || s.motorOn && s.sensePressed) &&
     s.tapeState === 'loaded' && s.phase !== 'done' && s.phase !== 'error' && !s.error);
-  const editBlocked = motorBlocksEdit(s);
+  const editBlocked = motorBlocksEdit(s) || s.phase === 'fastload' || s.phase === 'bootstrap';
+  if (validFastloader(s.fastloader)) {
+    selectedFastloader = {...s.fastloader};
+    if (!fastloaderDirty) showFastloader(selectedFastloader);
+  }
+  $('fastloaderEnabled').disabled = editBlocked;
+  for (const [name] of fastloaderFields) $('fast_' + name).disabled = editBlocked;
+  $('fastloaderSave').disabled = editBlocked;
+  $('fastloaderDefaults').disabled = editBlocked;
   // A streamed tape stays inserted while the ESP refills its buffer after a seek.
   const sessionTape = !!(source && source.id === s.sessionId &&
     s.sessionId > 0 && source.logicalSize === s.logicalSize);
@@ -775,7 +820,7 @@ async function insertTape() {
       const profile = computerProfiles[selectedDefaultMachine || 'c64-pal'];
       body = new URLSearchParams({type:'prg', size:String(file.size), header,
         name:file.name, displayName:file.name.replace(/\.prg$/i, '').slice(0, 16),
-        machine:profile.machine, video:profile.video, turbo:'0'});
+        machine:profile.machine, video:profile.video, turbo:selectedFastloader.enabled ? '1' : '0'});
     } else {
       const format = tapFormat(bytes, file.size);
       indexEntries = await parseIdx(selectedIdx);
@@ -1005,6 +1050,30 @@ $('autoPlay').onchange = async () => {
   } catch (error) {
     $('autoPlay').checked = !enabled;
     $('error').textContent = 'Cannot save autoplay: ' + error.message;
+  } finally { busy = false; }
+};
+
+$('fastloaderEnabled').onchange = () => { fastloaderDirty = true; };
+for (const [name] of fastloaderFields) $('fast_' + name).oninput = () => { fastloaderDirty = true; };
+$('fastloaderDefaults').onclick = () => {
+  showFastloader({...selectedFastloader, ...fastloaderDefaults, enabled:$('fastloaderEnabled').checked});
+  fastloaderDirty = true;
+  $('fastloaderMessage').textContent = 'Default timings restored. Save to apply.';
+};
+$('fastloaderSave').onclick = async () => {
+  await acquire();
+  try {
+    const body = new URLSearchParams({enabled:$('fastloaderEnabled').checked ? '1' : '0'});
+    for (const [name] of fastloaderFields) body.set(name, $('fast_' + name).value);
+    const ack = await api('/fastloader-config', {method:'POST', body});
+    fastloaderDirty = false;
+    selectedFastloader = {...ack};
+    showFastloader(ack);
+    if (last) render({...last, fastloader:ack});
+    $('fastloaderMessage').textContent = 'Saved. Applies to the next inserted PRG.';
+    $('error').textContent = '';
+  } catch (error) {
+    $('error').textContent = 'Cannot save fastloader settings: ' + error.message;
   } finally { busy = false; }
 };
 

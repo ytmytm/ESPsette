@@ -547,10 +547,47 @@ assert.equal(awakeUpdates.at(-1),false);
 vm.runInContext("render({...mock, phase:'error',error:'buffer_underrun'})",context);
 assert.equal(awakeUpdates.at(-1),false);
 vm.runInContext('mock.motorOn=false;mock.playing=false;render({...mock})',context);
+// Persistent fastloader settings: validation, dirty edits, defaults, activation.
+vm.runInContext("mock.motorOn = false; mock.gpioDisabled = false; mock.phase = 'idle'; render({...mock})", context);
+assert.equal(elements.get('fastloaderEnabled').checked, false);
+assert.equal(elements.get('fast_holdC64Us').value, '16');
+elements.get('fast_holdC64Us').value = '45';
+elements.get('fast_holdC64Us').oninput();
+vm.runInContext('render({...mock})', context);
+assert.equal(elements.get('fast_holdC64Us').value, '45'); // Polling preserves edits.
+elements.get('fastloaderEnabled').checked = true;
+await elements.get('fastloaderSave').onclick();
+assert.equal(vm.runInContext('mock.fastloader.enabled', context), true);
+assert.equal(vm.runInContext('mock.fastloader.holdC64Us', context), 45);
+assert.equal(JSON.parse(previewStorage.get('espsette.preview.fastloader')).holdC64Us, 45);
+vm.runInContext('render({...mock, motorOn:true})', context);
+assert.equal(elements.get('fastloaderSave').disabled, true);
+vm.runInContext("render({...mock, motorOn:false, phase:'fastload'})", context);
+assert.equal(elements.get('fastloaderSave').disabled, true);
+vm.runInContext('render({...mock})', context);
+elements.get('fast_holdC64Us').value = '-1';
+await elements.get('fastloaderSave').onclick();
+assert.match(elements.get('error').textContent, /Cannot save fastloader/);
+assert.equal(vm.runInContext('mock.fastloader.holdC64Us', context), 45);
+elements.get('fastloaderDefaults').onclick();
+assert.equal(elements.get('fast_holdC64Us').value, '16');
+assert.equal(elements.get('fastloaderEnabled').checked, true);
+await elements.get('fastloaderSave').onclick();
+context.fastPrg = new Blob([Uint8Array.of(1,8,0,0)]); context.fastPrg.name = 'fast.prg';
+await vm.runInContext('chooseFiles([fastPrg])', context);
+assert.equal(vm.runInContext('source.sessionBody.get("turbo")', context), '1');
+assert.equal(vm.runInContext('source.logicalSize', context), 4); // One PRG copy.
+elements.get('fastloaderEnabled').checked = false;
+await elements.get('fastloaderSave').onclick();
+await vm.runInContext('chooseFiles([fastPrg])', context);
+assert.equal(vm.runInContext('source.sessionBody.get("turbo")', context), '0');
+assert.equal(vm.runInContext('source.logicalSize', context), 6); // Standard ROM copies.
 // Preview settings survive reloading the page; real hardware uses LittleFS.
 await vm.runInContext("mockApi('/autoplay', {body:new URLSearchParams({enabled:'0'})})", context);
 const reloaded = vm.createContext({...context});
 vm.runInContext(script, reloaded);
 assert.equal(vm.runInContext('mock.defaultMachine', reloaded), 'c16-pal');
 assert.equal(vm.runInContext('mock.autoPlay', reloaded), false);
-console.log('IDX/TAP, VICE counter, English UI, session recovery OK');
+assert.equal(vm.runInContext('mock.fastloader.enabled', reloaded), false);
+assert.equal(vm.runInContext('mock.fastloader.holdC64Us', reloaded), 16);
+console.log('IDX/TAP, VICE counter, English UI, session recovery and fastloader settings OK');
