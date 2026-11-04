@@ -40,7 +40,7 @@ ESP-01 GPIO0 ──► JP_FLASH ──► GND
 | --- | --- | --- |
 | MOTOR_3V3 | GPIO0, wejście | 4N35 pin5→3V3, pin4→GPIO0, 10k do GND; HIGH = MOTOR on; obecna obsługa `motorIsOn() == HIGH` i przerwanie `FALLING` pozostają |
 | SENSE | GPIO1 TXD, wyjście | Bezpośrednio do SENSE, pull-up 10k do 3V3; LOW = PLAY |
-| WRITE | GPIO2, dwukierunkowo | Bezpośrednio do WRITE; wybór trybu i dane fastloadera |
+| WRITE | GPIO2, dwukierunkowo | Bezpośrednio do WRITE; wejście poleceń, wybór trybu i dane fastloadera |
 | READ | GPIO3 RXD, wyjście I2S | Bezpośrednio do READ, bez tranzystora odwracającego; zgodność z obecnym firmware potwierdzona przez autora na sprzęcie |
 
 Nie zmieniamy MOTOR na kolektor otwarty z pull-upem ani jego polaryzacji

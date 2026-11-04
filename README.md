@@ -19,6 +19,7 @@ Hardware tests on **1 November 2026**:
 | PRG → standard tape pulses, C64 and C16/Plus/4 PAL/NTSC | Host tests pass; hardware test pending |
 | C16/Plus/4 playback; all supported TAP v1/v2 variants | Full hardware coverage pending |
 | IDX seeking and counter-based REW/FF | Host tests pass; hardware test pending |
+| WRITE command requests | Header validation and ESP: request publication pass host tests; hardware test pending; no command handlers yet |
 | Turbo loader | Selectable PRG bootstrap + GPIO sender; C64/C16/Plus/4 host/VICE tests pass; hardware test pending |
 | OTA updates | Disabled in the default firmware; use serial flashing |
 
@@ -81,6 +82,18 @@ GitHub Actions workflow installs ACME, assembles both targets, runs sender,
 settings, wire-order and cycle-budget tests, then builds the ESP image.
 [Protocol, timing and emulator tests](experiments/fastloader/README.md) describe
 the three stages and the limits of simulation. Hardware verification is pending.
+
+## WRITE command requests
+
+The computer can send an `ESP:` request name through a standard WRITE header,
+for example `SAVE "ESP:TEST",1`. The ESP verifies both copies and publishes the
+request in **Playback details** and `/state`; it ignores all following program
+data and creates no file. This restores the command transport, not recording.
+Command handlers are not implemented yet, so verified requests are shown as
+received without execution. GPIO2 is reserved for fastloading throughout a
+selected fast PRG session; finish or eject it before sending WRITE requests.
+See [WRITE command protocol](docs/WRITE-COMMANDS.md) for the procedure, validation,
+state fields and GPIO ownership.
 
 ## Flash over USB-UART
 

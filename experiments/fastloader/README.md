@@ -22,6 +22,9 @@ Native code is in [`native/fastloader/`](../../native/fastloader/).
 READ is direct GPIO during both fast stages, with no I2S/DMA output. WRITE is
 released by the computer before ESP drives it. The mode signature temporarily
 uses WRITE in the opposite direction; see [BOOTSTRAP.md](BOOTSTRAP.md).
+The [standard WRITE command receiver](../../docs/WRITE-COMMANDS.md) is suspended
+for the entire selected fastloader session, so ESP output cannot be decoded as
+a computer command.
 
 ## Block transfer
 

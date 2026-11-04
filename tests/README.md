@@ -1,12 +1,14 @@
 # Host-side cassette tests
 
-These tests exercise the tape encoder, ring buffer, fastloader, browser player and IDX handling without an ESP-01. Pi1551 test cases were used as an independent reference for C16 pulse lengths, double headers, extended TAP records and Ultimate-style IDX entries. The VICE/Pi1551 interoperability test needs VICE, ROMs and Pi1551 binaries and is not included here.
+These tests exercise the tape encoder, ring buffer, WRITE command decoder, fastloader, browser player and IDX handling without an ESP-01. Pi1551 test cases were used as an independent reference for C16 pulse lengths, double headers, extended TAP records and Ultimate-style IDX entries. The VICE/Pi1551 interoperability test needs VICE, ROMs and Pi1551 binaries and is not included here.
 
 Run from the repository root with Node.js and a C++17 compiler:
 
 ```sh
 node tests/player_index.mjs
 node tests/playback_awake.mjs
+c++ -std=c++17 -Isrc tests/write_decoder_test.cpp src/write_decoder.cpp -o /tmp/ESPsette-write-test
+/tmp/ESPsette-write-test
 c++ -std=c++17 -Isrc tests/computer_profile_test.cpp -o /tmp/ESPsette-profile-test
 /tmp/ESPsette-profile-test
 python3 -m unittest discover -s tests -p 'test_firmware_package.py' -v
@@ -38,3 +40,8 @@ The full bootstrap matrix has 32 checks; transport regression has 39 including
 expected unsafe-timing failures. These do not replace ESP hardware timing tests.
 
 For manual browser checks, [fixtures/](fixtures/README.md) contains a synthetic two-minute TAP and matching IDX with six markers. The browser test also validates their duration, marker boundaries and seeking.
+
+`write_decoder_test.cpp` verifies C64/TED command headers, parity and checksums,
+copy matching, ignored filenames/program data, maximum request length, overflow
+and fastloader suspension/resumption. Browser tests cover received-request
+metadata and suspension status. No test or decoder stores a program file.

@@ -35,6 +35,7 @@
 #include "fastloader_settings.h"
 #include "fastloader_native.h"
 #include "fastloader_wire.h"
+#include "write_decoder.h"
 #include "player_page.h"
 #include <ArduinoJson.h>
 #include <LittleFS.h>
@@ -101,6 +102,95 @@ static bool fastloaderBusy() {
   return (fastPhase == FastPhase::TAPE && fastSelecting) || fastPhase == FastPhase::RECEIVER ||
          fastPhase == FastPhase::DESCRIPTOR || fastPhase == FastPhase::PAYLOAD;
 }
+WriteDecoder writeDecoder;
+static constexpr uint16_t WRITE_RING_SIZE = 512;
+volatile uint16_t writeRing[WRITE_RING_SIZE];
+volatile uint16_t writeHead = 0, writeTail = 0;
+volatile uint32_t writeLastEdgeUs = 0, writeCaptureOverflows = 0;
+volatile bool writeActive = false;
+uint32_t reportedWriteOverflows = 0;
+bool writeWasAllowed = true;
+bool writeInterruptAttached = false;
+
+// Reserve GPIO2 for the entire fastloader session, including its WRITE-output
+// signature. Commands resume after completion, cancellation or ejection.
+static bool IRAM_ATTR writeCommandsAllowed() {
+  return fastPhase == FastPhase::OFF || fastPhase == FastPhase::DONE;
+}
+
+void IRAM_ATTR onWriteEdge() {
+  if (!writeActive || !writeCommandsAllowed() || !(GPI & (1u << PIN_MOTOR))) return;
+  const uint32_t now = micros();
+  const uint32_t previous = writeLastEdgeUs;
+  writeLastEdgeUs = now;
+  if (!previous) return;
+  const uint16_t next = (writeHead + 1) & (WRITE_RING_SIZE - 1);
+  if (next == writeTail) { ++writeCaptureOverflows; return; }
+  const uint32_t duration = now - previous;
+  writeRing[writeHead] = duration > UINT16_MAX ? UINT16_MAX : duration;
+  writeHead = next;
+}
+
+void drainWriteCommands() {
+  uint32_t overflows;
+  noInterrupts(); overflows = writeCaptureOverflows; interrupts();
+  if (overflows != reportedWriteOverflows) {
+    reportedWriteOverflows = overflows;
+    noInterrupts(); writeTail = writeHead; writeLastEdgeUs = 0; interrupts();
+    writeDecoder.overflow();
+  }
+  for (uint16_t count = 0; count < WRITE_RING_SIZE; ++count) {
+    noInterrupts();
+    if (writeTail == writeHead) { interrupts(); break; }
+    const uint16_t duration = writeRing[writeTail];
+    writeTail = (writeTail + 1) & (WRITE_RING_SIZE - 1);
+    interrupts();
+    writeDecoder.feedMicros(duration);
+  }
+}
+
+void processWriteCommands() {
+#if !ESPSETTE_GPIO_DISABLED
+  if (!writeCommandsAllowed()) {
+    noInterrupts();
+    writeActive = false;
+    writeTail = writeHead;
+    writeLastEdgeUs = 0;
+    interrupts();
+    if (writeInterruptAttached) {
+      detachInterrupt(digitalPinToInterrupt(PIN_WRITE));
+      writeInterruptAttached = false;
+    }
+    if (writeWasAllowed) writeDecoder.suspend();
+    writeWasAllowed = false;
+    return;
+  }
+  if (!writeInterruptAttached) {
+    attachInterrupt(digitalPinToInterrupt(PIN_WRITE), onWriteEdge, RISING);
+    writeInterruptAttached = true;
+  }
+  if (!writeWasAllowed) {
+    writeDecoder.motorStart();
+    writeWasAllowed = true;
+  }
+  if (motorIsOn()) {
+    if (!writeActive) {
+      writeDecoder.motorStart();
+      noInterrupts();
+      writeTail = writeHead;
+      writeLastEdgeUs = 0;
+      writeActive = true;
+      interrupts();
+    }
+    drainWriteCommands();
+  } else if (writeActive) {
+    noInterrupts(); writeActive = false; interrupts();
+    drainWriteCommands();
+    writeDecoder.motorStop();
+  }
+#endif
+}
+
 enum class SourceFormat : uint8_t { TAP, PRG };
 SourceFormat sourceFormat = SourceFormat::TAP;
 
@@ -1055,6 +1145,7 @@ void setup() {
 #else
   lastMotor = digitalRead(PIN_MOTOR);
   attachInterrupt(digitalPinToInterrupt(PIN_MOTOR), onMotorChange, CHANGE);
+  processWriteCommands();
 #endif
   lastcall = millis();
   debugI("setup completed; TAP bytes=%lu", (unsigned long)tapEnd);
@@ -1096,6 +1187,7 @@ void loop() {
     debugI("Motor state changed to %u", motor);
   }
 
+  processWriteCommands();
   pumpFastloader();
   const bool gpioTransfer = fastPhase == FastPhase::RECEIVER || fastPhase == FastPhase::DESCRIPTOR ||
                             fastPhase == FastPhase::PAYLOAD;
@@ -1146,6 +1238,7 @@ void loop() {
   networkConfig.handle(motor == HIGH);
   if (networkReady) Debug.handle();
 #endif
+  processWriteCommands();
   yield();
   if ((uint32_t)(millis() - lastcall) >= 10000) {
     lastcall = millis();
@@ -1317,7 +1410,7 @@ static bool scanTapToCycles(uint64_t targetCycles, uint32_t& outOffset,
 }
 
 void handleState() {
-  StaticJsonDocument<1536> doc;
+  StaticJsonDocument<2048> doc;
   const bool motorOn = motorIsOn();
   doc["tapeState"] = pendingDemoInsert ? "loading"
       : (demoInsertFailed && !tapeLoaded) ? "error"
@@ -1379,6 +1472,19 @@ void handleState() {
   doc["sourceUnderruns"] = sourceUnderrunCount;
   doc["uploadErrors"] = uploadErrorCount;
   doc["error"] = playerError;
+  doc["writeEnabled"] = !bool(ESPSETTE_GPIO_DISABLED);
+  doc["writeListening"] = bool(writeActive) && writeCommandsAllowed();
+  doc["writeStatus"] = writeCommandsAllowed() ? writeDecoder.status() : "suspended_fastloader";
+  doc["writeCommand"] = writeDecoder.command();
+  doc["writeCommandId"] = writeDecoder.commandCount();
+  doc["writeName"] = writeDecoder.name();
+  doc["writeMachine"] = writeDecoder.machineName();
+  doc["writeType"] = writeDecoder.fileType();
+  doc["writeStart"] = writeDecoder.startAddress();
+  doc["writeEnd"] = writeDecoder.endAddress();
+  doc["writeHeaders"] = writeDecoder.receivedCount();
+  doc["writeErrors"] = writeDecoder.errorCount();
+  doc["writeOverflows"] = writeDecoder.overflowCount();
   doc["otaReady"] = otaReady;
   {
     char scopeStr[SCOPE_LEN + 1];

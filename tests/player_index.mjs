@@ -572,6 +572,17 @@ for (const override of [
   assert.equal(awakeUpdates.at(-1), false, JSON.stringify(override));
 }
 vm.runInContext('render({...mock})', context);
+// WRITE requests are received metadata, never presented as executed commands.
+vm.runInContext("render({...mock, writeEnabled:true, writeStatus:'command_received_no_action', writeCommand:'TEST', writeCommandId:3, writeHeaders:5, writeErrors:1, writeOverflows:0})", context);
+assert.equal(elements.get('writeStatus').textContent, 'Request received (not executed)');
+assert.match(elements.get('writeDetail').textContent, /#3: ESP:TEST/);
+assert.match(elements.get('writeDetail').textContent, /Verified headers: 5/);
+vm.runInContext("render({...mock, writeEnabled:true, writeStatus:'suspended_fastloader'})", context);
+assert.equal(elements.get('writeStatus').textContent, 'Paused for fastloader');
+vm.runInContext('render({...mock, writeEnabled:false})', context);
+assert.equal(elements.get('writeStatus').textContent, 'Disabled');
+assert.equal(elements.get('writeDetail').textContent, '');
+vm.runInContext('render({...mock})', context);
 // Persistent fastloader settings: validation, dirty edits, defaults, activation.
 vm.runInContext("mock.motorOn = false; mock.gpioDisabled = false; mock.phase = 'idle'; render({...mock})", context);
 assert.equal(elements.get('fastloaderEnabled').checked, false);

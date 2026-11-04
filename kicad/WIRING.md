@@ -91,7 +91,7 @@ Copy the **dual assembly option** from [plus4-tcbm2sd's schematic](https://githu
 | +5 V | B / 2 | 2 | Regulator VIN only | Never ESP VCC directly |
 | MOTOR | C / 3 | 3 | GPIO0 input | **HIGH = running**, LOW = stopped; voltage conditioning required |
 | READ | D / 4 | 4 | GPIO3 output | Direct connection, no inverter; author reports successful tests with current firmware |
-| WRITE | E / 5 | 5 | GPIO2 bidirectional | Fastloader mode selection and data; no external pull-up |
+| WRITE | E / 5 | 5 | GPIO2 bidirectional | WRITE command input; fastloader mode selection and data; no external pull-up |
 | SENSE | F / 6 | 6 | GPIO1 output | Direct connection with 10 kΩ pull-up to 3V3; LOW = PLAY pressed |
 
 - Mini-DIN numbering checked against **J4** in [Pi1551-HAT's PCB](https://github.com/ytmytm/Pi1551-HAT/blob/pi1551-hat-smd/RPi_Hat.kicad_pcb): pin 7 is tied to GND; shell pads `SH` are unconnected in that reference.
