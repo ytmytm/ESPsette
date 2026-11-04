@@ -18,7 +18,8 @@ parser.add_argument("--machine", choices=["c64", "plus4", "c16", "all"], default
 parser.add_argument("--hold-us", type=int)
 parser.add_argument("--motor-off-us", type=int, default=1000)
 parser.add_argument("--motor-on-us", type=int, default=5)
-parser.add_argument("--pause-us", type=int, help="Interbyte pause (default: C64 80 us, TED 48 us)")
+parser.add_argument("--pause-us", type=int, help="Interbyte pause (default: C64 19 us, TED 11 us)")
+parser.add_argument("--cia-model", type=int, choices=[0, 1], default=0, help="C64: old 6526 or new 8521")
 parser.add_argument("--block-bytes", type=int, choices=[1, 256], default=256)
 parser.add_argument("--jitter-us", type=int, default=0)
 parser.add_argument("--phase-ticks", type=int, default=0, help="Delay first request to vary raster/poll phase")
@@ -30,8 +31,8 @@ parser.add_argument("--prg", type=Path, help="Use a real PRG instead of generate
 parser.add_argument("--ntsc", action="store_true")
 parser.add_argument("--trace", action="store_true")
 args = parser.parse_args()
-if not 1 <= args.size <= 8192:
-    parser.error("size must be 1..8192 (destination $2000, fits a 16 KiB C16)")
+if not 1 <= args.size <= 0x7000:
+    parser.error("size must be 1..28672; each machine's address range is checked separately")
 for value in (args.hold_us, args.motor_off_us, args.motor_on_us, args.phase_ticks,
               args.pause_us, args.jitter_us):
     if value is not None and value < 0:
@@ -41,8 +42,8 @@ out.mkdir(parents=True, exist_ok=True)
 machines = ["c64", "plus4", "c16"] if args.machine == "all" else [args.machine]
 results = []
 for machine in machines:
-    pause_us = args.pause_us if args.pause_us is not None else (80 if machine == "c64" else 48)
-    hold_us = args.hold_us if args.hold_us is not None else (48 if machine == "c64" else 26)
+    pause_us = args.pause_us if args.pause_us is not None else (19 if machine == "c64" else 11)
+    hold_us = args.hold_us if args.hold_us is not None else 16
     name = machine + ("-ntsc" if args.ntsc else "-pal")
     case = out / name
     case.mkdir(exist_ok=True)
@@ -102,7 +103,7 @@ for machine in machines:
                         args.jitter_us) + args.jitter_us + 100))),
                "-moncommands", str(commands)]
     if machine == "c64":
-        command += ["-chargen", str(roms / "chargen-901225-01.bin")]
+        command += ["-chargen", str(roms / "chargen-901225-01.bin"), "-cia1model", str(args.cia_model)]
     else:
         command += ["-functionlo", str(roms / "3plus1-317053-01.bin"),
                     "-functionhi", str(roms / "3plus1-317054-01.bin")]
@@ -136,6 +137,7 @@ for machine in machines:
                   pause_us=pause_us, jitter_us=args.jitter_us,
                   block_bytes=args.block_bytes,
                   phase_ticks=args.phase_ticks, seed=args.seed, pattern=args.pattern,
+                  cia_model=args.cia_model if machine == "c64" else None,
                   passed=returncode == 0 and actual == payload,
                   returncode=returncode, timed_out=timed_out,
                   payload_sha256=hashlib.sha256(payload).hexdigest(), log=str(log))

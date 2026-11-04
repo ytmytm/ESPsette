@@ -49,11 +49,12 @@ void fl_motor(fl_sender *s, uint64_t now, int on)
 
 void fl_step(fl_sender *s)
 {
+    static const unsigned write_bit[4] = {4, 6, 0, 2};
     uint64_t now = s->next;
     switch (s->phase) {
-    case 1: /* Data first, strobe only after setup time. MSB pair first. */
-        s->write_high = !!(s->data[s->sent] & (0x80u >> (s->symbol * 2)));
-        s->sense_high = !!(s->data[s->sent] & (0x40u >> (s->symbol * 2)));
+    case 1: /* Upper nibble first; low pair before high pair in each nibble. */
+        s->write_high = (s->data[s->sent] >> write_bit[s->symbol]) & 1u;
+        s->sense_high = (s->data[s->sent] >> (write_bit[s->symbol] + 1)) & 1u;
         s->phase = 2;
         s->next = now + s->config.setup;
         break;

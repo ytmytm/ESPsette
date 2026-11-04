@@ -29,6 +29,16 @@ for machine in ("c64", "plus4", "c16"):
                                                    "--pattern", pattern, "--jitter-us", str(jitter),
                                                    "--seed", "1729", "--motor-on-us", "0",
                                                    "--motor-off-us", "0"]))
+        for size in (255, 256, 257, 511, 512, 513, 8191, 8193,
+                     12288 if machine == "c16" else 28672):
+            name = f"length-{machine}-{video}-{size}"
+            cases.append((name, machine, ntsc, ["--size", str(size), "--address", "0x1000",
+                                               "--motor-on-us", "0", "--motor-off-us", "0"]))
+        if machine == "c64":
+            for phase in range(18):
+                name = f"cia8521-{video}-{phase}"
+                cases.append((name, machine, ntsc, ["--size", "513", "--address", "0x20fe",
+                                                   "--phase-ticks", str(phase), "--cia-model", "1"]))
 
 
 def run(case):

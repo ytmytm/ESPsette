@@ -1,44 +1,50 @@
-# Wyniki bloków 256 B po analizie timingu — 2026-11-04
+# Wyniki odbioru półbajtami i pętli Y — 2026-11-04
 
 VICE `eaf9b61f5560f921ebaa25349b09e797f351eb1e`, headless `x64sc` / `xplus4`, ACME i przenośny nadajnik C.
-Odbiornik liczy bajty: osobny deskryptor 6 B, potem bloki danych po maksymalnie 256 B.
+Osobny deskryptor 6 B, potem bloki danych po maksymalnie 256 B. Y jest indeksem i licznikiem bloku; ostatni blok używa ujemnego początkowego Y i skorygowanej bazy.
 WRITE/SENSE pozostają wejściami komputera przez cały transfer. READ taktuje pary bitów.
 
 ## Przepustowość
 
-Ładunek 4096 B, setup/gap 3 µs, hold 48 µs (C64) / 26 µs (TED), dodatkowa przerwa po hold czwartej pary 80/48 µs.
+Ładunek 4096 B, setup/gap 3 µs, hold 16 µs, dodatkowa przerwa po hold czwartej pary 19 µs (C64) / 11 µs (TED).
 Czas od pierwszego żądania MOTOR do strobe ostatniej pary. Bez standardowego bootstrapu.
 W próbach z blokami 256 B wystąpiło dokładnie **17 żądań MOTOR**: deskryptor i 16 bloków danych.
 
 | Wariant | Komputer | MOTOR OFF / ON | B/s | Żądania |
 | --- | --- | --- | ---: | ---: |
-| sync co 256 B | C64 PAL | 1000 / 5 µs | 3340.6 | 17 |
-| sync co 256 B | PLUS4 PAL | 1000 / 5 µs | 5529.5 | 17 |
-| sync co 256 B | C16 PAL | 1000 / 5 µs | 5529.5 | 17 |
-| sync co 256 B | C64 NTSC | 1000 / 5 µs | 3267.2 | 17 |
-| sync co 256 B | PLUS4 NTSC | 1000 / 5 µs | 5579.5 | 17 |
-| sync co 256 B | C16 NTSC | 1000 / 5 µs | 5579.5 | 17 |
-| sync co 256 B | C64 PAL | 0 / 0 µs | 3365.6 | 17 |
-| sync co 256 B | PLUS4 PAL | 0 / 0 µs | 5597.7 | 17 |
-| sync co 256 B | C16 PAL | 0 / 0 µs | 5597.7 | 17 |
-| sync co bajt | C64 PAL | 1000 / 5 µs | 1130.9 | 4097 |
-| sync co bajt | PLUS4 PAL | 1000 / 5 µs | 1361.7 | 4097 |
-| sync co bajt | C16 PAL | 1000 / 5 µs | 1361.7 | 4097 |
+| sync co 256 B | C64 PAL | 1000 / 5 µs | 9248.7 | 17 |
+| sync co 256 B | PLUS4 PAL | 1000 / 5 µs | 9723.3 | 17 |
+| sync co 256 B | C16 PAL | 1000 / 5 µs | 9723.3 | 17 |
+| sync co 256 B | C64 NTSC | 1000 / 5 µs | 8621.3 | 17 |
+| sync co 256 B | PLUS4 NTSC | 1000 / 5 µs | 9810.8 | 17 |
+| sync co 256 B | C16 NTSC | 1000 / 5 µs | 9810.8 | 17 |
+| sync co 256 B | C64 PAL | 0 / 0 µs | 9442.1 | 17 |
+| sync co 256 B | PLUS4 PAL | 0 / 0 µs | 9936.3 | 17 |
+| sync co 256 B | C16 PAL | 0 / 0 µs | 9936.3 | 17 |
+| sync co bajt | C64 PAL | 1000 / 5 µs | 1425.0 | 4097 |
+| sync co bajt | PLUS4 PAL | 1000 / 5 µs | 1516.8 | 4097 |
+| sync co bajt | C16 PAL | 1000 / 5 µs | 1516.8 | 4097 |
 
 W porównaniu co bajt deskryptor nadal jest osobnym blokiem 6 B; payload 4096 B wymaga 4096 żądań. Oba warianty używają tego samego kodu i odstępów czasowych.
 Założone opóźnienie MOTOR na TED jest scenariuszem testowym, nie pomiarem sprzętu.
 Zerowe opóźnienie MOTOR poprawia wynik blokowy tylko nieznacznie: przy obecnym timingu ograniczają nas już odbiornik i odstępy nadajnika.
 
-## Porównanie z wcześniejszym timingiem
+## Porównanie z commitem bazowym `cc15d15`
 
-| Komputer PAL | Wcześniej | Teraz | Zmiana |
+| Komputer PAL | Przed optymalizacją | Teraz | Wzrost |
 | --- | ---: | ---: | ---: |
-| C64 | 2864,5 B/s | 3340,6 B/s | +16,6% |
-| C16/Plus/4 | 5345,9 B/s | 5529,5 B/s | +3,4% |
+| C64 | 3340,6 B/s | 9248,7 B/s | 2,77× |
+| C16/Plus/4 | 5529,5 B/s | 9723,3 B/s | 1,76× |
 
-W obu pomiarach 4096 B i MOTOR 1000/5 µs. Odbiornik ma teraz robocze zmienne
-w `$FD..$FF`, a odstępy wyznaczono z najdłuższych ścieżek instrukcji i refreshu
-TED. Pełny rachunek jest w [TIMING.md](TIMING.md).
+W obu pomiarach 4096 B i MOTOR 1000/5 µs. Przestawiono pary na
+b4/b5, b6/b7, b0/b1, b2/b3; maska/OR składa je półbajtami. Odbiór jest inline,
+a Y kończy pełne i częściowe bloki. Dokładny rachunek jest w [TIMING.md](TIMING.md).
+
+Każdy odstęp w modelu VICE jest zaokrąglany w górę do ticka CPU. Z tego powodu
+C64 NTSC może w tabeli osiągać mniej niż PAL pomimo szybszego CPU: np. 3 µs
+setup to w modelu 4 ticki zamiast 3. Budżety czasu ciągłego sprawdzono osobno;
+przyszły nadajnik ESP nie ma polegać na tym zaokrągleniu. Tabela nie określa
+maksymalnej przepustowości sprzętu.
 
 ## Macierz regresji
 
@@ -60,36 +66,41 @@ Test C11 z AddressSanitizer/UndefinedBehaviorSanitizer również przeszedł: oba
 
 Brak przerwy między bajtami to nowy, istotny negatywny przypadek: CPU potrzebuje czasu na zapis i aktualizację adresów, mimo że kolejne pary wewnątrz bajtu mają wystarczający hold.
 
-## Dodatkowa macierz timingu
+## Testy poza VICE i dodatkowa macierz timingu
 
-**582/582 prób** przeszło dla C64/Plus/4/C16, PAL/NTSC: zmiana początkowej fazy
-READ o 0..17 ticków na C64 i 0..113 na TED, 513 B pod `$20FE` (oba przeniesienia
-jednocześnie), pięć wzorów danych po 8192 B pod `$10FF`, jitter 0/1/50 µs
-oraz zerowe opóźnienie MOTOR. Każda próba porównuje pamięć i liczbę żądań.
+- Python: siedem rodzin dekoderów, 40 320 permutacji dla każdej,
+  **2 361 088** sprawdzeń wszystkich bajtów i niezwiązanych bitów portów.
+- Python: **9202** przypadki indeksowania i końcowego krótkiego bloku,
+  w tym wszystkie młodsze bajty adresu oraz zawijanie 16-bitowych adresów.
+- VICE: **672/672 prób** timingu. PAL/NTSC, C64 CIA 6526/8521, C16 i Plus/4,
+  fazy READ, wzory danych, jitter 0/1/50 µs i MOTOR 0/0 µs.
+- Dodatkowe długości: 255/256/257, 511/512/513, 8191/8193, maksymalnie 28672 B
+  pod $1000 na C64/Plus/4 i 12288 B pod $1000 na C16.
 
-`tools/fastloader-vice/timing-matrix/summary.json` zawiera wyniki tych prób.
-`analyze-timing.py` dodatkowo sprawdza wyliczone cykle rzeczywistego PRG oraz
-marginesy dla czasu ciągłego i dla ticków VICE. Nie polegamy na zaokrągleniach
-w emulatorze przy wyborze odstępów w mikrosekundach.
+Każda próba VICE porównuje całą pamięć i dokładną liczbę żądań MOTOR.
+`tools/fastloader-vice/timing-matrix-unrolled/summary.json` zawiera wyniki.
+`analyze-timing.py` liczy instrukcje rzeczywistego PRG, sprawdza wyrównanie
+oraz marginesy czasu ciągłego i ticków VICE.
 
 ## Odtwarzalność
 
 ```sh
+make fastloader-bit-test
 make fastloader-test
 python3 experiments/fastloader/analyze-timing.py
-python3 experiments/fastloader/run-timing-matrix.py --roms /usr/local/share/vice
-python3 experiments/fastloader/run-matrix.py --roms /usr/local/share/vice --out tools/fastloader-vice/matrix-timing
+python3 experiments/fastloader/run-timing-matrix.py --roms /usr/local/share/vice --out tools/fastloader-vice/timing-matrix-unrolled
+python3 experiments/fastloader/run-matrix.py --roms /usr/local/share/vice --out tools/fastloader-vice/matrix-unrolled
 ```
 
-`tools/fastloader-vice/matrix-timing/summary.json` zawiera szczegółowe metryki. Podkatalogi mają log VICE, skrypt monitora, odbiornik, strumień i zrzut pamięci. Artefakty są ignorowane przez Git.
+`tools/fastloader-vice/matrix-unrolled/summary.json` zawiera szczegółowe metryki. Podkatalogi mają log VICE, skrypt monitora, odbiornik, strumień i zrzut pamięci. Artefakty są ignorowane przez Git.
 [Historyczne wyniki pierwszej wersji z sync co bajt](RESULTS-byte-sync.md) dotyczyły wcześniejszej pętli i innych odstępów.
 
 SHA-256 źródeł użytych w próbie:
 
-- `sender.c`: `63848a81f48ee5ad22ea78b3c0ed1f695eba2368da5f290cc9db20b8f392ab3d`
+- `sender.c`: `be71febfae1d47adab4685a87c699c94f1d770f7d2700cad9c663e82beead8f1`
 - `sender.h`: `a4f021c290dfa77f0971749a6ba454f53a8e4e22e8a6031cdfc5495b6a4a5a3c`
-- `receiver.asm`: `d489c335fed21ef907c730c3cf1c12c8e24e8da672d2f6cd8c8b6a8909d4a054`
-- `vice-device.c`: `379dabb700cc95c2b5b923c890d582c749c121a62fd24b6b5d53e1dbbb2cbf44`
+- `receiver.asm`: `9e1dfb8f5833256f599af0f0ce85523e705a6ee0b87c3179f299e9135b40256d`
+- `vice-device.c`: `74ae0eb6768cccc32912e0019c5bcd87716726729867a7f0652f93f895636084`
 
 SHA-256 ROM-ów komputera (ROM-y nie są dołączane do repozytorium):
 

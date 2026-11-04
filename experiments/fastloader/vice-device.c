@@ -84,11 +84,11 @@ static int fl_enable(int port, int enabled)
     fclose(input);
     config.c16 = machine_class == VICE_MACHINE_PLUS4;
     config.setup = fl_us("ESPSETTE_FL_SETUP_US", 3);
-    config.hold = fl_us("ESPSETTE_FL_HOLD_US", config.c16 ? 26 : 48);
+    config.hold = fl_us("ESPSETTE_FL_HOLD_US", 16);
     config.gap = fl_us("ESPSETTE_FL_GAP_US", 3);
     config.motor_on = fl_us("ESPSETTE_FL_MOTOR_ON_US", 5);
     config.motor_off = fl_us("ESPSETTE_FL_MOTOR_OFF_US", 1000);
-    config.byte_pause = fl_us("ESPSETTE_FL_PAUSE_US", config.c16 ? 48 : 80);
+    config.byte_pause = fl_us("ESPSETTE_FL_PAUSE_US", config.c16 ? 11 : 19);
     config.jitter = fl_us("ESPSETTE_FL_JITTER_US", 0);
     config.block_bytes = getenv("ESPSETTE_FL_BLOCK_BYTES") ?
         (unsigned)strtoul(getenv("ESPSETTE_FL_BLOCK_BYTES"), NULL, 10) : FL_BLOCK_BYTES;

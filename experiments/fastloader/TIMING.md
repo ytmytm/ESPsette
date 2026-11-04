@@ -1,124 +1,180 @@
-# Budżet cykli i krótsze odstępy
+# Składanie par bitów i budżet zoptymalizowanego odbiornika
 
-Analiza dotyczy kodu z `receiver.asm` złożonego pod `$0800`, z wygaszonym
-ekranem, wyłączonym sprite DMA na C64 i bez wykonywania IRQ/NMI. Liczby
-pochodzą z przejścia po **złożonych instrukcjach**, nie z szacunku na podstawie
-liczby linii asemblera. `analyze-timing.py` uwzględnia tryby adresowania,
-obie ścieżki przeniesień i dodatkowy cykl gałęzi przekraczającej stronę.
-Obecne pętle nie mają takiej gałęzi. Po relokacji loadera trzeba przeliczyć
-timing ponownie.
+Punkt odniesienia: commit `cc15d15` na `feature/prg-fastloader-sim`.
+Odbiornik działa pod `$0800`, z wygaszonym ekranem, wyłączonym sprite DMA
+na C64 i bez wykonywania IRQ/NMI. Przepustowości są wynikami VICE, nie pomiarem
+sprzętu. [Wyniki](RESULTS.md) zawierają metryki oraz hashe bieżących źródeł.
 
-## Zegary i PAL/NTSC
+## Najpierw test arytmetyki w Pythonie
+
+`search-bit-layout.py` porównuje siedem rodzin dekoderów. Dla każdej sprawdza
+40 320 permutacji ośmiu bitów na kolejnych pozycjach WRITE/SENSE, następnie
+wszystkie 256 wartości bajtu i zakłócenia niezwiązanych bitów portów.
+To łącznie 2 361 088 sprawdzeń bajtu/pinów, bez uruchamiania VICE.
+Weryfikacja obejmuje zero i wektory bazowe, a potem pełne wartości bajtów.
+Test OR z ROL/ROR dodatkowo przeszukuje przesunięcia dziewięciobitowego A/C
+między wstawieniami kolejnych par; nie wolno zgubić bitu w carry.
+
+| Rodzina | Koszt samego składania bajtu, bez oczekiwania |
+| --- | ---: |
+| C64: osobne bity, PHA/PLA | 152 cykle |
+| C64: osobne bity, TAX/TXA, bez pętli | 140 cykli |
+| **C64: maska/OR, dwa półbajty** | **50 cykli** |
+| C64: EOR, z zachowaniem A pomiędzy parami | 40 cykli, dodatkowy warunek opisany niżej |
+| C64: OR i rotacje przez carry | 56 cykli |
+| **C16: maska/OR, dwa półbajty** | **94 cykle** |
+| C16: OR i rotacje przez carry | 102 cykle |
+
+To porównanie wymienionych rodzin, nie dowód globalnego minimum wszystkich
+możliwych programów 6502. Wybrano maskę/OR: obie maszyny mają tę samą kolejność
+na kablu, dekoder nie zależy od wartości pozostałych bitów CPU portu i nie
+wymaga zachowania A podczas oczekiwania na następne dane.
+
+Wariant EOR oszczędza operacje danych, ale zakłada stałe bity 1/2 portu C64
+oraz zachowanie A podczas oczekiwania. Polling bezpośredniego FLAG wymaga
+załadowania maski do A. Podsumowanie IRQ w bicie 7 ICR ma osobną ścieżkę
+opóźnienia w CIA, więc nie zastępujemy nim bezpośredniego FLAG w bicie 4.
+W wybranym dekoderze maska/OR najdłuższa ścieżka pary to 20 cykli i nie wymaga
+zmiany kierunku linii ani włączania maski IRQ FLAG.
+
+## Nowa kolejność na kablu
+
+| Strobe | WRITE | SENSE | Wynik cząstkowy |
+| --- | --- | --- | --- |
+| 0 | b4 | b5 | dwa młodsze bity górnego półbajtu |
+| 1 | b6 | b7 | cały górny półbajt → X |
+| 2 | b0 | b1 | dwa młodsze bity dolnego półbajtu |
+| 3 | b2 | b3 | dolny półbajt OR tablica górnego |
+
+Na C64 maska `$18` pobiera oba bity jednocześnie. Pierwsza para wymaga dwóch
+LSR, druga jednego LSR. Na cały bajt przypada sześć LSR, zamiast 36 LSR i ośmiu
+ROL wykonywanych poprzednio. Odczyt SENSE na C16 nadal jest osobną operacją:
+WRITE z `$01` i SENSE z `$FD10` tworzą parę w bitach 1/2. Pierwsza para
+półbajtu wymaga jednego LSR, druga jednego ASL: cztery przesunięcia na bajt.
+
+Tablica 16 B przesuwa górny półbajt w gotowe miejsce. Jej wyrównanie do 16 B
+zapewnia brak przekroczenia strony dla `ORA upper_table,X`, gdzie X jest 0..15.
+
+Obie procedury rozwinięto do czterech próbek. Y jest zachowany. C64 używa
+`LDA #$10 / BIT $DC0D / BEQ`, C16 `LDA #$10 / BIT $01` z naprzemiennym
+BNE/BEQ dla low/high. Przerwania CIA pozostają zamaskowane; `BIT` na C64
+czyta i potwierdza rzeczywisty bit 4 FLAG.
+
+## Pętla zapisu: Y jest również licznikiem bloku
+
+Odbiór jest wstawiony inline, osobno w pętli deskryptora i danych. Nie ma
+JSR/RTS na bajt. Rdzeń pętli danych po złożeniu A to:
+
+```asm
+    sta (dest),y
+    iny
+    bne load
+    inc dest+1
+    jmp next_block
+```
+
+Długość 16-bitowa jest pomniejszana o 256 raz na pełny blok. Nie ma już DEC
+licznika bloku ani aktualizacji pozostałej długości przy każdym bajcie.
+
+Dla ostatniego bloku długości `n < 256` ustawiamy:
+
+```text
+Y = 256 - n
+base = destination + n - 256
+```
+
+Pierwszy zapis trafia w `base + Y = destination`. Kolejne adresy rosną po
+jednym; Y przewija się po dokładnie n zapisach, a zwiększenie starszego bajtu
+bazy daje adres końca danych. Działa to również dla niezerowego młodszego
+bajtu adresu i długości 1. W trybie porównawczym `--block-bytes 1` stosujemy
+tę samą korektę dla każdego pojedynczego bajtu.
+
+`test-indexing.py` sprawdza 9202 kombinacje adresu/długości/wielkości bloku
+wobec liniowego orakla adresów, w tym wszystkie młodsze bajty adresu,
+granice 255/256/257 i 511/512/513, 8192/12288/28672 B oraz zawinięcie 16 bitów.
+W VICE osobno porównujemy całą zapisaną pamięć, do końca obsługiwanego RAM.
+
+## Cykle rzeczywistych instrukcji
+
+`analyze-timing.py` przechodzi po złożonym PRG: liczy tryby adresowania,
+gałęzie i przekroczenia stron. Każdy odcinek unrolled i jego pętla mieści się
+w oknie 128 B. Obecne gałęzie nie przekraczają stron; tablica również ich nie
+przekracza. Po zmianie kodu lub relokacji trzeba ponownie uruchomić analizę.
+
+| Ścieżka | C64 przed → po | C16 przed → po |
+| --- | ---: | ---: |
+| Pętla oczekiwania bez strobe | 9 → 7 | 11 → 6 |
+| Para → następna para | 51 → **20/20/20** | 50 → **29/31/29** |
+| Czwarta para → pierwszy strobe kolejnego bajtu deskryptora | 95 → **34** | 94 → **45** |
+| Czwarta para → pierwszy strobe kolejnego bajtu danych | do 125 → **33** | do 124 → **44** |
+| Najpóźniejsza próbka danych po strobe, z fazą pollingu | 16 → **12** | 34 → **20** |
+
+Zawinięcie Y zachodzi na końcu bloku. Wtedy nadajnik czeka na MOTOR, więc
+zwiększanie `dest+1` i wybór następnego bloku nie wyznaczają stałego odstępu.
+Budżet między bajtami musi jednak objąć również deskryptor: 34 cykle na C64,
+45 na C16, choć zwykła ścieżka danych jest o cykl krótsza.
+
+W blank-screen fast mode TED kradnie pięć ticków na 114-tickową linię
+(`plus4/ted.c:ted_delay_clk()`). Doliczamy `5 × ceil(C / 109)` do ścieżki
+C cykli. Daje to następujące maksima:
+
+| Budżet | C64 | C16/Plus/4 z refresh |
+| --- | ---: | ---: |
+| Para → para | **20** | **36** ticków |
+| Między bajtami, dane i deskryptor | **34** | **50** ticków |
+| Najpóźniejsza próbka danych | **12** | **25** ticków |
+
+## Zegary i wybrane odstępy
 
 | Maszyna | PAL | NTSC |
 | --- | ---: | ---: |
 | C64 | 985 248 Hz | 1 022 730 Hz |
 | C16/Plus/4, szybki zegar | 1 773 447 Hz | 1 789 772 Hz |
 
-Źródła: definicje `c64.h` i `plus4.h` przypiętej rewizji VICE.
-Przy nadajniku z odstępami w mikrosekundach **wolniejszy PAL wymaga więcej
-czasu na tę samą liczbę instrukcji**. Budżet uniwersalnego profilu liczymy
-z PAL. Szybszy NTSC ma wtedy dodatkowy zapas. Liczenie odstępów z szybszego
-zegara NTSC bez powiększenia marginesu nie zapewnia zgodności z PAL.
+Stałe mikrosekundy dobieramy do wolniejszego PAL. Szybszy NTSC ma zapas.
+Źródłem zegarów są `c64.h` i `plus4.h` przypiętej rewizji VICE.
 
-## Ścieżki odbiornika
+Setup i gap wynoszą po 3 µs. Dla `H = hold`, `B = byte_pause` strobe→strobe
+wewnątrz bajtu to `H+6`, a od czwartej pary do pierwszej następnego bajtu
+`H+B+3`. Czas bajtu to `3×(H+6)+H+B+3`, przed handshake MOTOR.
 
-Przeniesiono `result` do `$FD`, `block_remaining` do `$FE` i C16
-`expected_read` do `$FF`. Dzięki temu m.in. `ROL` kosztuje 5 zamiast 6 cykli,
-a odczyty/zapisy robocze 3 zamiast 4. C16 jawnie zeruje początkowy oczekiwany
-READ. Odbiornik rezerwuje teraz całość `$F7..$FF`.
-
-| Ścieżka | C64 przed → po | C16 przed → po |
+| Parametr, µs | C64 przed → po | C16 przed → po |
 | --- | ---: | ---: |
-| Jedna iteracja oczekiwania bez strobe | 9 → 9 | 12 → 11 |
-| Odczyt strobe → odczyt strobe następnej pary | 53 → 51 | 55 → 50 |
-| Czwarta para → pierwsza kolejnego bajtu deskryptora | 101 → 95 | 103 → 94 |
-| Czwarta para → pierwsza kolejnego bajtu danych, bez przeniesień | 123 → 117 | 125 → 116 |
-| To samo, przeniesienie adresu **albo** pożyczka długości | 127 → 121 | 129 → 120 |
-| To samo, oba przeniesienia naraz | 131 → 125 | 133 → 124 |
-| Najpóźniejsza próbka danych po strobe, z fazą pętli oczekiwania | 16 → 16 | 37 → 34 |
+| Hold | 48 → **16** | 26 → **16** |
+| Byte_pause po hold ostatniej pary | 80 → **19** | 48 → **11** |
+| Para → para | 54 → **22** | 32 → **22** |
+| Czwarta para → pierwsza kolejnego bajtu | 131 → **38** | 77 → **30** |
+| Cały bajt bez handshake | 293 → **104** | 173 → **96** |
 
-Ścieżka między bajtami zawiera złożenie ostatniej pary, `DEC` licznika bloku,
-powrót z `getbyte`, zapis `(dest),Y`, aktualizację adresu i długości, wywołanie
-kolejnego `getbyte`, sprawdzenie licznika bloku i przygotowanie odbioru.
-Na granicy bloku nadajnik czeka na MOTOR, więc ten dłuższy handshake nie
-wyznacza odstępu między bajtami wewnątrz bloku.
+Marginesy PAL bez zaokrągleń do ticków VICE:
 
-Przeniesienia mogą wystąpić jednocześnie: np. przy ładowaniu 513 B pod `$20FE`
-drugi bajt trafia pod `$20FF`, gdy pozostała długość wynosi `$0200`.
-Testowanie wyłącznie adresu `$2000` i długości 4096 B pomija tę kombinację.
-
-## TED nadal potrzebuje czasu na refresh
-
-W VICE `plus4/ted.c:ted_delay_clk()` dla fast mode bez character fetch
-kradnie pięć ticków na linię, przy pozycjach 92/94/96/98/100. Linia ma 114
-ticków. Wygaszenie ekranu usuwa pobieranie grafiki, ale nie ten refresh.
-
-Do bezpiecznego oszacowania ścieżki długości `C` cykli CPU doliczamy
-`5 × ceil(C / 109)` ticków. Otrzymujemy:
-
-| Budżet po optymalizacji | C64 | C16/Plus/4 z refresh |
+| Budżet | C64 | C16 |
 | --- | ---: | ---: |
-| Para → para | 51 | **55** ticków |
-| Czwarta para → pierwszy strobe kolejnego bajtu | 125 | **134** ticki |
-| Najpóźniejsza próbka danych po strobe | 16 | **39** ticków |
+| Para → para | 21,675 − 20 = **1,675 cyklu** | 39,016 − 36 = **3,016 ticka** |
+| Między bajtami | 37,439 − 34 = **3,439 cyklu** | 53,203 − 50 = **3,203 ticka** |
+| Dane stabilne do zmiany następnej pary | 18,720 − 12 = **6,720 cyklu** | 33,695 − 25 = **8,695 ticka** |
 
-Budżet pary dotyczy czasu obsługi, a budżet próbki — momentu odczytu pinów.
-Samo utrzymywanie danych przez czas próbki nie wystarczy: jeśli kolejne pary
-przychodzą szybciej, niż CPU je obsługuje, opóźnienie odbiornika narasta.
+Analizator sprawdza czas ciągły oraz model VICE, który zaokrągla każdy odstęp
+w górę. Nie polegamy na tym zaokrągleniu przy wyborze profilu. Setup nie jest
+pomiarem elektrycznym. ESP może się spóźnić, ale nie może nadrabiać opóźnień
+przez skracanie kolejnych odstępów.
 
-## Wybrane odstępy
-
-Nadajnik ma `S = setup`, `H = hold`, `G = gap` i `B = byte_pause`.
-Wewnątrz bajtu strobe→strobe wynosi `H + G + S`. Od czwartego strobe do
-pierwszego strobe kolejnego bajtu wynosi `H + B + S`, nie samo `B`.
-Łącznie na bajt przypada `3 × (H + G + S) + H + B + S`.
-
-| Parametr, µs | C64 wcześniej → teraz | C16 wcześniej → teraz |
-| --- | ---: | ---: |
-| Setup | 3 → 3 | 3 → 3 |
-| Hold | 64 → **48** | 32 → **26** |
-| Gap | 3 → 3 | 3 → 3 |
-| Dodatkowe byte_pause po hold ostatniej pary | 64 → **80** | 32 → **48** |
-| Strobe→strobe między parami | 70 → **54** | 38 → **32** |
-| Czwarty strobe→pierwszy kolejnego bajtu | 131 → **131** | 67 → **77** |
-| Cały bajt bez handshake MOTOR | 341 → **293** | 181 → **173** |
-
-Byte_pause rośnie celowo. Skracamy odstępy wewnątrz bajtu i zachowujemy
-pełny budżet najdłuższego zapisu, zamiast polegać na zapasie z wcześniejszych
-par, który zależy od fazy odbiornika.
-
-Rzeczywiste mikrosekundy przeliczone na PAL, **bez** zaokrąglania przez VICE,
-dają następujące marginesy:
-
-| Budżet | C64 PAL | C16 PAL |
-| --- | ---: | ---: |
-| Para → para | 53,203 − 51 = **2,203 cyklu** | 56,750 − 55 = **1,750 ticka** |
-| Między bajtami | 129,067 − 125 = **4,067 cyklu** | 136,555 − 134 = **2,555 ticka** |
-
-W modelu VICE każdy pojedynczy odstęp jest zaokrąglany w górę do ticka CPU.
-Analizator sprawdza zarówno ten model, jak i powyższy czas ciągły, żeby
-przyszła implementacja ESP nie polegała na zapasie pochodzącym z zaokrągleń.
-Pozostawione 3 µs setup nie jest wynikiem pomiaru elektrycznego.
-
-## Sprawdzenie
+## Weryfikacja i zakres
 
 ```sh
+make fastloader-bit-test
+make fastloader-test
 python3 experiments/fastloader/analyze-timing.py
 python3 experiments/fastloader/run-timing-matrix.py
 python3 experiments/fastloader/run-matrix.py
 ```
 
-Analizator sprawdza budżety na faktycznym PRG. Macierz timingu obejmuje:
+Przeszło **672/672 prób timingu i 39/39 regresji**. Próby obejmują PAL/NTSC,
+C64 z CIA 6526 i 8521, C16 i Plus/4, fazy początkowe READ, wzory danych,
+jitter 0/1/50 µs, zerową zwłokę MOTOR i pełne zakresy danych testowych:
+28672 B pod `$1000` na C64/Plus/4 i 12288 B pod `$1000` na C16.
 
-- 18 opóźnień początkowych dla C64 oraz 114 dla C16 i Plus/4, osobno PAL/NTSC;
-  513 B pod `$20FE` wymusza najdłuższe przeniesienia także wewnątrz bloku.
-- 8192 B pod `$10FF`, pięć wzorów danych, jitter 0/1/50 µs i zerowe opóźnienie
-  MOTOR, aby sprawdzić też najwcześniejszy możliwy początek kolejnego bloku.
-- Porównanie całej pamięci i dokładnej liczby żądań MOTOR.
-
-**582/582 prób timingu i 39/39 testów regresji** dało oczekiwany wynik.
-Wcześniejsze próby z pierwotnym kodem wykazały błędy m.in. dla C64 hold/pause
-46/64 µs oraz C16 26/40 µs; samo zmniejszanie obu wartości nie było bezpieczne.
-Testy faz są dodatkową weryfikacją budżetu, nie dowodem analogowego timingu
-sprzętu. Przepustowości i hashe bieżącego kodu są w [RESULTS.md](RESULTS.md).
+Kod jest większy wskutek rozwinięcia pętli i wyrównania: 368 B na C64 i 528 B
+na C16, wraz z paddingiem i tablicą. To nadal odbiornik eksperymentalny
+wgrywany monitorem. Standardowy bootstrap wymaga osobnego małego stubu lub
+relokacji; nie deklarujemy zmieszczenia całego odbiornika w nagłówku kasety.

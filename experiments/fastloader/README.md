@@ -46,7 +46,7 @@ stabilne do zakończenia obu odczytów. C16 nie może stosować maski `$18` z C6
 3. Nadajnik czeka na wykrycie zmiany MOTOR i dostępność danych. Pomiędzy
    blokami może uzupełniać bufor i obsługiwać sieć/watchdog. Zwłoka nadajnika
    wewnątrz bloku również jest dopuszczalna przy zachowaniu stabilnych linii.
-4. Nadaje pary `b7:b6`, `b5:b4`, `b3:b2`, `b1:b0`: WRITE jest pierwszym,
+4. Nadaje pary `b4:b5`, `b6:b7`, `b0:b1`, `b2:b3`: WRITE jest pierwszym,
    SENSE drugim bitem. Najpierw ustawia dane, następnie zmienia READ.
 5. Na C64 każda para ma osobne opadające zbocze READ; pomiędzy nimi READ
    wraca wysoko. Na C16 kolejne pary mają poziomy READ low/high/low/high.
@@ -60,7 +60,7 @@ stabilne do zakończenia obu odczytów. C16 nie może stosować maski `$18` z C6
 
 ```text
 MOTOR:    on ----- off (blok 0) -------------------- on (blok 1) --------
-dane:                   b7b6      b5b4      b3b2      b1b0
+dane:                   b4b5      b6b7      b0b1      b2b3
 READ C64:  HIGH ----------\__/------\__/------\__/------\__/-------------
 READ C16:  HIGH ----------\_________/---------\_________/---------------
                           próbka    próbka    próbka    próbka
@@ -73,19 +73,22 @@ wydłużyć odstęp, ale nie może skrócić go poniżej najwolniejszej ścieżk
 W szczególności przedwcześnie zmienione dane mogą zepsuć próbkę nawet wtedy,
 gdy CIA zdążyła poprawnie zatrzasnąć zbocze.
 
-Odstępy wynikają z [analizy cykli złożonego kodu](TIMING.md). Setup/gap
-pozostają po 3 µs. Hold wynosi teraz 48 µs na C64 / 26 µs na C16, a dodatkowa
-przerwa po hold czwartej pary 80/48 µs. Daje to strobe→strobe 54/32 µs wewnątrz
-bajtu i 131/77 µs od czwartej pary do pierwszej następnego bajtu.
-Najdłuższe ścieżki uwzględniają jednoczesne przeniesienie adresu i pożyczkę
-licznika długości; TED nadal wykonuje refresh. Obliczenia korzystają z wolniejszego
-PAL, więc te same mikrosekundy wystarczają także dla szybszego NTSC.
+[Analiza cykli i test kolejności bitów](TIMING.md) doprowadziły do odbioru
+półbajtami, rozwinięcia czterech próbek i wstawienia odbioru inline. Y indeksuje
+dane i kończy blok po zawinięciu; długość 16-bitowa jest aktualizowana raz na
+blok. Nie ma per-byte JSR/RTS ani osobnego DEC licznika.
 
-Odbiornik używa strony zerowej `$F7..$FF`; skrócenie roboczych odczytów,
-zapisów i `ROL` pozwoliło zmniejszyć odstępy. Weryfikacja obejmuje 582 próby
-faz/patternów/jitteru oraz 39 przypadków regresji. Są to budżety dla tego kodu,
-nie pomiar elektryczny. Na ESP opóźnienie może wydłużać odstęp, ale nie wolno
-nadrabiać go przez skracanie kolejnych setup/hold ani pauz między bajtami.
+Setup/gap pozostają po 3 µs, hold wynosi 16 µs na obu maszynach, a dodatkowa
+pauza po hold czwartej pary 19 µs na C64 / 11 µs na C16. Odstęp między parami
+wynosi 22 µs, a czwarta para→pierwsza kolejnego bajtu 38/30 µs.
+Budżet obejmuje dane i deskryptor oraz refresh TED. Liczymy z wolniejszego PAL;
+NTSC ma zapas. To nowa kolejność par, zgodna z aktualnym nadajnikiem C.
+
+Odbiornik rezerwuje `$F7..$FF` i tablicę 16 B; Y pozostaje nietknięty podczas
+składania bajtu. Niezależne testy Pythona sprawdzają permutacje/operacje bitowe
+oraz korektę adresu ostatniego bloku. W VICE przeszły 672 próby timingu i 39
+regresji. To budżety dla tego kodu, nie pomiar elektryczny. ESP nie może
+nadrabiać opóźnień przez skracanie kolejnych odstępów.
 
 ## Narzut MOTOR przy blokach 256 B
 
@@ -113,10 +116,11 @@ WRITE/SENSE i **nie** taktuje par linią READ. Nie skopiowano jego loadera.
 
 ## Uruchomienie
 
-Test samego nadajnika wymaga C11:
+Test nadajnika wymaga C11; test kolejności bitów i adresowania wymaga tylko Pythona:
 
 ```sh
 make fastloader-test
+make fastloader-bit-test
 ```
 
 Test integracyjny wymaga ACME, Python 3, narzędzi do budowy VICE

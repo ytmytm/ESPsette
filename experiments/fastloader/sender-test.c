@@ -34,7 +34,10 @@ static void transfer(int c16, size_t payload, unsigned block_bytes)
             if (s.read_high != read_high) {
                 if (c16 || !s.read_high) {
                     assert(now - data_time >= config.setup);
-                    decoded = (decoded << 2) | (s.write_high << 1) | s.sense_high;
+                    /* Independent expectation: first fill the upper nibble
+                     * low-to-high, then the lower nibble low-to-high. */
+                    unsigned bit = pairs < 2 ? 4 + 2 * pairs : 2 * (pairs - 2);
+                    decoded |= (s.write_high | (s.sense_high << 1)) << bit;
                     if (++pairs == 4) {
                         assert(received < boundary);
                         assert(decoded == bytes[received++]);
