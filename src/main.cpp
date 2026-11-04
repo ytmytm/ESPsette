@@ -45,7 +45,7 @@
 
 #include <core_esp8266_i2s.h>
 
-#include "draxcaught.h"
+#include "circles_demo.h"
 
 #include <RemoteDebug.h>
 
@@ -80,7 +80,9 @@ static inline bool tapeShouldRun() {
   return motorIsOn() && senseIsPressed();
 }
 
+#ifndef DEBUG_DISABLED
 RemoteDebug Debug;
+#endif
 ESP8266WebServer HTTPServer(80);
 NetworkConfig networkConfig(HTTPServer, PIN_MOTOR);
 TapeSource tapeSource;
@@ -105,6 +107,7 @@ static bool fastloaderBusy() {
          fastPhase == FastPhase::DESCRIPTOR || fastPhase == FastPhase::PAYLOAD;
 }
 WriteDecoder writeDecoder;
+volatile bool otaUpdating = false;
 // Decode in IRAM at the edge, independently of synchronous HTTP writes.
 // No pulse queue, heap allocation or logging is used by this ISR.
 volatile uint32_t writeLastEdgeUs[2] = {};
@@ -118,7 +121,7 @@ volatile bool writeMotorStopped = false;
 // Reserve GPIO2 for the entire fastloader session, including its WRITE-output
 // signature. Commands resume after completion, cancellation or ejection.
 static bool IRAM_ATTR writeCommandsAllowed() {
-  return fastPhase == FastPhase::OFF || fastPhase == FastPhase::DONE;
+  return !otaUpdating && (fastPhase == FastPhase::OFF || fastPhase == FastPhase::DONE);
 }
 
 static void IRAM_ATTR setWriteInterruptMode(uint8_t mode) {
@@ -218,7 +221,7 @@ bool tapeLoaded = false;
 bool autoPlay = true;
 ComputerProfile defaultProfile = ComputerProfile::C64_PAL;
 bool playbackComplete = false;
-String tapeName = "draxcaught (demo)";
+String tapeName = "Circles (demo)";
 uint64_t totalTapeCycles = 0;
 uint64_t reportedTotalCycles = 0;
 uint64_t playedBaseCycles = 0;
@@ -234,10 +237,6 @@ uint32_t sourceUnderrunCount = 0;
 uint32_t uploadErrorCount = 0;
 uint32_t maxLoopUs = 0;
 uint32_t maxHttpUs = 0;
-
-static inline uint8_t readRomByte(const uint8_t* addr) {
-  return pgm_read_byte(addr);
-}
 
 struct DecoderState {
   uint32_t offset;       // Next TAP record or PRG logical byte still needed.
@@ -412,56 +411,20 @@ void resetPlayer(uint32_t offset) {
   player.emptySince = 0;
 }
 
-bool validateTap() {
-  static const char signature[] = "C64-TAPE-RAW";
-  if (draxcaught_tap_len < 20) return false;
-  for (uint8_t i = 0; i < 12; ++i) {
-    if (readRomByte(draxcaught_tap + i) != (uint8_t)signature[i]) return false;
-  }
-  if (readRomByte(draxcaught_tap + 12) != 1 ||
-      readRomByte(draxcaught_tap + 13) != 0 ||
-      readRomByte(draxcaught_tap + 14) != 0) return false; // TAP v1, C64 PAL
-  uint32_t dataSize = 0;
-  for (uint8_t i = 0; i < 4; ++i) {
-    dataSize |= (uint32_t)readRomByte(draxcaught_tap + 16 + i) << (8 * i);
-  }
-  if (dataSize != draxcaught_tap_len - 20) return false;
-  tapEnd = draxcaught_tap_len;
-  totalTapeCycles = 0;
-  reportedTotalCycles = 0;
-  return true;
-}
-
-// Full PROGMEM walk only from the deferred demo path (never from setup/HTTP).
-static bool scanEmbeddedTotalCycles() {
-  uint32_t offset = 20;
-  uint64_t acc = 0;
-  uint16_t steps = 0;
-  while (offset < tapEnd) {
-    uint8_t value;
-    if (!tapeSource.read(offset, value)) return false;
-    ++offset;
-    uint32_t cycles;
-    if (value != 0) {
-      cycles = (uint32_t)value * 8;
-    } else {
-      if (tapEnd - offset < 3) return false;
-      uint8_t lo, mid, hi;
-      if (!tapeSource.read(offset, lo) || !tapeSource.read(offset + 1, mid) ||
-          !tapeSource.read(offset + 2, hi))
-        return false;
-      offset += 3;
-      cycles = (uint32_t)lo | ((uint32_t)mid << 8) | ((uint32_t)hi << 16);
-    }
-    if (cycles == 0) return false;
-    acc += cycles;
-    if ((++steps & 127) == 0) {
-      ESP.wdtFeed();
-      yield();
-    }
-  }
-  totalTapeCycles = acc;
-  reportedTotalCycles = acc;
+// Both uploaded PRGs and the embedded demo use the same header bootstrap.
+static bool prepareFastPrg(uint16_t address, uint32_t length, const String& name,
+                           PrgEncoder::Machine machine, bool ntsc, uint16_t entry) {
+  const bool ted = machine == PrgEncoder::Machine::C16;
+  if (address < (ted ? 0x1001 : 0x0801) ||
+      uint32_t(address) + length > (ted ? 0x4000u : 0x8000u)) return false;
+  uint8_t stub[171];
+  const uint8_t* code = ted ? tedBootstrap : c64Bootstrap;
+  const size_t count = ted ? sizeof(tedBootstrap) : sizeof(c64Bootstrap);
+  memcpy_P(stub, code, count);
+  if (!prgEncoder.beginAutostart(stub, count, name, machine, ntsc)) return false;
+  const uint8_t vector[] = {uint8_t(ted ? 0x47 : 0x51), 3};
+  prgEncoder.observeFirstCopy(2, vector, sizeof(vector));
+  fastTed = ted; fastAddress = address; fastLength = length; fastEntry = entry;
   return true;
 }
 
@@ -469,44 +432,48 @@ static bool pendingDemoInsert = false;
 static bool demoInsertFailed = false;
 
 static void insertEmbeddedDemo() {
-  // Keep this off the HTTP stack: PROGMEM reads thrash ICACHE and must yield
-  // so the Wi-Fi/soft WDT keep running.
-  ESP.wdtFeed();
-  yield();
   resetFastloader();
-  sourceFormat = SourceFormat::TAP;
-  sourceProfile = ComputerProfile::C64_PAL;
+  sourceFormat = SourceFormat::PRG;
+  sourceProfile = ComputerProfile::C64_PAL; // Circles is C64 PAL only.
   sourceClockHz = profileClockHz(sourceProfile);
   tapHalfWaves = false;
-  tapeSource.useEmbedded(draxcaught_tap, draxcaught_tap_len);
-  tapeName = "draxcaught (demo)";
+  tapeName = "Circles (demo)";
+  const uint16_t address = pgm_read_byte(circlesPrg) | (uint16_t(pgm_read_byte(circlesPrg + 1)) << 8);
+  const uint32_t length = sizeof(circlesPrg) - 2;
+  const bool fast = fastloaderSettings.enabled;
+  bool ok = prgEncoder.begin(address, length, "CIRCLES", PrgEncoder::Machine::C64);
+  if (ok && fast) ok = prepareFastPrg(address, length, "CIRCLES", PrgEncoder::Machine::C64, false, 0);
+  if (ok) ok = tapeSource.useEmbeddedPrg(circlesPrg, sizeof(circlesPrg), !fast);
+  if (ok && !fast) {
+    // Compute only the first ROM copy's XOR. The second copy reads the same
+    // flash bytes through TapeSource; no duplicate PRG or generated TAP.
+    uint8_t bytes[128];
+    for (uint32_t offset = 2; offset < sizeof(circlesPrg); offset += sizeof(bytes)) {
+      const size_t n = min(uint32_t(sizeof(bytes)), uint32_t(sizeof(circlesPrg) - offset));
+      memcpy_P(bytes, circlesPrg + offset, n);
+      prgEncoder.observeFirstCopy(offset, bytes, n);
+      yield();
+    }
+  }
+  totalTapeCycles = prgEncoder.totalCycles();
+  reportedTotalCycles = totalTapeCycles + (fast ? prgEncoder.standardDataCycles(length) : 0);
+  tapEnd = tapeSource.size();
+  if (ok && fast) {
+    fastSessionSettings = fastloaderSettings;
+    fastPhase = FastPhase::TAPE;
+  }
   playedBaseCycles = 0;
   playbackComplete = false;
-  playerError = nullptr;
-  ESP.wdtFeed();
-  yield();
-  resetPlayer(20);
-  ESP.wdtFeed();
-  yield();
-  bool ok = validateTap();
-  ESP.wdtFeed();
-  yield();
-  if (ok) {
-    ok = scanEmbeddedTotalCycles();
-    ESP.wdtFeed();
-    yield();
-  }
+  playerError = ok ? nullptr : "invalid_demo_prg";
+  scopeClear();
+  resetPlayer(2);
   tapeLoaded = ok;
-  setSensePressed(autoPlay && tapeLoaded);
+  setSensePressed(autoPlay && ok);
   state = ok ? State::WAITING : State::ERROR;
-  if (!ok) {
-    playerError = "invalid_demo_tap";
-    tapeSource.eject();
-    demoInsertFailed = true;
-  }
-  debugI("Embedded demo %s; TAP bytes=%lu cycles=%lu",
-         ok ? "loaded" : "invalid", (unsigned long)tapEnd,
-         (unsigned long)reportedTotalCycles);
+  demoInsertFailed = !ok;
+  if (!ok) tapeSource.eject();
+  debugI("Circles demo %s; PRG bytes=%u fast=%u", ok ? "loaded" : "invalid",
+         unsigned(sizeof(circlesPrg)), unsigned(fast));
 }
 
 void idleReadPin() {
@@ -680,7 +647,7 @@ void pauseTape() {
       tapeLoaded = false;
       tapEnd = 0;
     }
-    resetPlayer(20);
+    resetPlayer(sourceFormat == SourceFormat::PRG ? 2 : 20);
     playbackComplete = true;
     state = State::WAITING;
     debugI("TAP completed at MOTOR stop");
@@ -732,7 +699,7 @@ void startTape() {
     playbackComplete = false;
   }
   if (sourceFormat == SourceFormat::TAP && player.decoder.offset >= tapEnd &&
-      player.decoder.pulseIndex == player.decoder.pulseTicks) resetPlayer(20);
+      player.decoder.pulseIndex == player.decoder.pulseTicks) resetPlayer(sourceFormat == SourceFormat::PRG ? 2 : 20);
   noInterrupts();
   dmaCallbacks = 0;
   committedWords = 0;
@@ -979,7 +946,7 @@ void setupPins() {
   pinMode(PIN_MOTOR, INPUT);
   pinMode(PIN_WRITE, INPUT_PULLUP);
   pinMode(PIN_SENSE, FUNCTION_3); // Release UART TX for GPIO1.
-  digitalWrite(PIN_SENSE, HIGH); // Release PLAY until the embedded TAP is ready.
+  digitalWrite(PIN_SENSE, HIGH); // Release PLAY until a tape or demo is ready.
   pinMode(PIN_SENSE, OUTPUT);
   idleReadPin();
 #endif
@@ -1015,6 +982,10 @@ void initializeOTA() {
 #else
   if (!networkReady) return;
   ArduinoOTA.onStart([]() {
+    otaUpdating = true;
+    setSensePressed(false);
+    stopI2S();
+    processWriteCommands();
     debugI("* OTA: Start");
   });
   ArduinoOTA.onEnd([]() {
@@ -1025,6 +996,7 @@ void initializeOTA() {
     debugV("*OTA: Progress: %u%%\r", percent);
   });
   ArduinoOTA.onError([](ota_error_t error) {
+    otaUpdating = false;
     debugE("*OTA: Error[%u]", error);
   });
   ArduinoOTA.setHostname(networkConfig.hostname().c_str());
@@ -1038,11 +1010,13 @@ void initializeOTA() {
 }
 
 void setupDebug() {
+#ifndef DEBUG_DISABLED
   if (!networkReady) return;
   Debug.begin(networkConfig.hostname().c_str()); // Initialize the WiFi server
   Debug.setResetCmdEnabled(false); // Do not expose remote reset without authentication.
   Debug.showProfiler(true); // Profiler (Good to measure times, to optimize codes)
   Debug.showColors(true); // Colors
+#endif
 }
 
 uint32_t lastcall;
@@ -1127,7 +1101,10 @@ void handleFastloaderConfig() {
     HTTPServer.send(500, "application/json", "{\"error\":\"fastloader_save_failed\"}");
     return;
   }
+  const bool reloadDemo = changeEnabled && requested.enabled != fastloaderSettings.enabled &&
+      tapeSource.kind() == TapeSource::Kind::EMBEDDED && sourceFormat == SourceFormat::PRG;
   fastloaderSettings = requested;
+  if (reloadDemo) { demoInsertFailed = false; pendingDemoInsert = true; }
   String response;
   serializeJson(doc, response);
   HTTPServer.send(200, "application/json", response);
@@ -1164,8 +1141,7 @@ void setup() {
   setupDebug();
   setupWebserver();
 #endif
-  // Do not touch the ~250 KB PROGMEM demo in setup() — ICACHE thrash + WDT.
-  // Demo is inserted from loop() after /demo (or auto-queued once below).
+  // Demo insertion is deferred to loop() after /demo.
   state = State::WAITING;
   tapeLoaded = false;
   setSensePressed(false);
@@ -1232,7 +1208,7 @@ void loop() {
         tapeLoaded = false;
         tapEnd = 0;
       }
-      resetPlayer(20);
+      resetPlayer(sourceFormat == SourceFormat::PRG ? 2 : 20);
       playedBaseCycles = 0;
       playbackComplete = false;
       state = State::WAITING;
@@ -1260,14 +1236,17 @@ void loop() {
 
 #if !ESPSETTE_WIFI_DISABLED
 #if ESPSETTE_OTA
-  if (otaReady && state != State::STREAMING && state != State::DRAINING) ArduinoOTA.handle();
+  if (otaReady && !motorIsOn() && !fastloaderBusy() &&
+      state != State::STREAMING && state != State::DRAINING) ArduinoOTA.handle();
 #endif
   const uint32_t httpStartUs = micros();
   HTTPServer.handleClient();
   const uint32_t httpElapsedUs = micros() - httpStartUs;
   if (httpElapsedUs > maxHttpUs) maxHttpUs = httpElapsedUs;
   networkConfig.handle(motor == HIGH);
+#ifndef DEBUG_DISABLED
   if (networkReady) Debug.handle();
+#endif
 #endif
   processWriteCommands();
   yield();
@@ -1300,7 +1279,8 @@ void handlePlayer() {
   }
 #endif
   HTTPServer.sendHeader("Cache-Control", "no-store");
-  HTTPServer.send_P(200, "text/html; charset=utf-8", PLAYER_PAGE);
+  HTTPServer.sendHeader("Content-Encoding", "gzip");
+  HTTPServer.send_P(200, "text/html; charset=utf-8", reinterpret_cast<const char*>(PLAYER_PAGE), sizeof(PLAYER_PAGE));
 }
 
 void handleNotFound() {
@@ -1540,6 +1520,7 @@ void handleState() {
   doc["writeErrors"] = writeSnapshot.errorCount();
   doc["writeOverflows"] = writeSnapshot.overflowCount();
   doc["otaReady"] = otaReady;
+  doc["otaFreeBytes"] = ESP.getFreeSketchSpace();
   {
     char scopeStr[SCOPE_LEN + 1];
     const uint16_t n = scopeFilled;
@@ -1623,14 +1604,10 @@ void handleSession() {
         HTTPServer.send(400, "text/plain", "Fast PRG must fit BASIC RAM; invalid entry/address");
         return;
       }
-      uint8_t stub[171];
-      const uint8_t* code = ted ? tedBootstrap : c64Bootstrap;
-      const size_t count = ted ? sizeof(tedBootstrap) : sizeof(c64Bootstrap);
-      memcpy_P(stub, code, count);
-      prgEncoder.beginAutostart(stub, count, displayName, machine, video == "ntsc");
-      const uint8_t vector[] = {uint8_t(ted ? 0x47 : 0x51), 3};
-      prgEncoder.observeFirstCopy(2, vector, sizeof(vector));
-      fastTed = ted; fastAddress = loadAddress; fastLength = dataLength; fastEntry = entry;
+      if (!prepareFastPrg(loadAddress, dataLength, displayName, machine, video == "ntsc", entry)) {
+        HTTPServer.send(400, "text/plain", "Invalid fast PRG");
+        return;
+      }
     }
     logicalSize = useFast ? fileSize : 2 + 2 * dataLength;
     firstOffset = 2;
@@ -1948,7 +1925,7 @@ void handleEject() {
   playerError = nullptr;
   scopeClear();
   state = State::WAITING;
-  resetPlayer(20);
+  resetPlayer(sourceFormat == SourceFormat::PRG ? 2 : 20);
   HTTPServer.send(200, "application/json", "{\"tapeState\":\"ejected\"}");
 }
 

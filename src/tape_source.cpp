@@ -12,6 +12,7 @@ uint8_t flashByte(const uint8_t* address) {
 void TapeSource::useEmbedded(const uint8_t* data, uint32_t size) {
   kind_ = Kind::EMBEDDED;
   embedded_ = data;
+  embeddedRepeat_ = 0;
   prefixSize_ = 20;
   size_ = size;
   retainedFrom_ = 20;
@@ -19,9 +20,23 @@ void TapeSource::useEmbedded(const uint8_t* data, uint32_t size) {
   sessionId_ = 0;
 }
 
+bool TapeSource::useEmbeddedPrg(const uint8_t* data, uint32_t size, bool repeat) {
+  if (!data || size < 3 || size > 65537) return false;
+  useEmbedded(data, size);
+  prefixSize_ = 2;
+  retainedFrom_ = 2;
+  if (repeat) {
+    embeddedRepeat_ = size - 2;
+    size_ += embeddedRepeat_;
+    nextOffset_ = size_;
+  }
+  return true;
+}
+
 void TapeSource::useStream(const uint8_t header[20], uint32_t size, uint32_t id) {
   kind_ = Kind::STREAMED;
   embedded_ = nullptr;
+  embeddedRepeat_ = 0;
   prefixSize_ = 20;
   memcpy(header_, header, sizeof(header_));
   size_ = size;
@@ -33,6 +48,7 @@ void TapeSource::useStream(const uint8_t header[20], uint32_t size, uint32_t id)
 void TapeSource::usePrg(const uint8_t loadAddress[2], uint32_t logicalSize, uint32_t id) {
   kind_ = Kind::STREAMED;
   embedded_ = nullptr;
+  embeddedRepeat_ = 0;
   prefixSize_ = 2;
   memcpy(header_, loadAddress, 2);
   size_ = logicalSize;
@@ -52,6 +68,7 @@ bool TapeSource::seek(uint32_t offset, uint32_t newId) {
 void TapeSource::eject() {
   kind_ = Kind::EMPTY;
   embedded_ = nullptr;
+  embeddedRepeat_ = 0;
   prefixSize_ = 20;
   size_ = 0;
   retainedFrom_ = 20;
@@ -62,6 +79,7 @@ void TapeSource::eject() {
 bool TapeSource::read(uint32_t offset, uint8_t& value) const {
   if (offset >= size_) return false;
   if (kind_ == Kind::EMBEDDED) {
+    if (embeddedRepeat_ && offset >= embeddedRepeat_ + 2) offset -= embeddedRepeat_;
     value = flashByte(embedded_ + offset);
     return true;
   }

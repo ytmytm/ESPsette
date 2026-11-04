@@ -38,7 +38,7 @@ help:
 		'  make native                       Assemble C64 and C16/Plus4 fastloaders (ACME)' \
 		'  make build [PROFILE=1m] [VERBOSE=1] Compile (PROFILE: 512k|1m|4m)' \
 		'  make flash PORT=... [PROFILE=1m]   Serial upload (download-mode wiring)' \
-		'  make ota OTA_HOST=... [PROFILE=1m] Experimental; disabled in default firmware' \
+		'  make ota OTA_HOST=... [PROFILE=1m] Compressed OTA; stop MOTOR first' \
 		'  make flash-id PORT=...             SPI flash manufacturer / size' \
 		'  make chip-info PORT=...            flash-id + chip-id + MAC + flash status' \
 		'' \

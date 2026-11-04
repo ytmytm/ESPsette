@@ -8,6 +8,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 
@@ -23,7 +24,13 @@ parser.add_argument("--build", type=Path, default=REPO / "tools/fastloader-vice/
 parser.add_argument("--roms", type=Path, default=Path("/usr/local/share/vice"))
 parser.add_argument("--address", type=lambda x: int(x, 0), help="Machine-code fixture load/entry address")
 parser.add_argument("--cia-model", type=int, choices=[0, 1], default=0)
+parser.add_argument("--prg", type=Path, help="Test an original C64 PAL BASIC PRG instead of a synthetic fixture")
+parser.add_argument("--expect-pc", type=lambda x: int(x, 0), help="Expected SYS entry for --prg")
 args = parser.parse_args()
+if args.prg and (args.machine != 'c64' or args.ntsc or args.mode != 'basic' or args.expect_pc is None):
+    parser.error('--prg requires --machine c64, PAL, --mode basic and --expect-pc')
+if args.expect_pc is not None and not args.prg:
+    parser.error('--expect-pc requires --prg')
 if not 13 <= args.size <= 30719:
     parser.error("machine-code fixture size must be 13..30719")
 if args.address is not None and args.mode != "machine":
@@ -72,7 +79,10 @@ for machine in (["c64", "c16", "plus4"] if args.machine == "all" else [args.mach
     address = (0x1001 if c16 else 0x0801) if args.mode == "basic" else 0x2000
     if args.address is not None:
         address = args.address
-    if args.mode == "basic":
+    if args.prg:
+        raw = args.prg.read_bytes()
+        address, payload, entry = int.from_bytes(raw[:2], 'little'), raw[2:], 0
+    elif args.mode == "basic":
         payload = basic_program(address)
         entry = 0
     else:
@@ -92,8 +102,8 @@ for machine in (["c64", "c16", "plus4"] if args.machine == "all" else [args.mach
     commands = case / "monitor.txt"
     commands.write_text('resourceset "TapePort1Device" "8"\n'
                         '> $07f0 00 00\n'
-                        f'break ${stage_address:04x}\n'
-                        'watch store $07f1 if A == $a5\n'
+                        f'break ${stage_address:04x}\n' +
+                        (f'break ${args.expect_pc:04x}\n' if args.prg else 'watch store $07f1 if A == $a5\n') +
                         'keybuf load\\x0d\n'
                         'g\n'
                         f'bsave "{stage_dump}" 0 ${stage_address:04x} ${stage_address+len(padded)-1:04x}\n'
@@ -134,7 +144,8 @@ for machine in (["c64", "c16", "plus4"] if args.machine == "all" else [args.mach
                   receiver_bytes=len(stage), stage_pages=stage_pages,
                   standard_rom_load=True, trap_device1=False,
                   signature_seen="signature=ca65" in text, stage_ok=stage_ok,
-                  payload_ok=actual == payload, executed=marker == bytes([90, 165]),
+                  payload_ok=actual == payload,
+                  executed=bool(re.search(rf'\.C:{args.expect_pc:04x}\b', text, re.I)) if args.prg else marker == bytes([90, 165]),
                   returncode=status, payload_sha256=hashlib.sha256(payload).hexdigest(), log=str(log))
     result["passed"] = status == 0 and all(result[key] for key in ("signature_seen", "stage_ok", "payload_ok", "executed"))
     results.append(result)

@@ -2,6 +2,8 @@
 """Embed the player UI and assets; wake media is decoded to Blob URLs in JS."""
 
 from pathlib import Path
+import argparse
+import gzip
 import base64
 import re
 
@@ -25,15 +27,14 @@ source = re.sub(r"<!--.*?-->", "", source, flags=re.S)
 source = re.sub(r">\s+<", "><", source)
 source = re.sub(r"\n\s+", "\n", source)
 source = source.strip()
-if ')PAGE"' in source:
-    raise SystemExit('HTML contains the C++ raw-string delimiter')
-header = '''#pragma once
-
-#include <pgmspace.h>
-
-// Generated from web/player.html by scripts/embed-player.py. Do not edit here.
-static const char PLAYER_PAGE[] PROGMEM = R"PAGE(''' + source + ''')PAGE";
-'''
-target = root / "src/player_page.h"
-if not target.exists() or target.read_text(encoding="utf-8") != header:
-    target.write_text(header, encoding="utf-8")
+data = gzip.compress(source.encode('utf-8'), compresslevel=9, mtime=0)
+data = data[:9] + b'\xff' + data[10:]
+rows = [', '.join(f'0x{x:02x}' for x in data[i:i+16]) for i in range(0, len(data), 16)]
+header = ('#pragma once\n#include <stdint.h>\n#include <pgmspace.h>\n\n'
+          '// Generated gzip HTML by scripts/embed-player.py. Do not edit.\n'
+          'static const uint8_t PLAYER_PAGE[] PROGMEM = {\n  ' + ',\n  '.join(rows) + '\n};\n')
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--out', type=Path, default=root / 'src/player_page.h')
+target = parser.parse_args().out
+if not target.exists() or target.read_text(encoding='utf-8') != header:
+    target.write_text(header, encoding='utf-8')

@@ -16,14 +16,14 @@ Hardware tests on **1 and 4 November 2026**:
 
 | Feature | Status |
 | --- | --- |
-| C64 loading the embedded demo TAP | Passed on real hardware |
+| Embedded Circles PRG, C64 PAL, standard / fastloader | Host and VICE tests pass; new demo awaits hardware validation |
 | C64 loading a TAP streamed from the browser | Passed on real hardware |
 | PRG → standard tape pulses, C64 and C16/Plus/4 PAL/NTSC | Host tests pass; hardware test pending |
 | C16/Plus/4 playback; all supported TAP v1/v2 variants | Full hardware coverage pending |
 | IDX seeking and counter-based REW/FF | Host tests pass; hardware test pending |
 | WRITE command requests | Real ROM SAVE traces pass VICE/host tests on C64, C16 and Plus/4 PAL/NTSC; hardware retest pending; no command handlers yet |
 | PRG + fastloader | Passed on real C64 PAL hardware (4 November); C16/Plus/4 and NTSC hardware tests pending |
-| OTA updates | Disabled in the default firmware; use serial flashing |
+| OTA updates, ESP-01 1 MB | Enabled; gzip upload and flash-budget checks pass; hardware update test pending |
 
 ## Hardware
 
@@ -48,13 +48,29 @@ make native                   # Assemble C64 and C16/Plus4 loaders with ACME
 make build PROFILE=1m         # Assemble loaders and build for a 1 MB ESP-01
 ```
 
-`make setup` installs `uv` under `tools/bin/` and a **per-OS Python venv** at `~/.cache/ESPsette/venv-darwin` (macOS), `venv-linux`, or `venv-windows`, plus PlatformIO caches under `~/.cache/ESPsette/`. That keeps Mac/WSL/Windows from overwriting each other’s `tools/venv` on a shared disk. No global PlatformIO install is required. The default build enables real cassette GPIOs and includes the demo TAP. Build settings are in [platformio.ini](platformio.ini).
+`make setup` installs `uv` under `tools/bin/` and a **per-OS Python venv** at `~/.cache/ESPsette/venv-darwin` (macOS), `venv-linux`, or `venv-windows`, plus PlatformIO caches under `~/.cache/ESPsette/`. That keeps Mac/WSL/Windows from overwriting each other’s `tools/venv` on a shared disk. No global PlatformIO install is required. The default build enables real cassette GPIOs and includes the Circles PRG demo. Build settings are in [platformio.ini](platformio.ini).
 
 | Profile | Use |
 | --- | --- |
 | `1m` (default) | 1 MB flash, 64 KB LittleFS |
 | `4m` | ESP-01 with 4 MB flash |
 | `512k` | 512 KB flash; current firmware may not fit |
+
+## Embedded demo
+
+**Demo** inserts [Circles](https://csdb.dk/release/?id=262238), music by
+**Shogoon**, code by **YTM**. It is a **C64 PAL** PRG, always loaded with that
+profile regardless of the saved default for uploaded files. With **Use
+fastloader for PRG** off, use normal `LOAD`, then `RUN`. With it on, `LOAD`
+autostarts the bootstrap, fastloads the PRG and runs it. Changing the switch
+while the embedded demo is stopped reinserts it in the selected mode.
+
+The original [7744-byte PRG](assets/demo/circles.prg) is stored once in flash.
+Standard loading reads its data twice through a logical view; no TAP or
+second PRG copy is stored. This replaces the 251742-byte draxcaught TAP.
+[Demo credits and provenance](assets/demo/README.md) identify the original
+release and checksum. `scripts/embed-demo.py` generates its flash header
+automatically, including when building directly with PlatformIO.
 
 ## PRG fastloader
 
@@ -123,7 +139,7 @@ state fields and GPIO ownership.
 
 ## Flash over USB-UART
 
-Download the `.bin` from [Releases](https://github.com/ytmytm/ESPsette/releases), or build it locally. Each release includes `FLASHING.txt` with the command for flashing the binary at `0x0`, plus SHA-256 checksums. The released image targets a **1 MB ESP-01** and includes the demo; no separate filesystem image is needed.
+Download the `.bin` from [Releases](https://github.com/ytmytm/ESPsette/releases), or build it locally. Each release includes `FLASHING.txt` with the command for flashing the binary at `0x0`, plus SHA-256 checksums. The released image targets a **1 MB ESP-01** and includes Circles; no separate filesystem image is needed.
 
 Disconnect the ESP-01 from the Commodore interface. Use **3.3 V power and 3.3 V UART logic**, with a supply able to handle Wi-Fi current peaks. On a USB-C Mac, use a suitable adapter for your USB-UART programmer.
 
@@ -154,7 +170,29 @@ make flash PROFILE=1m PORT=/dev/cu.usbserial-XXXX
 
 **After flashing:** remove the GPIO0–GND jumper, disconnect DTR–RST and reset the module. GPIO0 must be HIGH at reset to run the firmware. See [wiring notes and ESP-01 connections](kicad/WIRING.md) before reconnecting the Commodore interface.
 
-OTA is disabled because the 1 MB image with the embedded demo leaves insufficient space for a second image. The existing `make ota` target requires firmware built with OTA enabled and enough free flash; it is not ready for the default setup.
+OTA is enabled in the default 1 MB firmware. Install this revision once over
+serial if the currently running image has OTA disabled. Then stop MOTOR and
+use:
+
+```sh
+make ota PROFILE=1m OTA_HOST=DEVICE_IP
+```
+
+The build automatically creates and uploads `firmware.bin.gz`. The ESP8266
+bootloader decompresses it on reboot; use the uncompressed `.bin` for serial
+flashing. Each build checks that the sector-rounded running image and gzip
+upload fit together before the unchanged 64 KB LittleFS partition. An image
+that breaks this budget fails the build. Settings and Wi-Fi configuration are
+retained during firmware OTA. The optional password is documented in
+[`include/local_ota.h.example`](include/local_ota.h.example).
+
+The embedded page is also stored as gzip and served with `Content-Encoding: gzip`;
+it keeps its fonts, graphics and screen-wake media. To fit 1 MB OTA,
+production builds disable the Telnet debug server and WiFiManager debug logs,
+and stop forcing unused floating-point stdio implementations into the image.
+JSON still supports numeric values; reset, stack and heap diagnostics remain
+available in the web page. OTA is serviced only while MOTOR and transfers are
+stopped; starting an update releases PLAY and suspends WRITE capture.
 
 ## Load a tape
 
@@ -191,13 +229,13 @@ Open [web/player.html](web/player.html) directly in a browser or run `make previ
 
 For manual UI testing, use [ui-test.tap](tests/fixtures/ui-test.tap) with [ui-test.idx](tests/fixtures/ui-test.idx): a two-minute synthetic tape with six navigation markers. See [fixture instructions](tests/fixtures/README.md).
 
-The hosted demo is built from the same `web/player.html` by `scripts/build-demo.py`. It always uses simulated ESP state and includes downloadable TAP/IDX samples. GitHub Pages is updated automatically by `.github/workflows/demo.yml` after changes to the UI on `main`.
+The hosted demo is built from the same `web/player.html` by `scripts/build-demo.py`. It always uses simulated ESP state and includes downloadable Circles PRG and TAP/IDX samples. Its Demo button simulates Circles in standard or fast mode according to the saved switch, always as C64 PAL. GitHub Pages is updated automatically by `.github/workflows/demo.yml` after changes to the UI on `main`.
 
 ## CI and releases
 
 GitHub Actions runs host tests and compiles the default 1 MB firmware on code pushes, pull requests and manual runs. Download the package from the run's **Artifacts** section; it contains the `.bin`, debug ELF, build metadata, checksums and flashing instructions.
 
-To release, publish a GitHub Release with a tag such as `v2026-11-01` pointing to the desired commit. The workflow builds that tag and automatically attaches the same files to the release. Tags must use `vYYYY-MM-DD` with a valid calendar date. Pushing a tag alone does not publish a release. Experimental OTA profiles are not included.
+To release, publish a GitHub Release with a tag such as `v2026-11-01` pointing to the desired commit. The workflow builds that tag and automatically attaches the same files to the release. Tags must use `vYYYY-MM-DD` with a valid calendar date. Pushing a tag alone does not publish a release. The same package includes `.bin` for serial flashing and `.bin.gz` for OTA; the ELF and JSON flash-budget metadata are included for diagnosis.
 
 ## References
 

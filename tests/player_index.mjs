@@ -388,7 +388,7 @@ assert.equal(vm.runInContext('source.indexEntries.length', context), 2);
 // Demo must replace the file while preview's soft MOTOR is on.
 vm.runInContext('mock.motorOn = true; mock.gpioDisabled = true; render({...mock})', context);
 await vm.runInContext("document.getElementById('demo').onclick()", context);
-assert.match(elements.get('loaded').textContent, /draxcaught \(demo\)/);
+assert.match(elements.get('loaded').textContent, /Circles \(demo\)/);
 assert.equal(vm.runInContext('source', context), null);
 assert.equal(vm.runInContext('selectedFile', context), null);
 assert.equal(elements.get('error').textContent, '');
@@ -794,6 +794,32 @@ assert.equal(elements.get('writeStatus').textContent,'Request received (not exec
 vm.runInContext('mock.motorOn=false;mock.gpioDisabled=false;',context);
 // Preview settings survive reloading the page; real hardware uses LittleFS.
 await vm.runInContext("mockApi('/autoplay', {body:new URLSearchParams({enabled:'0'})})", context);
+// The real built-in demo is a fixed C64 PAL PRG, independent of upload defaults.
+vm.runInContext(`mock.motorOn=false;mock.gpioDisabled=false;mock.autoPlay=true;
+  mock.defaultMachine='c16-ntsc';mock.fastloader.enabled=false`, context);
+await vm.runInContext("document.getElementById('demo').onclick()", context);
+assert.equal(vm.runInContext('mock.sourceType',context),'prg');
+assert.equal(vm.runInContext('mock.machine',context),'c64');
+assert.equal(vm.runInContext('mock.videoStandard',context),'pal');
+assert.equal(vm.runInContext('mock.logicalSize',context),15486);
+assert.equal(vm.runInContext('mock.fastloaderActive',context),false);
+assert.equal(vm.runInContext('mock.totalCycles === prgTotalCycles(7742)',context),true);
+elements.get('fastloaderEnabled').checked=true;
+await vm.runInContext("document.getElementById('fastloaderEnabled').onchange()",context);
+assert.equal(vm.runInContext('mock.fastloaderActive',context),true);
+assert.equal(vm.runInContext('mock.logicalSize',context),7744);
+assert.equal(vm.runInContext('mock.fastloaderTotalBytes',context),7742);
+assert.equal(vm.runInContext('mock.embedded && source === null',context),true);
+vm.runInContext('mock.motorOn=true;advanceMockFast(mockBootstrapCycles/mock.clockHz+2)',context);
+assert.equal(vm.runInContext('mock.fastloaderBytes',context),7742);
+assert.equal(vm.runInContext('mock.phase',context),'done');
+vm.runInContext('mock.motorOn=false;mock.autoPlay=false',context);
+elements.get('fastloaderEnabled').checked=false;
+await vm.runInContext("document.getElementById('fastloaderEnabled').onchange()",context);
+assert.equal(vm.runInContext('mock.fastloaderActive',context),false);
+assert.equal(vm.runInContext('mock.logicalSize',context),15486);
+assert.equal(vm.runInContext('mock.sensePressed',context),false);
+assert.equal(vm.runInContext('mock.defaultMachine',context),'c16-ntsc');
 const reloaded = vm.createContext({...context});
 vm.runInContext(script, reloaded);
 assert.equal(vm.runInContext('mock.defaultMachine', reloaded), 'c16-pal');

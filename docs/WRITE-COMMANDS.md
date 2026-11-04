@@ -71,6 +71,8 @@ if (!writeActive || !writeCommandsAllowed() || !(GPI & (1u << PIN_MOTOR))) retur
 
 `writeCommandsAllowed()` accepts only fastloader phases OFF or DONE. The
 interrupt is detached in all other phases, including the standard bootstrap.
+OTA also suspends capture and releases PLAY before writing flash; updates are
+accepted only while MOTOR and playback/fastloader transfers are stopped.
 
 A request is published only after checking:
 
