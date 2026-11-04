@@ -21,7 +21,8 @@ else
 $(error PROFILE must be 512k, 1m, or 4m)
 endif
 
-ESPTOOL := ESPTOOL_CFGFILE="$(CURDIR)/esptool.cfg" ./tools/venv/bin/python -m esptool --chip esp8266 --port "$(PORT)"
+# Per-OS venv under ~/.cache/ESPsette/venv-{darwin,linux,windows} (see scripts/tools-env.sh).
+ESPTOOL = ESPTOOL_CFGFILE="$(CURDIR)/esptool.cfg" "$$(./scripts/venv-python.sh)" -m esptool --chip esp8266 --port "$(PORT)"
 
 .PHONY: help setup build flash ota flash-id chip-info embed-web preview fastloader-test native
 
@@ -55,7 +56,7 @@ setup:
 	./scripts/setup-tools.sh
 
 embed-web:
-	./tools/venv/bin/python scripts/embed-player.py
+	"$$(./scripts/venv-python.sh)" scripts/embed-player.py
 
 preview:
 	sh ./scripts/open-preview.sh

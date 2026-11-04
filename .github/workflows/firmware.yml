@@ -61,21 +61,25 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_firmware_package.py' -v
 
       - name: Install pinned build tools
-        run: |
-          python3 -m venv tools/venv
-          tools/venv/bin/python -m pip install -r requirements-tools.txt
+        run: make setup
 
       - name: Compile the default 1 MB firmware and inspect image
+        id: compile
         run: |
-          tools/venv/bin/python scripts/embed-player.py
-          tools/venv/bin/pio run -e esp01_1m_serial
-          tools/venv/bin/python -m esptool --chip esp8266 image-info .pio/build/esp01_1m_serial/firmware.bin
+          make build PROFILE=1m
+          firmware_dir="${XDG_CACHE_HOME:-$HOME/.cache}/ESPsette/pio/ws/$(basename "$GITHUB_WORKSPACE")/build/esp01_1m_serial"
+          test -s "$firmware_dir/firmware.bin"
+          printf 'firmware_dir=%s\n' "$firmware_dir" >> "$GITHUB_OUTPUT"
+          "$(./scripts/venv-python.sh)" -m esptool --chip esp8266 image-info "$firmware_dir/firmware.bin"
 
       - name: Package firmware
         id: package
         env:
           RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || '' }}
-        run: python3 scripts/package-firmware.py --release-tag "$RELEASE_TAG"
+        run: >
+          python3 scripts/package-firmware.py
+          --build-dir "${{ steps.compile.outputs.firmware_dir }}"
+          --release-tag "$RELEASE_TAG"
 
       - name: Upload firmware build artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

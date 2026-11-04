@@ -2,8 +2,11 @@
 set -eu
 
 project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-pio_bin="$project_dir/tools/venv/bin/pio"
-if [ ! -x "$pio_bin" ]; then
+espsette_project_dir=$project_dir
+# shellcheck source=tools-env.sh
+. "$project_dir/scripts/tools-env.sh"
+pio_bin=${ESPSETTE_PIO:-}
+if [ -z "$pio_bin" ] || [ ! -x "$pio_bin" ]; then
   printf 'Run make setup first.\n' >&2
   exit 1
 fi
@@ -23,6 +26,7 @@ export ESPTOOL_CFGFILE="${ESPTOOL_CFGFILE:-$project_dir/esptool.cfg}"
 export PYTHONUNBUFFERED=1
 printf 'pio: core=%s\n' "$PLATFORMIO_CORE_DIR" >&2
 printf 'pio: workspace=%s\n' "$PLATFORMIO_WORKSPACE_DIR" >&2
+printf 'pio: venv=%s\n' "$ESPSETTE_VENV" >&2
 printf 'pio: starting %s %s\n' "$pio_bin" "$*" >&2
 cd "$project_dir"
 exec "$pio_bin" "$@"

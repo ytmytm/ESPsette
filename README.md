@@ -48,7 +48,7 @@ make native                   # Assemble C64 and C16/Plus4 loaders with ACME
 make build PROFILE=1m         # Assemble loaders and build for a 1 MB ESP-01
 ```
 
-Tools are installed in `tools/`, with Python and PlatformIO packages/caches under `~/.cache/ESPsette/`. No global PlatformIO installation is required. The default build enables real cassette GPIOs and includes the demo TAP. Build settings are in [platformio.ini](platformio.ini).
+`make setup` installs `uv` under `tools/bin/` and a **per-OS Python venv** at `~/.cache/ESPsette/venv-darwin` (macOS), `venv-linux`, or `venv-windows`, plus PlatformIO caches under `~/.cache/ESPsette/`. That keeps Mac/WSL/Windows from overwriting each other’s `tools/venv` on a shared disk. No global PlatformIO install is required. The default build enables real cassette GPIOs and includes the demo TAP. Build settings are in [platformio.ini](platformio.ini).
 
 | Profile | Use |
 | --- | --- |

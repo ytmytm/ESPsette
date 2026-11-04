@@ -51,7 +51,7 @@ def package(build_dir, output_dir, tag, revision):
         'adapter TXD -> ESP RXD, adapter RXD -> ESP TXD, DTR -> RST.\n'
         'Keep GPIO2 HIGH at reset. Our esptool.cfg pulses DTR only.\n\n'
         'From a checkout after make setup, using its DTR reset configuration:\n'
-        'ESPTOOL_CFGFILE=esptool.cfg tools/venv/bin/python -m esptool '
+        'ESPTOOL_CFGFILE=esptool.cfg "$(./scripts/venv-python.sh)" -m esptool '
         '--chip esp8266 --port PORT write-flash --flash-mode dout '
         '--flash-freq 40m --flash-size 1MB 0x0 ' + stem + '.bin\n\n'
         'Replace PORT and the binary path as needed. Without DTR, manually\n'

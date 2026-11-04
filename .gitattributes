@@ -1,0 +1,4 @@
+# Keep shell helpers Unix-LF so Mac/Linux make setup works after Windows edits.
+scripts/*.sh text eol=lf
+Makefile text eol=lf
+*.sh text eol=lf
