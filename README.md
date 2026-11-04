@@ -69,7 +69,8 @@ the fast stage. The current firmware accepts fast PRGs in `$0801..$7FFF`
 on C64 and `$1001..$3FFF` on C16/Plus4, and selects BASIC RUN by default.
 The session API can supply a decimal `entry` address for machine code.
 
-The same panel edits setup, data hold, gaps between pairs/bytes, bootstrap
+Expand **Advanced fastloader timings** in the same panel to edit setup, data
+hold, gaps between pairs/bytes, bootstrap
 hold/gap, and MOTOR settling times in microseconds. C64 and C16 have separate
 hold and byte-gap values. **Save fastloader settings** saves only these numeric
 timings, preserving the already-saved switch position. Both update paths store
