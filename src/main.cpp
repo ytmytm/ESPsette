@@ -1086,18 +1086,30 @@ void handleFastloaderConfig() {
     HTTPServer.send(409, "application/json", "{\"error\":\"transfer_active\"}");
     return;
   }
-  FastloaderSettings requested;
-  const String enabled = HTTPServer.arg("enabled");
-  if (enabled != "0" && enabled != "1") {
+  FastloaderSettings requested = fastloaderSettings;
+  const bool changeEnabled = HTTPServer.hasArg("enabled");
+  bool changeTimings = false;
+  for (unsigned i = 0; i < FASTLOADER_FIELD_COUNT; ++i)
+    changeTimings |= HTTPServer.hasArg(FASTLOADER_FIELDS[i].name);
+  if (!changeEnabled && !changeTimings) {
     HTTPServer.send(400, "application/json", "{\"error\":\"invalid_fastloader_config\"}");
     return;
   }
-  requested.enabled = enabled == "1";
-  for (unsigned i = 0; i < FASTLOADER_FIELD_COUNT; ++i) {
-    uint32_t value;
-    if (!parseDecimal(HTTPServer.arg(FASTLOADER_FIELDS[i].name), value) || !requested.set(i, value)) {
+  if (changeEnabled) {
+    const String enabled = HTTPServer.arg("enabled");
+    if (enabled != "0" && enabled != "1") {
       HTTPServer.send(400, "application/json", "{\"error\":\"invalid_fastloader_config\"}");
       return;
+    }
+    requested.enabled = enabled == "1";
+  }
+  if (changeTimings) {
+    for (unsigned i = 0; i < FASTLOADER_FIELD_COUNT; ++i) {
+      uint32_t value;
+      if (!parseDecimal(HTTPServer.arg(FASTLOADER_FIELDS[i].name), value) || !requested.set(i, value)) {
+        HTTPServer.send(400, "application/json", "{\"error\":\"invalid_fastloader_config\"}");
+        return;
+      }
     }
   }
   StaticJsonDocument<512> doc;

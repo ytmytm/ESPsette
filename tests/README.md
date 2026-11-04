@@ -56,3 +56,7 @@ bootstrap, bounded buffer refill, receiver pause/resume and completion. They
 check WRITE isolation during fastload and header/request examples afterward,
 without changing saved settings. STOP tests check that the button springs back
 while the released PLAY state persists.
+
+Fastloader switch tests check immediate persistence, automatic reinsertion of
+the same stopped PRG, rollback on rejection, and independence from unsaved or
+invalid timing fields. Timing-only saves preserve the enabled flag.

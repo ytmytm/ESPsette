@@ -63,13 +63,20 @@ computer before starting another interrupted loader.
 
 ## Persistent settings
 
-`POST /fastloader-config` takes `enabled=0|1` and all ten integer fields below;
+`POST /fastloader-config` takes either `enabled=0|1` alone for the immediate
+switch or all ten timing fields below without `enabled` for the Save button;
 `GET /state` returns the saved configuration in `fastloader`. The firmware
 validates the complete candidate, writes `/fastloader.tmp`, then atomically
 renames it to `/fastloader.json`. Missing, corrupt, incompatible or out-of-range
-configuration files use the defaults. Changes apply to the next PRG session.
-The panel preserves unsaved edits across state polling and provides default
-values without silently changing the enabled switch.
+configuration files use the defaults. Each update preserves the other group:
+toggling uses saved timings, even if the panel contains invalid unsaved edits;
+saving timings preserves the saved enabled flag. A stopped browser-owned PRG
+is immediately reinserted from the start after a successful switch, recreating
+its one-copy/two-copy logical stream. Without the source file in this tab, the
+preference is saved and the PRG must be reinserted. Timing changes apply to the
+next PRG session. The panel preserves unsaved timing edits across polling and
+switch saves, and restores the switch position if saving fails. Default timings
+do not change the switch. Active transfers cannot be reconfigured.
 
 | Field | Default µs | Accepted µs |
 | --- | ---: | ---: |

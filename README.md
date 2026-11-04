@@ -58,8 +58,10 @@ Tools are installed in `tools/`, with Python and PlatformIO packages/caches unde
 
 ## PRG fastloader
 
-Open **Playback settings**, enable **Use fastloader for PRG**, and save before
-inserting a PRG. The default is off. With it off, PRGs use the standard ROM
+Open **Playback settings**, toggle **Use fastloader for PRG**. Its
+position is saved immediately in LittleFS; no Save button is needed. If a PRG
+is already inserted and stopped, the browser reloads that same file from the
+start using the selected mode. Active transfers must be stopped first. The default is off. With it off, PRGs use the standard ROM
 protocol. TAP playback keeps its recorded timing. With it on, normal `LOAD`
 autostarts a small header bootstrap, then direct GPIO drives READ together
 with WRITE/SENSE to transfer the receiver and program. I2S is stopped before
@@ -69,9 +71,10 @@ The session API can supply a decimal `entry` address for machine code.
 
 The same panel edits setup, data hold, gaps between pairs/bytes, bootstrap
 hold/gap, and MOTOR settling times in microseconds. C64 and C16 have separate
-hold and byte-gap values. **Save fastloader settings** stores the complete
-configuration atomically in LittleFS at `/fastloader.json`; it survives resets
-and applies to the next inserted PRG. **Default timings** restores the fields
+hold and byte-gap values. **Save fastloader settings** saves only these numeric
+timings, preserving the already-saved switch position. Both update paths store
+the configuration atomically in `/fastloader.json` in LittleFS and survive
+resets. Timing changes apply to the next PRG session. **Default timings** restores the fields
 without changing the enabled switch; save to apply. Settings cannot be changed
 during an active transfer. A missing or invalid file uses the tested defaults.
 If hardware fails to load, increase the relevant delays or switch fastloader off.

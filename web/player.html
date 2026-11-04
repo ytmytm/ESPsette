@@ -59,7 +59,7 @@ details.card{margin-top:12px}summary{cursor:pointer;color:#d7e0e8;font-weight:60
 .index-navigation{display:grid;grid-template-columns:auto minmax(0,1fr) 64px;gap:10px;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid #505b64}.index-navigation label{margin:0;font-size:.65rem;letter-spacing:.08em;color:#b9c2c7}.index-navigation select{margin:0;min-width:0;font-size:.85rem}.index-navigation .key{margin:0;min-height:46px;font-size:.7rem}#indexInfo{font-size:.75rem}
 @media(max-width:360px){.index-navigation{grid-template-columns:auto minmax(0,1fr) 52px;gap:6px}.index-navigation label{font-size:.55rem;letter-spacing:.03em}.index-navigation select{padding:8px}}
 @media(max-width:480px){.window{height:130px;border-width:7px}.keys{margin-top:10px}#deckMessage{margin-top:10px;font-size:.72rem}.tape-picker{padding:12px;margin-top:12px}}
-.tape-progress{position:relative;display:flex;align-items:center;justify-content:center;margin-top:0;white-space:nowrap}.deck .autoplay{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;width:max-content;max-width:100%;min-height:44px;margin:0;padding:6px;background:#141b21;border:1px solid #525b61;border-radius:7px;box-shadow:inset 0 2px 4px #0006;cursor:pointer}.autoplay strong{display:block;font-size:.7rem;letter-spacing:.12em;color:#dce5e9}.autoplay input{appearance:none;position:relative;width:38px;height:22px;flex-shrink:0;margin:0;background:#35414c;border:1px solid #687580;border-radius:12px;cursor:pointer}.autoplay input:before{content:'';position:absolute;width:16px;height:16px;top:2px;left:2px;border-radius:50%;background:#abb7c3;box-shadow:0 1px 3px #0008}.autoplay input:checked{background:#d5a43a;border-color:#e4bc62}.autoplay input:checked:before{transform:translateX(16px);background:#252019}.autoplay input:focus-visible{outline:3px solid #f4c354;outline-offset:3px}
+.tape-progress{position:relative;display:flex;align-items:center;justify-content:center;margin-top:0;white-space:nowrap}.deck .autoplay,.fastloader-toggle{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;width:max-content;max-width:100%;min-height:44px;margin:0;padding:6px;background:#141b21;border:1px solid #525b61;border-radius:7px;box-shadow:inset 0 2px 4px #0006;cursor:pointer}.autoplay strong{display:block;font-size:.7rem;letter-spacing:.12em;color:#dce5e9}.autoplay input{appearance:none;position:relative;width:38px;height:22px;flex-shrink:0;margin:0;background:#35414c;border:1px solid #687580;border-radius:12px;cursor:pointer}.autoplay input:before{content:'';position:absolute;width:16px;height:16px;top:2px;left:2px;border-radius:50%;background:#abb7c3;box-shadow:0 1px 3px #0008}.autoplay input:checked{background:#d5a43a;border-color:#e4bc62}.autoplay input:checked:before{transform:translateX(16px);background:#252019}.autoplay input:focus-visible{outline:3px solid #f4c354;outline-offset:3px}
 
 
 @media(max-width:360px){.counter{font-size:1.25rem}}
@@ -85,6 +85,7 @@ details.card{margin-top:12px}summary{cursor:pointer;color:#d7e0e8;font-weight:60
 @media(max-width:640px){.deck-bottom{gap:6px}.vfd{zoom:.50}.deck .autoplay{padding:4px;gap:5px;min-height:40px}.autoplay strong{font-size:.55rem;letter-spacing:.03em}.autoplay input{width:32px;height:18px}.autoplay input:before{width:12px;height:12px}.autoplay input:checked:before{transform:translateX(14px)}.counter{font-size:1.05rem;padding:3px}.deck-brand{height:20px;left:8px}}
 @media(max-width:360px){.deck-bottom{gap:4px}.vfd{zoom:.34}.autoplay strong{font-size:.48rem}.counter{font-size:.9rem;padding:2px;gap:1px}}
 
+.fastloader-toggle{display:inline-flex;flex-direction:row;width:fit-content;margin:8px 0;padding:8px 10px;text-align:left;gap:10px}
 .fastloader-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}.fastloader-grid input{width:100%;box-sizing:border-box}
 </style>
 <main>
@@ -99,7 +100,7 @@ details.card{margin-top:12px}summary{cursor:pointer;color:#d7e0e8;font-weight:60
   <p class="picker-hint">Drop TAP + IDX together, or TAP first, then IDX.</p>
 </section>
 
-<details class="card"><summary>Playback settings</summary><label>Default computer for PRG<select id="defaultMachine"><option value="c64-pal">C64 PAL</option><option value="c64-ntsc">C64 NTSC</option><option value="c16-pal">C16 PAL</option><option value="c16-ntsc">C16 NTSC</option></select></label><p>TAP files identify their computer and PAL/NTSC standard automatically.</p><label><input id="fastloaderEnabled" type="checkbox"> Use fastloader for PRG</label><p>Experimental. Changes apply to the next inserted PRG. If loading fails, increase the timings or turn fastloader off.</p><div class="fastloader-grid"><label>Data setup (µs)<input id="fast_setupUs" type="number" min="1" max="1000" step="1" value="3"></label><label>C64 data hold (µs)<input id="fast_holdC64Us" type="number" min="1" max="1000" step="1" value="16"></label><label>C16 data hold (µs)<input id="fast_holdTedUs" type="number" min="1" max="1000" step="1" value="16"></label><label>Gap between pairs (µs)<input id="fast_gapUs" type="number" min="1" max="1000" step="1" value="3"></label><label>C64 gap between bytes (µs)<input id="fast_bytePauseC64Us" type="number" min="0" max="5000" step="1" value="19"></label><label>C16 gap between bytes (µs)<input id="fast_bytePauseTedUs" type="number" min="0" max="5000" step="1" value="11"></label><label>Bootstrap data hold (µs)<input id="fast_bootHoldUs" type="number" min="1" max="1000" step="1" value="80"></label><label>Bootstrap gap between bytes (µs)<input id="fast_bootPauseUs" type="number" min="0" max="5000" step="1" value="80"></label><label>MOTOR on settling (µs)<input id="fast_motorOnUs" type="number" min="0" max="10000" step="1" value="5"></label><label>MOTOR off settling (µs)<input id="fast_motorOffUs" type="number" min="0" max="10000" step="1" value="1000"></label></div><button id="fastloaderSave" class="secondary" type="button">Save fastloader settings</button> <button id="fastloaderDefaults" class="secondary" type="button">Default timings</button><p id="fastloaderMessage" role="status"></p></details>
+<details class="card"><summary>Playback settings</summary><label>Default computer for PRG<select id="defaultMachine"><option value="c64-pal">C64 PAL</option><option value="c64-ntsc">C64 NTSC</option><option value="c16-pal">C16 PAL</option><option value="c16-ntsc">C16 NTSC</option></select></label><p>TAP files identify their computer and PAL/NTSC standard automatically.</p><label class="autoplay fastloader-toggle"><input id="fastloaderEnabled" type="checkbox" role="switch" aria-label="Use fastloader for PRG"><strong>Use fastloader for PRG</strong></label><p>The switch saves immediately and reloads a stopped PRG in the selected mode. Save fastloader settings applies only to the timings below. If loading fails, increase the timings or turn fastloader off.</p><div class="fastloader-grid"><label>Data setup (µs)<input id="fast_setupUs" type="number" min="1" max="1000" step="1" value="3"></label><label>C64 data hold (µs)<input id="fast_holdC64Us" type="number" min="1" max="1000" step="1" value="16"></label><label>C16 data hold (µs)<input id="fast_holdTedUs" type="number" min="1" max="1000" step="1" value="16"></label><label>Gap between pairs (µs)<input id="fast_gapUs" type="number" min="1" max="1000" step="1" value="3"></label><label>C64 gap between bytes (µs)<input id="fast_bytePauseC64Us" type="number" min="0" max="5000" step="1" value="19"></label><label>C16 gap between bytes (µs)<input id="fast_bytePauseTedUs" type="number" min="0" max="5000" step="1" value="11"></label><label>Bootstrap data hold (µs)<input id="fast_bootHoldUs" type="number" min="1" max="1000" step="1" value="80"></label><label>Bootstrap gap between bytes (µs)<input id="fast_bootPauseUs" type="number" min="0" max="5000" step="1" value="80"></label><label>MOTOR on settling (µs)<input id="fast_motorOnUs" type="number" min="0" max="10000" step="1" value="5"></label><label>MOTOR off settling (µs)<input id="fast_motorOffUs" type="number" min="0" max="10000" step="1" value="1000"></label></div><button id="fastloaderSave" class="secondary" type="button">Save fastloader settings</button> <button id="fastloaderDefaults" class="secondary" type="button">Default timings</button><p id="fastloaderMessage" role="status"></p></details>
 <details id="playbackDetails" class="card"><summary>Playback details</summary><div class="playback-status" aria-label="Playback status"><p id="deckMessage" role="status" aria-live="polite"></p><p id="error" role="alert"></p></div><div class="stats"><div><small id="remainingLabel">Signal remaining</small><b id="remaining">—</b></div><div><small>ESP buffer</small><b id="buffer">—</b></div><div><small>Motor</small><b id="motor">—</b></div><div><small>WRITE commands</small><b id="writeStatus">—</b></div></div><div class="scope-wrap"><canvas id="scope" width="640" height="72" aria-label="READ waveform"></canvas><small id="scopeLabel">READ · waiting for playback</small></div><p id="writeDetail"></p><p id="phase">Connecting…</p><p id="indexInfo"></p><p id="transport"></p><p id="awakeStatus" role="status">Screen sleep protection: idle.</p><button id="retryAwake" class="secondary" type="button" hidden>Keep screen awake</button><details id="debugPanel" class="debug"><summary>Debug / ESP state</summary><p id="diagnostics"></p><pre id="debugJson"></pre></details></details>
 <details id="networkCard" class="card"><summary>Network / OTA</summary><p id="networkInfo">Connecting…</p><pre id="otaCmd" class="ota-cmd"></pre><p id="otaHint"></p><p><a id="wifiLink" href="/wifi">Forget Wi-Fi…</a> (not OTA)</p></details><section id="previewPanel" class="card" hidden><h2>Local preview</h2><p>Try a fast PRG with a shortened bootstrap, or receive a WRITE header without hardware. The fastload sample uses the selected computer and timing settings.</p><button id="previewFastload" class="secondary" type="button">Fastload PRG demo</button> <button id="previewPauseReceiver" class="secondary" type="button" disabled>Pause receiver</button> <button id="previewSaveName" class="secondary" type="button">Simulate SAVE "NAZWA"</button> <button id="previewWriteCommand" class="secondary" type="button">Simulate ESP:TEST</button> <button id="motorToggle" class="secondary" type="button">MOTOR on/off</button><p><code>SAVE "NAZWA",1</code> reports a filename; <code>SAVE "ESP:TEST",1</code> publishes request TEST. Requests are received without execution.</p><p id="previewMessage" role="status"></p></section></main>
 <script src="assets/playback-awake.js"></script>
@@ -143,15 +144,15 @@ let selectedFile = null, selectedIdx = null;
 let selectedDefaultMachine = null;
 const fastloaderFields = [["setupUs", 3, 1, 1000], ["holdC64Us", 16, 1, 1000], ["holdTedUs", 16, 1, 1000], ["gapUs", 3, 1, 1000], ["bytePauseC64Us", 19, 0, 5000], ["bytePauseTedUs", 11, 0, 5000], ["bootHoldUs", 80, 1, 1000], ["bootPauseUs", 80, 0, 5000], ["motorOnUs", 5, 0, 10000], ["motorOffUs", 1000, 0, 10000]];
 const fastloaderDefaults = Object.fromEntries(fastloaderFields.map(([name,value]) => [name,value]));
-let fastloaderDirty = false;
+let fastloaderTimingsDirty = false;
+let fastloaderEnabledSaving = false;
 let selectedFastloader = {version:1, enabled:false, ...fastloaderDefaults};
 function validFastloader(settings) {
   return settings?.version === 1 && typeof settings.enabled === 'boolean' &&
     fastloaderFields.every(([name,,low,high]) => Number.isInteger(settings[name]) &&
       settings[name] >= low && settings[name] <= high);
 }
-function showFastloader(settings) {
-  $('fastloaderEnabled').checked = settings.enabled;
+function showFastloaderTimings(settings) {
   for (const [name] of fastloaderFields) $('fast_' + name).value = String(settings[name]);
 }
 
@@ -336,9 +337,15 @@ async function mockApi(path, options = {}) {
     if (motorBlocksEdit(mock) || mock.phase === 'fastload' || mock.phase === 'bootstrap')
       throw new Error('Stop transfer');
     const args = options.body;
-    if (!['0','1'].includes(args.get('enabled'))) throw new Error('Invalid fastloader settings');
-    const settings = {version:1, enabled:args.get('enabled') === '1'};
-    for (const [name] of fastloaderFields) {
+    const changeEnabled = args.has('enabled');
+    const changeTimings = fastloaderFields.some(([name]) => args.has(name));
+    if (!changeEnabled && !changeTimings) throw new Error('Invalid fastloader settings');
+    const settings = {...mock.fastloader};
+    if (changeEnabled) {
+      if (!['0','1'].includes(args.get('enabled'))) throw new Error('Invalid fastloader settings');
+      settings.enabled = args.get('enabled') === '1';
+    }
+    if (changeTimings) for (const [name] of fastloaderFields) {
       const raw = args.get(name);
       if (!/^\d+$/.test(raw || '')) throw new Error('Invalid fastloader settings');
       settings[name] = Number(raw);
@@ -589,12 +596,13 @@ function render(s) {
   const editBlocked = motorBlocksEdit(s) || s.phase === 'fastload' || s.phase === 'bootstrap';
   if (validFastloader(s.fastloader)) {
     selectedFastloader = {...s.fastloader};
-    if (!fastloaderDirty) showFastloader(selectedFastloader);
+    if (!fastloaderEnabledSaving) $('fastloaderEnabled').checked = selectedFastloader.enabled;
+    if (!fastloaderTimingsDirty) showFastloaderTimings(selectedFastloader);
   }
-  $('fastloaderEnabled').disabled = editBlocked;
+  $('fastloaderEnabled').disabled = editBlocked || fastloaderEnabledSaving;
   for (const [name] of fastloaderFields) $('fast_' + name).disabled = editBlocked;
-  $('fastloaderSave').disabled = editBlocked;
-  $('fastloaderDefaults').disabled = editBlocked;
+  $('fastloaderSave').disabled = editBlocked || fastloaderEnabledSaving;
+  $('fastloaderDefaults').disabled = editBlocked || fastloaderEnabledSaving;
   if (preview) {
     const writePaused = s.sourceType === 'prg' && s.fastloaderActive && s.phase !== 'done';
     $('previewSaveName').disabled = $('previewWriteCommand').disabled = writePaused;
@@ -1191,24 +1199,64 @@ $('autoPlay').onchange = async () => {
   } finally { busy = false; }
 };
 
-$('fastloaderEnabled').onchange = () => { fastloaderDirty = true; };
-for (const [name] of fastloaderFields) $('fast_' + name).oninput = () => { fastloaderDirty = true; };
+$('fastloaderEnabled').onchange = async () => {
+  const enabled = $('fastloaderEnabled').checked;
+  fastloaderEnabledSaving = true;
+  $('fastloaderEnabled').disabled = true;
+  $('fastloaderSave').disabled = $('fastloaderDefaults').disabled = true;
+  await acquire();
+  let saved = false;
+  try {
+    const ack = await api('/fastloader-config', {method:'POST',
+      body:new URLSearchParams({enabled:enabled ? '1' : '0'})});
+    saved = true;
+    selectedFastloader = {...ack};
+    $('fastloaderEnabled').checked = ack.enabled;
+    if (last) render({...last, fastloader:ack});
+    // Recreate the logical stream: standard PRG has two copies, fast PRG one.
+    if (source?.type === 'prg' && source.sessionBody) {
+      const body = new URLSearchParams(source.sessionBody);
+      body.set('turbo', ack.enabled ? '1' : '0');
+      body.delete('previewFastload');
+      const session = await api('/session', {method:'POST', body});
+      source = {...source, id:session.sessionId, offset:session.nextOffset,
+        logicalSize:session.logicalSize, total:null, fullTotal:null,
+        seekOffset:2, seekCycles:0, sessionBody:body};
+      counterOriginCycles = 0;
+      $('fastloaderMessage').textContent = 'Saved. PRG reloaded with fastloader ' + (ack.enabled ? 'on.' : 'off.');
+    } else {
+      $('fastloaderMessage').textContent = 'Fastloader ' + (ack.enabled ? 'enabled.' : 'disabled.') +
+        (last?.sourceType === 'prg' && last.tapeState === 'loaded' ? ' Reinsert the PRG to apply.' : ' Saved.');
+    }
+    $('error').textContent = '';
+  } catch (error) {
+    $('fastloaderEnabled').checked = selectedFastloader.enabled;
+    $('error').textContent = saved ? 'Fastloader saved, but PRG reload failed: ' + error.message :
+      'Cannot save fastloader switch: ' + error.message;
+  } finally {
+    fastloaderEnabledSaving = false;
+    busy = false;
+    if (last) render(last);
+  }
+  await step();
+};
+for (const [name] of fastloaderFields) $('fast_' + name).oninput = () => { fastloaderTimingsDirty = true; };
 $('fastloaderDefaults').onclick = () => {
-  showFastloader({...selectedFastloader, ...fastloaderDefaults, enabled:$('fastloaderEnabled').checked});
-  fastloaderDirty = true;
+  showFastloaderTimings({...selectedFastloader, ...fastloaderDefaults, enabled:$('fastloaderEnabled').checked});
+  fastloaderTimingsDirty = true;
   $('fastloaderMessage').textContent = 'Default timings restored. Save to apply.';
 };
 $('fastloaderSave').onclick = async () => {
   await acquire();
   try {
-    const body = new URLSearchParams({enabled:$('fastloaderEnabled').checked ? '1' : '0'});
+    const body = new URLSearchParams();
     for (const [name] of fastloaderFields) body.set(name, $('fast_' + name).value);
     const ack = await api('/fastloader-config', {method:'POST', body});
-    fastloaderDirty = false;
+    fastloaderTimingsDirty = false;
     selectedFastloader = {...ack};
-    showFastloader(ack);
+    showFastloaderTimings(ack);
     if (last) render({...last, fastloader:ack});
-    $('fastloaderMessage').textContent = 'Saved. Applies to the next inserted PRG.';
+    $('fastloaderMessage').textContent = 'Timings saved. Applies to the next PRG session.';
     $('error').textContent = '';
   } catch (error) {
     $('error').textContent = 'Cannot save fastloader settings: ' + error.message;

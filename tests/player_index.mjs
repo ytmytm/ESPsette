@@ -670,8 +670,16 @@ elements.get('fast_holdC64Us').oninput();
 vm.runInContext('render({...mock})', context);
 assert.equal(elements.get('fast_holdC64Us').value, '45'); // Polling preserves edits.
 elements.get('fastloaderEnabled').checked = true;
+await elements.get('fastloaderEnabled').onchange();
+assert.equal(vm.runInContext('mock.fastloader.enabled', context), true);
+assert.equal(vm.runInContext('mock.fastloader.holdC64Us', context), 16); // Toggle ignores unsaved numbers.
+assert.equal(elements.get('fast_holdC64Us').value, '45');
+assert.equal(JSON.parse(previewStorage.get('espsette.preview.fastloader')).enabled, true);
+// The numeric Save button must not read a stale/unsaved switch value.
+elements.get('fastloaderEnabled').checked = false;
 await elements.get('fastloaderSave').onclick();
 assert.equal(vm.runInContext('mock.fastloader.enabled', context), true);
+assert.equal(elements.get('fastloaderEnabled').checked, true);
 assert.equal(vm.runInContext('mock.fastloader.holdC64Us', context), 45);
 assert.equal(JSON.parse(previewStorage.get('espsette.preview.fastloader')).holdC64Us, 45);
 vm.runInContext('render({...mock, motorOn:true})', context);
@@ -680,6 +688,16 @@ vm.runInContext("render({...mock, motorOn:false, phase:'fastload'})", context);
 assert.equal(elements.get('fastloaderSave').disabled, true);
 vm.runInContext('render({...mock})', context);
 elements.get('fast_holdC64Us').value = '-1';
+elements.get('fast_holdC64Us').oninput();
+elements.get('fastloaderEnabled').checked = false;
+await elements.get('fastloaderEnabled').onchange();
+assert.equal(vm.runInContext('mock.fastloader.enabled', context), false);
+assert.equal(vm.runInContext('mock.fastloader.holdC64Us', context), 45);
+assert.equal(elements.get('fast_holdC64Us').value, '-1'); // Even invalid edits do not block the switch.
+elements.get('fastloaderEnabled').checked = true;
+await elements.get('fastloaderEnabled').onchange();
+assert.equal(vm.runInContext('mock.fastloader.enabled', context), true);
+assert.equal(elements.get('fast_holdC64Us').value, '-1');
 await elements.get('fastloaderSave').onclick();
 assert.match(elements.get('error').textContent, /Cannot save fastloader/);
 assert.equal(vm.runInContext('mock.fastloader.holdC64Us', context), 45);
@@ -691,11 +709,25 @@ context.fastPrg = new Blob([Uint8Array.of(1,8,0,0)]); context.fastPrg.name = 'fa
 await vm.runInContext('chooseFiles([fastPrg])', context);
 assert.equal(vm.runInContext('source.sessionBody.get("turbo")', context), '1');
 assert.equal(vm.runInContext('source.logicalSize', context), 4); // One PRG copy.
+const fastSessionBeforeSwitch = vm.runInContext('source.id',context);
 elements.get('fastloaderEnabled').checked = false;
-await elements.get('fastloaderSave').onclick();
-await vm.runInContext('chooseFiles([fastPrg])', context);
+await elements.get('fastloaderEnabled').onchange();
+assert.notEqual(vm.runInContext('source.id',context),fastSessionBeforeSwitch);
+assert.equal(vm.runInContext('source.file',context),context.fastPrg); // Same inserted PRG, new mode immediately.
+assert.equal(vm.runInContext('mock.fastloader.enabled',context),false);
+assert.equal(JSON.parse(previewStorage.get('espsette.preview.fastloader')).enabled,false);
 assert.equal(vm.runInContext('source.sessionBody.get("turbo")', context), '0');
 assert.equal(vm.runInContext('source.logicalSize', context), 6); // Standard ROM copies.
+// A rejected immediate switch restores its saved position and preserves timing edits.
+vm.runInContext('mock.motorOn=true;mock.gpioDisabled=false;render({...mock})',context);
+elements.get('fastloaderEnabled').checked=true;
+await elements.get('fastloaderEnabled').onchange();
+assert.equal(vm.runInContext('mock.fastloader.enabled',context),false);
+assert.equal(elements.get('fastloaderEnabled').checked,false);
+assert.match(elements.get('error').textContent,/Cannot save fastloader switch/);
+vm.runInContext('mock.motorOn=false;render({...mock})',context);
+await assert.rejects(vm.runInContext("mockApi('/fastloader-config',{body:new URLSearchParams()})",context));
+await assert.rejects(vm.runInContext("mockApi('/fastloader-config',{body:new URLSearchParams({holdC64Us:'32'})})",context));
 // STOP is momentary; the stopped state persists on SENSE, not on a latched STOP key.
 vm.runInContext('mock.motorOn=false;mock.sensePressed=true;mock.fastloaderActive=false;render({...mock})',context);
 await elements.get('stop').onclick();
