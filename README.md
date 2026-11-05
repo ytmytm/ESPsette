@@ -266,9 +266,10 @@ No license has been selected yet.
 
 - [ ] Choose the release commit and confirm its GitHub Actions tests and firmware build pass.
 - [ ] Download its artifact, verify `SHA256SUMS.txt` and flash the packaged 1 MB `.bin` using `FLASHING.txt`.
+- [ ] In **Network / OTA**, confirm **Firmware** shows the running firmware's 12-character commit ID and matches the ID in the packaged filename; check it again after an OTA update.
 - [ ] Check cold boot/reset with MOTOR stopped, Wi-Fi setup/fallback, and the player page on desktop and phone.
 - [ ] On a real C64, load both the embedded demo and a browser-streamed TAP; check the MOTOR pause after the header, resume and completion.
 - [ ] Test any newly advertised feature on hardware; update the tested/pending table and release notes with the actual results and limitations.
 - [ ] Confirm the wiring and flashing instructions match the tested setup.
 - [ ] Publish a GitHub Release for that commit with a valid `vYYYY-MM-DD` tag and concise release notes.
-- [ ] Wait for the release workflow to pass; confirm the `.bin`, ELF, metadata, `FLASHING.txt` and checksums are attached to the release.
+- [ ] Wait for the release workflow to pass; confirm the versioned `.bin` and `.bin.gz`, ELF, metadata, `FLASHING.txt` and checksums are attached to the release.
