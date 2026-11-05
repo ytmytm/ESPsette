@@ -62,16 +62,14 @@ For manual browser checks, [fixtures/](fixtures/README.md) contains a synthetic 
 copy matching, ignored filenames/program data, maximum request length, overflow
 and fastloader suspension/resumption. Browser tests cover received-request
 metadata and suspension status. No test or decoder stores a program file.
-WRITE preview tests require ejection even after a completed PRG. Active TAP
-READ, paused files, partly buffered streams and embedded demos cannot publish
-headers or increment WRITE errors; an empty deck can receive again.
+WRITE preview tests permit reception with active READ, paused tapes,
+partly buffered streams, embedded demos and completed ordinary PRGs.
+Fastloader ownership still blocks reception.
 
-On `experiment/write-nmi-sampling`, `test_write_sampler.py` additionally
-replays all twelve captures at all 40 integer-microsecond sampling phases,
-with jitter, blackout and clock-wrap tests. Preview retains tests for the
-baseline empty-deck protocol and separately permits READ/WRITE together when
-the experimental capability is present. Fastloader ownership still blocks
-reception. See the [NMI test and rollback guide](../experiments/write/NMI.md).
+`test_write_sampler.py` replays all twelve captures at all 40 integer-microsecond
+sampling phases, with jitter, blackout and clock-wrap tests. Real C64 PAL
+hardware reception was confirmed with READ idle and streaming on 2026-11-05.
+See the [NMI receiver guide](../experiments/write/NMI.md).
 
 `test_write_vice.py` replays twelve actual ROM SAVE captures from C64, C16 and
 Plus/4 PAL/NTSC through the firmware decoder. It checks direct WRITE polarity,

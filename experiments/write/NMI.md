@@ -1,37 +1,15 @@
-# Timer1/NMI WRITE experiment
+# Timer1/NMI WRITE receiver
 
-This work stays on **`experiment/write-nmi-sampling`**, branched from the
-OTA-version baseline **`33942e6840d6`** on `feature/circles-prg-demo-ota`.
-The baseline keeps GPIO interrupts and the empty-deck requirement. No baseline
-commits are rewritten or replaced.
+The receiver is integrated into `main`. On 5 November 2026, WRITE reception
+was confirmed working on real C64 PAL hardware both with READ idle and while
+streaming. An inserted tape or PRG does not require ejection. C16/Plus/4 and
+NTSC have host/VICE coverage; physical-board validation remains pending.
 
-## Flash order and rollback
-
-1. Flash the baseline first. Reload the page once to obtain its new version
-   field. **Network / OTA → Firmware** must show `33942e6840d6`.
-2. Build/OTA this experimental branch. The displayed ID must change to this
-   branch's clean `git rev-parse --short=12 HEAD` value. It is polled from the
-   running ESP, so an already-open baseline page can observe the new ID.
-3. First test `SAVE "TEST",1` and `SAVE "ESP:TEST",1` on an empty deck with
-   PLAY pressed. Then insert a standard TAP, press PLAY and repeat SAVE while
-   READ is active. A selected fast PRG still owns WRITE exclusively: finish or
-   eject that session before testing SAVE.
-4. Expand **Playback details** / **Debug / ESP state**. Record header/error
-   counts, `writeSampleMaxGapUs`, `writeSampleGaps`, `writeSampleMaxWorkUs`, heap,
-   stack watermark and I2S/source underruns. Also check that browser polling
-   and Wi-Fi remain usable.
-
-To return to the original receiver:
-
-```sh
-git switch feature/circles-prg-demo-ota
-make ota PROFILE=1m OTA_HOST=DEVICE_IP
-```
-
-The displayed version returns to `33942e6840d6`. The separately packaged
-baseline `.bin` / `.bin.gz` also remains available under
-`dist/ota-version-33942e6/`. UART flashing remains available if OTA cannot be
-reached. Both branches retain the same 64 KB LittleFS layout and settings.
+Press PLAY before SAVE. A selected fastloader session still owns WRITE
+exclusively until completion or cancellation; OTA also suspends reception.
+**Playback details** / **Debug / ESP state** expose header/error counts,
+`writeSampleMaxGapUs`, `writeSampleGaps`, `writeSampleMaxWorkUs`, heap, stack
+watermark and I2S/source underruns.
 
 ## Implementation
 
@@ -40,9 +18,9 @@ FRC1/Timer1 runs at 80 MHz divided by 16, with hardware auto-reload every
 the existing decoder when a relevant edge is observed. C64 still uses rising
 and TED falling periods. No pulse queue, dynamic memory or logging is used.
 Sampling runs only with PLAY pressed, and stops for STOP, fastloader ownership
-or OTA. This branch permits simultaneous ordinary READ and WRITE reception.
+or OTA. The receiver permits simultaneous ordinary READ and WRITE reception.
 
-Timer1 is reserved by this experiment. The project has no PWM/Servo/Tone use;
+Timer1 is reserved by this receiver. The project has no PWM/Servo/Tone use;
 those APIs must not be added while this receiver owns Timer1. I2S remains on
 SLC/DMA and Wi-Fi remains enabled. Neither its configuration nor the CPU's
 configured clock is changed. The pinned SDK's `system_get_time()` is a simple

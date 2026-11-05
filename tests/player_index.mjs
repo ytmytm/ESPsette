@@ -787,7 +787,7 @@ for(let i=0;i<50 && vm.runInContext('mock.phase',context)!=='done';i++) {
 }
 assert.equal(vm.runInContext('mock.phase',context),'done');
 assert.match(elements.get('fastProgressBytes').textContent,/100%/);
-// NMI experiment permits WRITE after fastload completion, even with the PRG inserted.
+// NMI reception permits WRITE after fastload completion, even with the PRG inserted.
 const finishedHeaderCount=vm.runInContext('mock.writeHeaders',context);
 elements.get('previewSaveName').onclick();
 assert.equal(vm.runInContext('mock.writeHeaders',context),finishedHeaderCount+1);
@@ -804,8 +804,8 @@ assert.equal(vm.runInContext('mock.writeCommandId',context),previousRequestId+1)
 assert.match(elements.get('writeDetail').textContent,/ESP:TEST/);
 assert.equal(elements.get('writeStatus').textContent,'Request received (not executed)');
 vm.runInContext('mock.motorOn=false;mock.gpioDisabled=false;',context);
-// WRITE is exclusive to an empty deck, including active READ, paused tapes,
-// partly buffered streams, embedded demos and completed ordinary PRGs.
+// WRITE remains available during READ, with paused tapes, partly buffered
+// streams, embedded demos and completed ordinary PRGs.
 vm.runInContext('globalThis.emptyWriteSnapshot={...mock}',context);
 for (const inserted of [
   {tapeState:'loaded',sourceType:'tap',phase:'data',playing:true,motorOn:true,sessionId:7,embedded:false},
@@ -815,20 +815,20 @@ for (const inserted of [
   {tapeState:'loaded',sourceType:'prg',phase:'done',playing:false,motorOn:false,sessionId:7,embedded:false}
 ]) {
   context.insertedWriteState=inserted;
-  vm.runInContext('Object.assign(mock,insertedWriteState,{fastloaderActive:false,writeAllowsRead:false});render({...mock})',context);
-  assert.equal(elements.get('previewSaveName').disabled,true);
-  assert.equal(elements.get('previewWriteCommand').disabled,true);
-  const before=vm.runInContext('JSON.stringify([mock.writeHeaders,mock.writeErrors,mock.writeCommandId])',context);
+  vm.runInContext('Object.assign(mock,insertedWriteState,{fastloaderActive:false,writeAllowsRead:true});render({...mock})',context);
+  assert.equal(elements.get('previewSaveName').disabled,false);
+  assert.equal(elements.get('previewWriteCommand').disabled,false);
+  const before=vm.runInContext('mock.writeCommandId',context);
   elements.get('previewWriteCommand').onclick();
-  assert.equal(vm.runInContext('JSON.stringify([mock.writeHeaders,mock.writeErrors,mock.writeCommandId])',context),before);
-  assert.equal(elements.get('writeStatus').textContent,'Eject tape to receive WRITE');
+  assert.equal(vm.runInContext('mock.writeCommandId',context),before+1);
+  assert.equal(elements.get('writeStatus').textContent,'Request received (not executed)');
 }
 vm.runInContext('Object.assign(mock,emptyWriteSnapshot);render({...mock})',context);
 assert.equal(elements.get('previewWriteCommand').disabled,false);
 const emptyRequestId=vm.runInContext('mock.writeCommandId',context);
 elements.get('previewWriteCommand').onclick();
 assert.equal(vm.runInContext('mock.writeCommandId',context),emptyRequestId+1);
-// Experimental sampler permits ordinary READ playback and WRITE concurrently.
+// NMI sampler permits ordinary READ playback and WRITE concurrently.
 vm.runInContext(`Object.assign(mock,{writeAllowsRead:true,tapeState:'loaded',sourceType:'tap',
   phase:'data',playing:true,motorOn:true,sensePressed:true,sessionId:7,embedded:false});render({...mock})`,context);
 assert.equal(elements.get('previewWriteCommand').disabled,false);

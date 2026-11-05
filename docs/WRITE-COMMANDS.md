@@ -6,8 +6,8 @@ fastloading. Command reception is enabled in the normal hardware firmware;
 no separate WRITE build profile is required. Soft-GPIO builds cannot receive
 physical commands.
 
-This experimental branch uses the [Timer1/NMI sampler](../experiments/write/NMI.md).
-The GPIO/empty-deck baseline is preserved at commit `33942e6840d6`.
+Reception uses the [Timer1/NMI sampler](../experiments/write/NMI.md), validated
+on real C64 PAL hardware with READ idle and during streaming.
 
 This restores the previous header receiver as a command transport. It does
 not record or store programs. **Requests are published, but command handlers
@@ -21,15 +21,15 @@ an executable operation.
 - `SAVE "ESP:TEST",1`: publish request `TEST`; no handler executes it yet.
 - The ESP stores neither program. Press PLAY to supply SENSE for a real SAVE.
 - Reception requires PLAY, MOTOR on, and no active fastloader or OTA ownership.
-- The experimental NMI path permits ordinary READ playback at the same time.
+- Ordinary READ playback can run at the same time; no ejection is required.
 
 The browser demo has **Simulate SAVE "NAZWA"** and **Simulate ESP:TEST** buttons.
 They reproduce UI metadata and fastloader ownership without hardware.
 
 ## Sending a request
 
-1. Eject the current tape/PRG in the browser, then press PLAY. Use an empty deck for the first test,
-   then repeat with a standard TAP playing to test simultaneous READ/WRITE. PLAY supplies SENSE; the computer controls MOTOR.
+1. Press PLAY in the browser. A tape or PRG may remain inserted, and ordinary
+   READ playback may continue. PLAY supplies SENSE; the computer controls MOTOR.
 2. On C64 or C16/Plus/4, enter:
 
    ```basic
@@ -108,7 +108,7 @@ its ID across subsequent bad/non-command headers. IDs reset when ESP restarts.
 Command reception is suspended for the **entire selected fastloader session**:
 from inserting a fast PRG, through standard LOAD, mode signature and both fast
 stages, until completion, cancellation or ejection releases that session.
-After completion, this experimental branch permits reception with a PRG
+After completion, reception is permitted with a PRG
 still inserted. Normal READ playback is also permitted.
 
 Timer1/NMI sampling is stopped while fastloading. The sampler also checks
@@ -131,7 +131,7 @@ even during ordinary READ playback.
 | --- | --- |
 | `writeEnabled` | Physical WRITE capture is available in this build |
 | `writeListening` | Sampler is enabled with PLAY pressed, MOTOR on and GPIO2 available |
-| `writeCaptureMode` / `writeAllowsRead` | Experimental `nmi-40us` capture and concurrent ordinary READ capability |
+| `writeCaptureMode` / `writeAllowsRead` | `nmi-40us` capture and concurrent ordinary READ capability |
 | `writeSampleCount` / `writeSampleMaxGapUs` | Sample count and largest observed interval, including idle MOTOR |
 | `writeSampleGaps` / `writeSampleMaxWorkUs` | Active gaps over 80 µs and maximum normalized callback body time |
 | `writeStatus` | Decoder status, including `capture_gap`, `suspended_ota`, `suspended_fastloader`, `command_received_no_action`, `header_ignored`, or an error |
@@ -186,5 +186,7 @@ truncation, timestamp jitter, `micros()` wraparound and aborted-SAVE recovery.
 
 The previous receiver failed a real C64 PAL `SAVE "TEST",1` with `pulse_error`
 and `unexpected_terminator`. The missing-final-edge failure was reproduced in
-VICE before this fix. The revised path still needs a hardware retest; VICE
+VICE before the framing fix. On 5 November 2026, the Timer1/NMI receiver
+was confirmed working on real C64 PAL hardware both with READ idle and while
+streaming. C16/Plus/4 and NTSC hardware validation remains pending; VICE alone
 does not validate ESP interrupt latency, Wi-Fi load or electrical timing.

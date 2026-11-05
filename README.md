@@ -12,7 +12,7 @@ Files stay in the browser and pass through an 8 KB buffer on the ESP. No SD card
 
 ## Tested and pending
 
-Hardware tests on **1 and 4 November 2026**:
+Hardware tests on **1, 4 and 5 November 2026**:
 
 | Feature | Status |
 | --- | --- |
@@ -21,7 +21,7 @@ Hardware tests on **1 and 4 November 2026**:
 | PRG → standard tape pulses, C64 and C16/Plus/4 PAL/NTSC | Host tests pass; hardware test pending |
 | C16/Plus/4 playback; all supported TAP v1/v2 variants | Full hardware coverage pending |
 | IDX seeking and counter-based REW/FF | Host tests pass; hardware test pending |
-| WRITE command requests | Real ROM SAVE traces pass VICE/host tests on C64, C16 and Plus/4 PAL/NTSC; hardware retest pending; no command handlers yet |
+| WRITE command requests | Passed on real C64 PAL hardware with READ idle and streaming (5 November); C16/Plus/4 and NTSC pass VICE/host tests; no command handlers yet |
 | PRG + fastloader | Passed on real C64 PAL hardware (4 November); C16/Plus/4 and NTSC hardware tests pending |
 | OTA updates, ESP-01 1 MB | Enabled; gzip upload and flash-budget checks pass; hardware update test pending |
 
@@ -125,13 +125,13 @@ minutes. Preview simulates fast speed from the saved timing settings.
 
 The computer can send an `ESP:` request name through a standard WRITE header,
 for example `SAVE "ESP:TEST",1`. The ESP verifies both copies and publishes the
-request in **Playback details** and `/state`. This branch uses an **experimental Timer1/NMI receiver**, sampled every 40 µs.
+request in **Playback details** and `/state`. The **Timer1/NMI receiver** is sampled every 40 µs.
 It allows standard READ playback and WRITE reception together. A selected
 fastloader session or OTA update still suspends capture. **Playback details**
 shows sampling mode, maximum gap, active-gap count and maximum callback body
-work time. Start hardware validation with an empty deck, then repeat with a
-standard TAP playing. The [NMI experiment guide](experiments/write/NMI.md)
-explains the tests and rollback to the GPIO receiver at `33942e6840d6`.
+work time. Reception is confirmed on real C64 PAL hardware with READ idle
+and during streaming; ejecting the tape is not required. The
+[NMI receiver guide](experiments/write/NMI.md) explains the implementation and tests.
 
 Ordinary names such as `SAVE "NAZWA",1` are displayed without publishing
 commands. Program contents are discarded and no file is created. `ESP:`
@@ -233,7 +233,7 @@ reason, stack/heap headroom, transfer state and error counters.
 
 Normal firmware has no UART log: GPIO1 and GPIO3 are used for SENSE and READ.
 
-Open [web/player.html](web/player.html) directly in a browser or run `make preview` to try the UI with simulated ESP state. Caveat is bundled as WOFF2 assets and embedded in the firmware, so it works offline without installed fonts or external requests. Font sources and OFL licenses are in [web/assets/fonts](web/assets/fonts). **Fastload PRG demo** runs a built-in sample with a shortened bootstrap, byte progress, accelerated counter/reels and configured timing. **Pause receiver** demonstrates a stalled transfer while keeping screen protection active. **Simulate SAVE "NAZWA"** and **Simulate ESP:TEST** show received header/request metadata; they are blocked during an active fastloader session; this experimental branch also permits simulated WRITE during ordinary READ playback. These controls are available only in preview/demo mode and do not contact hardware. Preview saves the default computer, autoplay and fastloader settings in browser local storage; real firmware saves these settings on the ESP. See [tests/README.md](tests/README.md) for host tests and `make help` for build targets.
+Open [web/player.html](web/player.html) directly in a browser or run `make preview` to try the UI with simulated ESP state. Caveat is bundled as WOFF2 assets and embedded in the firmware, so it works offline without installed fonts or external requests. Font sources and OFL licenses are in [web/assets/fonts](web/assets/fonts). **Fastload PRG demo** runs a built-in sample with a shortened bootstrap, byte progress, accelerated counter/reels and configured timing. **Pause receiver** demonstrates a stalled transfer while keeping screen protection active. **Simulate SAVE "NAZWA"** and **Simulate ESP:TEST** show received header/request metadata; they are blocked during an active fastloader session; the preview also permits simulated WRITE during ordinary READ playback. These controls are available only in preview/demo mode and do not contact hardware. Preview saves the default computer, autoplay and fastloader settings in browser local storage; real firmware saves these settings on the ESP. See [tests/README.md](tests/README.md) for host tests and `make help` for build targets.
 
 For manual UI testing, use [ui-test.tap](tests/fixtures/ui-test.tap) with [ui-test.idx](tests/fixtures/ui-test.idx): a two-minute synthetic tape with six navigation markers. See [fixture instructions](tests/fixtures/README.md).
 

@@ -64,7 +64,9 @@ errors. `ESP:TEST` published exactly one request, without executing a handler.
   metadata. An aborted or damaged payload can be cleared by a second of
   MOTOR off before the next SAVE.
 
-Physical WRITE still requires a hardware retest. The emulator exercises ROM
+The current Timer1/NMI receiver was confirmed on real C64 PAL hardware on
+2026-11-05 with READ idle and streaming. C16/Plus/4 and NTSC hardware tests
+remain pending. The emulator exercises ROM
 waveforms and protocol state; it cannot validate ESP ISR latency, interrupt
 loss, Wi-Fi contention or electrical behavior. ±10 us timestamp jitter tests
 are an explicit simulated bound, not a hardware measurement.
@@ -76,8 +78,10 @@ pressure. The next revision removes the 1 KB pulse queue, decodes directly in
 IRAM, selects one interrupt edge after the pilot, and processes MOTOR in its
 ISR. The state response uses a temporary bounded heap arena instead of a
 2 KB stack arena, and the browser displays reset/exception and stack
-diagnostics. These changes still require a new physical-board test; the reset
-cause has not yet been observed, so a stack overflow is a hypothesis.
+diagnostics. Those changes stopped the resets, but ordinary READ playback still caused
+WRITE errors. The [Timer1/NMI receiver](NMI.md) resolved that contention in the
+subsequent C64 PAL hardware test. The original reset cause was not captured,
+so stack overflow remains a hypothesis.
 
 ## Retained fixtures
 
