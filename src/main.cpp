@@ -36,6 +36,8 @@
 #include "fastloader_native.h"
 #include "fastloader_wire.h"
 #include "write_decoder.h"
+#include "write_sampler.h"
+#include <ets_sys.h>
 #include "player_page.h"
 #include <ArduinoJson.h>
 #include <LittleFS.h>
@@ -102,98 +104,83 @@ static bool fastloaderBusy() {
   return (fastPhase == FastPhase::TAPE && fastSelecting) || fastPhase == FastPhase::RECEIVER ||
          fastPhase == FastPhase::DESCRIPTOR || fastPhase == FastPhase::PAYLOAD;
 }
-WriteDecoder writeDecoder;
+// Experimental branch: Timer1/NMI owns the decoder. GPIO/MOTOR callbacks and
+// the main loop never mutate it while the sampler is running.
+WriteSampler writeSampler;
 volatile bool otaUpdating = false;
-// Decode in IRAM at the edge, independently of synchronous HTTP writes.
-// No pulse queue, heap allocation or logging is used by this ISR.
-volatile uint32_t writeLastEdgeUs[2] = {};
-volatile bool writeActive = false;
-bool writeWasAllowed = true;
-volatile bool writeInterruptAttached = false;
-volatile uint8_t writeInterruptMode = CHANGE;
-volatile uint32_t writeMotorOffUs = 0;
-volatile bool writeMotorStopped = false;
+volatile bool writeSamplerEnabled = false;
+volatile uint32_t writeSampleSequence = 0;
+bool writeSamplerRunning = false;
 
-// Receive WRITE only with an empty deck. READ playback and its DMA activity
-// must never compete with command capture, even for a paused/finished source.
 static bool IRAM_ATTR writeCommandsAllowed() {
-  return tapeSource.kind() == TapeSource::Kind::EMPTY && !otaUpdating &&
-         (fastPhase == FastPhase::OFF || fastPhase == FastPhase::DONE);
+  return !otaUpdating && (fastPhase == FastPhase::OFF || fastPhase == FastPhase::DONE);
 }
 
-static void IRAM_ATTR setWriteInterruptMode(uint8_t mode) {
-  if (mode == writeInterruptMode) return;
-  // The Arduino callback remains CHANGE (no software polarity filtering).
-  // Only the hardware edge detector changes; no flash/attachInterrupt call.
-  GPC(PIN_WRITE) = (GPC(PIN_WRITE) & ~(0xFu << GPCI)) | (uint32_t(mode) << GPCI);
-  writeInterruptMode = mode;
-}
-
-static void IRAM_ATTR updateWriteMotor(bool on, uint32_t now) {
-  if (on == writeActive) return;
-  if (on) {
-    writeDecoder.motorStart(writeMotorStopped ? uint32_t(now - writeMotorOffUs) : UINT32_MAX);
-    writeLastEdgeUs[0] = writeLastEdgeUs[1] = 0;
-    const auto machine = writeDecoder.machine();
-    setWriteInterruptMode(machine == WriteDecoder::Machine::UNKNOWN ? CHANGE :
-                          machine == WriteDecoder::Machine::C64 ? RISING : FALLING);
-    writeActive = true;
-  } else {
-    writeActive = false;
-    writeDecoder.motorStop();
-    writeMotorOffUs = now;
-    writeMotorStopped = true;
-  }
-}
-
-void IRAM_ATTR onWriteEdge() {
-  if (!writeActive || !writeCommandsAllowed() || !(GPI & (1u << PIN_MOTOR))) return;
+void IRAM_ATTR onWriteSampleNmi() {
+  T1I = 0;
+  if (!writeSamplerEnabled) return;
+  const uint32_t started = ESP.getCycleCount();
+  const bool turbo = (*reinterpret_cast<volatile uint32_t*>(0x3ff00014) & 1) != 0;
+  const uint32_t pins = GPI;
+  // system_get_time(), used by micros(), is an IRAM-only pair of register/
+  // RAM reads in the pinned SDK. It keeps time across SDK CPU frequency shifts.
   const uint32_t now = micros();
-  const bool high = (GPI & (1u << PIN_WRITE)) != 0;
-  const uint32_t previous = writeLastEdgeUs[high];
-  writeLastEdgeUs[high] = now;
-  if (!previous) return;
-  const uint32_t duration = now - previous;
-  writeDecoder.feedEdgeMicros(duration > 0x7fff ? 0x7fff : duration, high);
-  const auto machine = writeDecoder.machine();
-  if (machine != WriteDecoder::Machine::UNKNOWN)
-    setWriteInterruptMode(machine == WriteDecoder::Machine::C64 ? RISING : FALLING);
+  ++writeSampleSequence;
+  __asm__ volatile("" ::: "memory");
+  writeSampler.sample(now, (pins & (1u << PIN_MOTOR)) != 0,
+                      (pins & (1u << PIN_WRITE)) != 0,
+                      writeCommandsAllowed() && !(pins & (1u << PIN_SENSE)));
+  const uint32_t work = ESP.getCycleCount() - started;
+  writeSampler.recordWork(turbo ? work >> 1 : work);
+  __asm__ volatile("" ::: "memory");
+  ++writeSampleSequence;
 }
 
 void processWriteCommands() {
 #if !ESPSETTE_GPIO_DISABLED
-  if (!writeCommandsAllowed()) {
-    noInterrupts();
-    writeActive = false;
-    writeLastEdgeUs[0] = writeLastEdgeUs[1] = 0;
-    interrupts();
-    if (writeInterruptAttached) {
-      detachInterrupt(digitalPinToInterrupt(PIN_WRITE));
-      writeInterruptAttached = false;
-    }
-    if (writeWasAllowed) writeDecoder.suspend();
-    writeWasAllowed = false;
-    return;
+  const bool run = writeCommandsAllowed() && senseIsPressed();
+  if (run == writeSamplerRunning) return;
+  // NMI is not masked by noInterrupts(). Disable our callback first, before
+  // touching its state or changing Timer1 ownership.
+  writeSamplerEnabled = false;
+  timer1_disable();
+  ETS_FRC_TIMER1_NMI_INTR_ATTACH(nullptr);
+  if (run) {
+    writeSampler.begin();
+    ETS_FRC_TIMER1_INTR_ATTACH(nullptr, nullptr);
+    ETS_FRC_TIMER1_NMI_INTR_ATTACH(onWriteSampleNmi);
+    // FRC1 is clocked at 80 MHz, independently of temporary CPU turbo changes.
+    // Divide by 16 => 5 timer ticks/us. Hardware auto-reload keeps the cadence.
+    T1L = WriteSampler::PERIOD_US * 5;
+    timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);
+    timer1_write(WriteSampler::PERIOD_US * 5);
+    writeSamplerEnabled = true;
+  } else {
+    writeSampler.suspend();
+    timer1_isr_init();
   }
-  if (!writeInterruptAttached) {
-    attachInterrupt(digitalPinToInterrupt(PIN_WRITE), onWriteEdge, CHANGE);
-    writeInterruptAttached = true;
-    writeInterruptMode = CHANGE;
-  }
-  if (!writeWasAllowed) {
-    noInterrupts();
-    writeActive = false;
-    writeDecoder.motorStart();
-    writeWasAllowed = true;
-    interrupts();
-  }
-  // Also synchronize the initial physical state when capture is attached.
-  // Subsequent MOTOR edges are handled directly by onMotorChange(), even
-  // while the main loop is blocked sending HTTP data.
-  noInterrupts();
-  updateWriteMotor((GPI & (1u << PIN_MOTOR)) != 0, micros());
-  interrupts();
+  writeSamplerRunning = run;
 #endif
+}
+
+struct WriteCaptureSnapshot {
+  WriteDecoder decoder;
+  WriteSampler::Statistics statistics;
+  bool active;
+};
+
+static bool snapshotWriteCapture(WriteCaptureSnapshot& snapshot) {
+  for (uint8_t attempt = 0; attempt < 8; ++attempt) {
+    const uint32_t before = writeSampleSequence;
+    __asm__ volatile("" ::: "memory");
+    snapshot.decoder = writeSampler.decoder();
+    snapshot.statistics = writeSampler.stats();
+    snapshot.active = writeSampler.active();
+    __asm__ volatile("" ::: "memory");
+    const uint32_t after = writeSampleSequence;
+    if (!(before & 1u) && before == after) return true;
+  }
+  return false; // Bounded work even if Wi-Fi repeatedly preempts the snapshot.
 }
 
 enum class SourceFormat : uint8_t { TAP, PRG };
@@ -365,7 +352,6 @@ void IRAM_ATTR onMotorFalling() {
 void IRAM_ATTR onMotorChange() {
   const bool on = (GPI & (1u << PIN_MOTOR)) != 0;
   if (!on) onMotorFalling();
-  if (writeInterruptAttached && writeCommandsAllowed()) updateWriteMotor(on, micros());
   if (fastPhase == FastPhase::TAPE && !fastSignatureSeen) {
     if (on) {
       fastSignature = (fastSignature << 1) | ((GPI >> PIN_WRITE) & 1);
@@ -738,7 +724,6 @@ bool loadPulse() {
     ++player.decoder.prgPulseIndex;
   } else {
     if (player.decoder.offset >= tapEnd) return false;
-    const uint32_t recordOffset = player.decoder.offset;
     uint8_t value;
     if (!tapeSource.read(player.decoder.offset, value)) {
       state = State::ERROR;
@@ -1348,9 +1333,12 @@ void handleState() {
     HTTPServer.send(503, "application/json", "{\"error\":\"low_memory\"}");
     return;
   }
-  noInterrupts();
-  const WriteDecoder writeSnapshot = writeDecoder;
-  interrupts();
+  WriteCaptureSnapshot capture;
+  if (!snapshotWriteCapture(capture)) {
+    HTTPServer.send(503, "application/json", "{\"error\":\"write_snapshot_busy\"}");
+    return;
+  }
+  const WriteDecoder& writeSnapshot = capture.decoder;
   const bool motorOn = motorIsOn();
   doc["firmwareVersion"] = FIRMWARE_VERSION;
   doc["firmwareCommit"] = FIRMWARE_COMMIT;
@@ -1429,9 +1417,14 @@ void handleState() {
   doc["uploadErrors"] = uploadErrorCount;
   doc["error"] = playerError;
   doc["writeEnabled"] = !bool(ESPSETTE_GPIO_DISABLED);
-  doc["writeListening"] = bool(writeActive) && writeCommandsAllowed();
+  doc["writeListening"] = capture.active && writeSamplerEnabled && writeCommandsAllowed();
+  doc["writeCaptureMode"] = "nmi-40us";
+  doc["writeAllowsRead"] = true;
+  doc["writeSampleCount"] = capture.statistics.samples;
+  doc["writeSampleMaxGapUs"] = capture.statistics.maxGapUs;
+  doc["writeSampleGaps"] = capture.statistics.gaps;
+  doc["writeSampleMaxWorkUs"] = capture.statistics.maxWorkCycles80 / 80.0;
   doc["writeStatus"] = otaUpdating ? "suspended_ota" :
-      tapeSource.kind() != TapeSource::Kind::EMPTY ? "requires_empty_deck" :
       writeCommandsAllowed() ? writeSnapshot.status() : "suspended_fastloader";
   doc["writeCommand"] = writeSnapshot.command();
   doc["writeCommandId"] = writeSnapshot.commandCount();

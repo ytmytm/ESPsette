@@ -6,6 +6,9 @@ fastloading. Command reception is enabled in the normal hardware firmware;
 no separate WRITE build profile is required. Soft-GPIO builds cannot receive
 physical commands.
 
+This experimental branch uses the [Timer1/NMI sampler](../experiments/write/NMI.md).
+The GPIO/empty-deck baseline is preserved at commit `33942e6840d6`.
+
 This restores the previous header receiver as a command transport. It does
 not record or store programs. **Requests are published, but command handlers
 are not implemented yet.** No deck, network or filesystem action follows a
@@ -17,15 +20,16 @@ an executable operation.
 - `SAVE "NAZWA",1`: display the last verified filename; no command is published.
 - `SAVE "ESP:TEST",1`: publish request `TEST`; no handler executes it yet.
 - The ESP stores neither program. Press PLAY to supply SENSE for a real SAVE.
-- Reception requires an empty deck, MOTOR high on every captured edge, and no active fastloader or OTA ownership.
+- Reception requires PLAY, MOTOR on, and no active fastloader or OTA ownership.
+- The experimental NMI path permits ordinary READ playback at the same time.
 
 The browser demo has **Simulate SAVE "NAZWA"** and **Simulate ESP:TEST** buttons.
-They reproduce the UI metadata and empty-deck requirement without hardware.
+They reproduce UI metadata and fastloader ownership without hardware.
 
 ## Sending a request
 
-1. Eject the current tape/PRG in the browser, then press PLAY. The deck must
-   stay empty, including after a completed fastload. PLAY supplies SENSE; the computer controls MOTOR.
+1. Eject the current tape/PRG in the browser, then press PLAY. Use an empty deck for the first test,
+   then repeat with a standard TAP playing to test simultaneous READ/WRITE. PLAY supplies SENSE; the computer controls MOTOR.
 2. On C64 or C16/Plus/4, enter:
 
    ```basic
@@ -48,37 +52,28 @@ Non-printable filename bytes are displayed as `?`.
 
 ## Framing and validation
 
-A GPIO CHANGE ISR timestamps full, same-polarity WRITE periods while MOTOR is
-on and GPIO2 belongs to the command receiver. **WRITE is wired directly, with
-no inverter.** C64 ROM symbols are measured between rising edges; C16/Plus/4
-ROM symbols are measured between falling edges. The decoder requires 32
-consecutive short pilot periods to select the family and its edge polarity,
-then switches the hardware interrupt to that single polarity, halving the
-interrupt rate. It does not infer the machine from one long
-pulse: TED rising-edge periods can resemble C64 byte markers.
+Timer1 samples physical MOTOR, WRITE and SENSE every 40 µs through an NMI
+callback. It measures same-polarity full periods, C64 rising and TED falling,
+and uses the unchanged decoder's 32-pulse machine selection. The sampler and
+decoder run in IRAM, with fixed small state and no pulse queue, heap allocation
+or logging. The hardware timer is divided by 16 from 80 MHz and auto-reloads;
+CPU turbo changes do not alter the requested sample cadence. The pinned SDK's
+`system_get_time()` is an IRAM-only RAM/register read and supplies microsecond
+timestamps. Callback work is additionally measured with CCOUNT, normalized
+for the CPU frequency at NMI entry.
 
-The fixed-size decoder runs directly in the GPIO ISR, entirely in IRAM. It
-uses no heap allocation, logging, flash calls or pulse queue. The former
-512-entry queue consumed 1 KB of RAM and depended on synchronous HTTP handling
-returning within roughly 100 ms; it has been removed. Both WRITE and MOTOR
-events are decoded without waiting for the main loop. Long periods saturate
-at 32767 us. The ISR
-checks the physical MOTOR level on every edge, not only when a session starts:
+The sampler owns the decoder while active. The ordinary MOTOR ISR remains
+responsible for READ/DMA and the fastloader, and does not mutate WRITE state.
+`noInterrupts()` cannot protect against NMI: `/state` instead takes a
+sequence-checked snapshot, with at most eight attempts before HTTP 503.
+Main-loop lifecycle changes first disable the callback before changing its
+state or detaching Timer1. PLAY release, fastloader ownership and OTA stop
+sampling; none of these changes reconfigure I2S/DMA or disable Wi-Fi.
 
-```cpp
-if (!writeActive || !writeCommandsAllowed() || !(GPI & (1u << PIN_MOTOR))) return;
-```
-
-`writeCommandsAllowed()` requires `TapeSource::Kind::EMPTY`, fastloader phase
-OFF or DONE, and no OTA update. It reads the source kind directly through a
-volatile inline load in IRAM. The interrupt is detached whenever any TAP, PRG
-or embedded demo is present, even while stopped, buffering, paused, failed or
-finished. Checking only `tapeLoaded` would miss an inserted, partly buffered
-stream. Insertion blocks ISR decoding immediately; the loop then detaches the
-interrupt and clears the partial frame. Ejection re-arms capture and samples
-the current MOTOR level.
-OTA also suspends capture and releases PLAY before writing flash; updates are
-accepted only while MOTOR and playback/fastloader transfers are stopped.
+If an active sampling interval exceeds 80 µs, its gap counter increments.
+An in-progress command frame is rejected with `capture_gap`; gaps while
+searching for a pilot reset framing without publishing anything. See the
+[NMI guide](../experiments/write/NMI.md) for limitations and diagnostics.
 
 A request is published only after checking:
 
@@ -100,7 +95,7 @@ records: about 32 ms on C64 and under 1 ms on TED in the captured traces. This
 pause preserves the discard state. A subsequent SAVE can begin as soon as the
 two program copies have been consumed. If SAVE is aborted or program capture
 is damaged, leave MOTOR off for at least one second before retrying; a restart
-after that quiet interval resets an unfinished discard. MOTOR's ISR handles
+after that quiet interval resets an unfinished discard. MOTOR sampling handles
 even brief TED pauses independently of HTTP polling.
 
 A damaged, partial or overflowing capture cannot publish a request. There is
@@ -113,20 +108,20 @@ its ID across subsequent bad/non-command headers. IDs reset when ESP restarts.
 Command reception is suspended for the **entire selected fastloader session**:
 from inserting a fast PRG, through standard LOAD, mode signature and both fast
 stages, until completion, cancellation or ejection releases that session.
-Before using WRITE commands again, eject the fast PRG; completion alone keeps
-the file inserted and WRITE disabled.
+After completion, this experimental branch permits reception with a PRG
+still inserted. Normal READ playback is also permitted.
 
-The WRITE interrupt is detached while fastloading to avoid interrupts from
-ESP-generated data. Both ISRs also check ownership before decoding, so output
-data cannot enter the command decoder during a mode transition. Suspending
-disables capture and resets the partial decoder frame. The decoder itself
+Timer1/NMI sampling is stopped while fastloading. The sampler also checks
+ownership and physical SENSE before decoding, so ESP-generated output cannot
+enter the decoder during a mode transition. Suspending resets the partial
+frame. The decoder itself
 rejects input while suspended. After completion or cancellation, GPIO2 returns
-to input; reception can restart on MOTOR once the deck is empty. The fastloader's `$CA65` mode
+to input; reception can restart once PLAY is pressed and MOTOR is on. The fastloader's `$CA65` mode
 signature remains a separate protocol, not a standard WRITE command header.
 
-The page displays **Eject tape to receive WRITE** for every inserted source.
-Blocked READ playback cannot increment WRITE errors or publish new headers;
-previously verified filename/request history is retained.
+Previously verified filename/request history is retained while capture is
+suspended. The sampler continues to require the same complete validated header
+even during ordinary READ playback.
 
 ## State API
 
@@ -135,8 +130,11 @@ previously verified filename/request history is retained.
 | Field | Meaning |
 | --- | --- |
 | `writeEnabled` | Physical WRITE capture is available in this build |
-| `writeListening` | Capture is armed with an empty deck, MOTOR on and GPIO2 available |
-| `writeStatus` | Decoder status, including `requires_empty_deck`, `suspended_ota`, `suspended_fastloader`, `command_received_no_action`, `header_ignored`, or an error |
+| `writeListening` | Sampler is enabled with PLAY pressed, MOTOR on and GPIO2 available |
+| `writeCaptureMode` / `writeAllowsRead` | Experimental `nmi-40us` capture and concurrent ordinary READ capability |
+| `writeSampleCount` / `writeSampleMaxGapUs` | Sample count and largest observed interval, including idle MOTOR |
+| `writeSampleGaps` / `writeSampleMaxWorkUs` | Active gaps over 80 µs and maximum normalized callback body time |
+| `writeStatus` | Decoder status, including `capture_gap`, `suspended_ota`, `suspended_fastloader`, `command_received_no_action`, `header_ignored`, or an error |
 | `writeCommand` | Last verified request without the `ESP:` prefix |
 | `writeCommandId` | Count of verified command requests since boot |
 | `writeName` / `writeMachine` | Last verified header filename and detected computer family |
@@ -154,8 +152,8 @@ a partial frame; only the command/ID pair is published after full validation.
 
 The web diagnostics show the last reset reason, exception location when
 available, heap and stack watermark, so UART access is not required. `/state`
-copies a small decoder snapshot under a brief interrupt lock, then formats
-and sends it with interrupts enabled. Its JSON arena is a bounded temporary
+copies a small decoder snapshot using a sequence counter, then formats
+and sends it without masking NMI. Its JSON arena is a bounded temporary
 heap allocation; placing a 2 KB arena on the ESP8266's 4 KB continuation stack
 left too little space for HTTP/TCP and GPIO interrupt frames. The response
 String reserves its final size once, avoiding repeated buffer reallocations.

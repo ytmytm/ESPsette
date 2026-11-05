@@ -19,10 +19,11 @@ class WriteDecoder {
   enum class Machine : uint8_t { UNKNOWN, C64, C16 };
   void WRITE_IRAM motorStart(uint32_t quietMicros = UINT32_MAX);
   void WRITE_IRAM motorStop();
-  void WRITE_IRAM suspend();
+  void WRITE_IRAM suspend(const char* reason = "suspended_fastloader");
   void WRITE_IRAM feedMicros(uint16_t duration);
   void WRITE_IRAM feedEdgeMicros(uint16_t duration, bool high);
   void WRITE_IRAM overflow();
+  void WRITE_IRAM captureGap();
   Machine machine() const { return machine_; }
   const char* status() const { return status_; }
   const char* name() const { return name_; }

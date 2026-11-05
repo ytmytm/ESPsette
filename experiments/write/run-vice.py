@@ -22,14 +22,19 @@ parser.add_argument("--out", type=Path, default=REPO / "tools/fastloader-vice/wr
 parser.add_argument("--build", type=Path, default=REPO / "tools/fastloader-vice/build")
 parser.add_argument("--roms", type=Path, default=Path("/usr/local/share/vice"))
 parser.add_argument("--fixtures", type=Path, help="Export passing raw traces as compact delta-event fixtures")
+parser.add_argument("--sampler", action="store_true", help="Replay through the experimental 40 us sampler")
+parser.add_argument("--read-playback", action="store_true", help="Also drive READ pulses during real ROM SAVE")
 args = parser.parse_args()
 if not 1 <= len(args.name) <= 16 or any(c not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:" for c in args.name):
     parser.error("name must be 1..16 uppercase letters, digits or colons")
 out = args.out.resolve()
 out.mkdir(parents=True, exist_ok=True)
 replay = out / "replay"
-subprocess.run(["c++", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-I" + str(REPO / "src"),
-                str(ROOT / "replay.cpp"), str(REPO / "src/write_decoder.cpp"), "-o", str(replay)], check=True)
+sources = [ROOT / ("sample-replay.cpp" if args.sampler else "replay.cpp"), REPO / "src/write_decoder.cpp"]
+if args.sampler:
+    sources.append(REPO / "src/write_sampler.cpp")
+subprocess.run(["c++", "-std=c++17", "-O2", "-Wall", "-Wextra", "-Werror", "-I" + str(REPO / "src"),
+                *map(str, sources), "-o", str(replay)], check=True)
 results = []
 for machine in (["c64", "c16", "plus4"] if args.machine == "all" else [args.machine]):
     c16 = machine != "c64"
@@ -59,6 +64,10 @@ for machine in (["c64", "c16", "plus4"] if args.machine == "all" else [args.mach
         command += ["-chargen", str(roms / "chargen-901225-01.bin")]
     env = os.environ.copy()
     env["ESPSETTE_WRITE_TRACE"] = str(trace)
+    if args.read_playback:
+        env["ESPSETTE_WRITE_READ"] = '1'
+    else:
+        env.pop("ESPSETTE_WRITE_READ", None)
     with (case / "vice.log").open("w") as log:
         status = subprocess.run(command, env=env, stdout=log, stderr=subprocess.STDOUT, timeout=45).returncode
     decoded = {}
@@ -71,6 +80,8 @@ for machine in (["c64", "c16", "plus4"] if args.machine == "all" else [args.mach
               decoded.get("headers") == 1 and decoded.get("errors") == 0 and
               decoded.get("status") == expected_status)
     result = dict(machine=machine, ntsc=args.ntsc, name=args.name, completed=completed,
+                  returncode=status,
+                  read_playback=args.read_playback, sampler=args.sampler,
                   trap_device1=False, decoded=decoded, passed=passed, trace=str(trace))
     results.append(result)
     print(json.dumps(result), flush=True)
