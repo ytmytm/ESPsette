@@ -46,6 +46,7 @@
 #include <core_esp8266_i2s.h>
 
 #include "circles_demo.h"
+#include "build_version.h"
 
 #ifndef ESPSETTE_GPIO_DISABLED
 #define ESPSETTE_GPIO_DISABLED 0
@@ -1351,6 +1352,8 @@ void handleState() {
   const WriteDecoder writeSnapshot = writeDecoder;
   interrupts();
   const bool motorOn = motorIsOn();
+  doc["firmwareVersion"] = FIRMWARE_VERSION;
+  doc["firmwareCommit"] = FIRMWARE_COMMIT;
   doc["tapeState"] = pendingDemoInsert ? "loading"
       : (demoInsertFailed && !tapeLoaded) ? "error"
       : (tapeLoaded ? "loaded" : "ejected");

@@ -34,6 +34,9 @@ def package(build_dir, output_dir, tag, revision):
     for source in sources:
         if not source.is_file() or source.stat().st_size == 0:
             raise ValueError(f'Missing or empty build output: {source}')
+    identity = json.loads((build_dir / 'firmware.version.json').read_text())
+    if identity['commit'] != revision:
+        raise ValueError('Firmware was built from a different commit; rebuild before packaging')
     budget = verify_ota_image(sources[0].read_bytes(), sources[1].read_bytes())
     if output_dir.exists() and any(output_dir.iterdir()):
         raise ValueError('Output directory must be empty')
@@ -43,7 +46,8 @@ def package(build_dir, output_dir, tag, revision):
         suffix = source.name.removeprefix('firmware')
         shutil.copyfile(source, output_dir / (stem + suffix))
     metadata = {
-        'release_tag': tag or None, 'git_commit': revision,
+        'release_tag': tag or None, 'git_commit': revision, 'firmware_version': identity['version'],
+        'dirty': identity['dirty'],
         'environment': ENVIRONMENT, 'flash_size_bytes': 1048576,
         'flash_address': '0x0', 'flash_mode': 'dout',
         'flash_frequency': '40m', 'ota': True, 'ota_budget': budget,

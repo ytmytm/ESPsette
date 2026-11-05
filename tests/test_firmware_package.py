@@ -29,6 +29,8 @@ class FirmwarePackageTest(unittest.TestCase):
             (build / 'firmware.bin').write_bytes(image)
             (build / 'firmware.bin.gz').write_bytes(gzip.compress(image,mtime=0))
             (build / 'firmware.elf').write_bytes(b'ELF fixture')
+            (build / 'firmware.version.json').write_text(json.dumps(
+                dict(commit='a'*40,version='a'*12,dirty=False)))
             output = root / 'dist'
             stem = firmware.package(build, output, 'v2026-11-01', 'a' * 40)
             self.assertEqual((output / (stem + '.bin')).read_bytes(), image)

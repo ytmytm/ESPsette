@@ -171,6 +171,13 @@ make flash PROFILE=1m PORT=/dev/cu.usbserial-XXXX
 
 **After flashing:** remove the GPIO0–GND jumper, disconnect DTR–RST and reset the module. GPIO0 must be HIGH at reset to run the firmware. See [wiring notes and ESP-01 connections](kicad/WIRING.md) before reconnecting the Commodore interface.
 
+The **Network / OTA** section shows **Firmware:** with the running ESP's
+12-character Git commit ID, obtained from `/state` on every poll. A `-dirty`
+suffix means tracked files differed from that commit when built. After OTA,
+check that this ID changed to the expected commit; it comes from the firmware,
+not from the browser page. Reload once when upgrading from a page without this
+field.
+
 OTA is enabled in the default 1 MB firmware. Install this revision once over
 serial if the currently running image has OTA disabled. Then stop MOTOR and
 use:

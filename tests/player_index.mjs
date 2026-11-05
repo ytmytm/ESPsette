@@ -649,6 +649,10 @@ assert.match(elements.get('diagnostics').textContent, /stack watermark 1024 B/);
 assert.match(elements.get('diagnostics').textContent, /last reset: software watchdog/);
 vm.runInContext(`render({...mock,freeHeap:23000,resetReason:2,resetException:28,resetPc:0x40201234})`, context);
 assert.match(elements.get('diagnostics').textContent, /exception \(cause 28 @0x40201234\)/);
+vm.runInContext("render({...mock,firmwareVersion:'123456789abc'})",context);
+assert.equal(elements.get('firmwareVersion').textContent,'Firmware: 123456789abc');
+vm.runInContext("render({...mock,firmwareVersion:'abcdef012345-dirty'})",context);
+assert.equal(elements.get('firmwareVersion').textContent,'Firmware: abcdef012345-dirty');
 
 // Preview uses the configured fast rate, waits for refill and ignores MOTOR/SENSE as data controls.
 vm.runInContext(`globalThis.progressSnapshot = {state:{...mock},bytes:mockBytes,bootstrap:mockBootstrapCycles};

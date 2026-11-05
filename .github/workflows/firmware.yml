@@ -66,6 +66,7 @@ jobs:
           /tmp/embedded-demo-test
           python3 -m unittest discover -s tests -p 'test_ota_image.py' -v
           python3 -m unittest discover -s tests -p 'test_pio_ota.py' -v
+          python3 -m unittest discover -s tests -p 'test_build_version.py' -v
           python3 -m unittest discover -s tests -p 'test_embedded_assets.py' -v
           python3 -m unittest discover -s tests -p 'test_firmware_package.py' -v
 
