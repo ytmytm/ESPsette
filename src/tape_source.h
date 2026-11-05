@@ -2,14 +2,16 @@
 
 #include <Arduino.h>
 
-// The browser owns the file. Only a bounded, rewindable window of TAP bytes
-// lives on the ESP. releaseBefore() is called only after DMA has played data.
+// Browser files use a bounded window; the built-in PRG reads flash directly.
+// releaseBefore() is called only after DMA has played data.
 class TapeSource {
  public:
   static constexpr uint16_t BUFFER_SIZE = 8192;
   enum class Kind : uint8_t { EMPTY, EMBEDDED, STREAMED };
 
   void useEmbedded(const uint8_t* data, uint32_t size);
+  // Standard PRG loading repeats only the payload, without allocating a copy.
+  bool useEmbeddedPrg(const uint8_t* data, uint32_t size, bool repeat);
   void useStream(const uint8_t header[20], uint32_t size, uint32_t id);
   void usePrg(const uint8_t loadAddress[2], uint32_t logicalSize, uint32_t id);
   bool seek(uint32_t offset, uint32_t newId);
@@ -29,6 +31,7 @@ class TapeSource {
  private:
   Kind kind_ = Kind::EMPTY;
   const uint8_t* embedded_ = nullptr;
+  uint32_t embeddedRepeat_ = 0;
   uint8_t header_[20] = {};
   uint8_t prefixSize_ = 20;
   uint8_t buffer_[BUFFER_SIZE] = {};

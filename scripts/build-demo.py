@@ -23,7 +23,8 @@ def build_demo(output: Path) -> None:
         kind = media.rsplit('.', 1)[1]
         data = base64.b64encode((ROOT / 'web' / path).read_bytes()).decode('ascii')
         source = source.replace(path, 'data:video/' + kind + ';base64,' + data)
-    samples = ('<p>Try the indexed test tape: '
+    samples = ('<p><a href="samples/circles.prg" download>Circles PRG</a> '
+               '(C64 PAL; music Shogoon, code YTM). Try the indexed test tape: '
                '<a href="samples/ui-test.tap" download>Sample TAP</a> + '
                '<a href="samples/ui-test.idx" download>Sample IDX</a>.</p>')
     source = source.replace('<h2>Demo mode</h2>', '<h2>Demo mode</h2>' + samples, 1)
@@ -33,6 +34,7 @@ def build_demo(output: Path) -> None:
     (output / 'samples').mkdir(exist_ok=True)
     for name in ('ui-test.tap', 'ui-test.idx'):
         shutil.copy2(ROOT / 'tests/fixtures' / name, output / 'samples' / name)
+    shutil.copy2(ROOT / 'assets/demo/circles.prg', output / 'samples/circles.prg')
 
 
 if __name__ == '__main__':

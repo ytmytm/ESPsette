@@ -22,6 +22,8 @@ c++ -std=c++17 -Itests/support -Isrc tests/prg_vectors_test.cpp src/prg_encoder.
 /tmp/ESPsette-prg-test
 c++ -std=c++17 -Itests/support -Isrc tests/tape_source_ring_test.cpp src/tape_source.cpp -o /tmp/ESPsette-ring-test
 /tmp/ESPsette-ring-test
+c++ -std=c++17 -Itests/support -Isrc tests/embedded_demo_test.cpp src/prg_encoder.cpp src/tape_source.cpp -o /tmp/ESPsette-demo-test
+/tmp/ESPsette-demo-test
 ```
 
 `playback_awake.mjs` checks native and HTTP-compatible screen protection, including visibility changes, delayed grants, denial, retry throttling, media priming, and cleanup. `computer_profile_test.cpp` checks all four VICE tape clocks, profile parsing and legacy PAL aliases. `prg_vectors_test.cpp` compares every generated C64 and C16 pulse for both PAL and NTSC with an independent block sequence. The C16 cases also check pulse durations against the Pi1551 vectors. Autostart cases check absolute $0302 loading, header code placement and checksums for both machines/video standards, including the 171-byte limit. `tape_source_ring_test.cpp` checks that consumed bytes are released from the 8 KB streaming ring. `player_index.mjs` covers TAP v1/v2 headers and record boundaries, IDX offsets, counter-based seeking, autoplay, machine defaults, controls, recovery after a lost HTTP response, immediate TAP/PRG insertion, file ordering and extension case, saved PAL/NTSC PRG defaults and TAP header overrides, preview setting persistence, Demo with soft MOTOR, the segment buffer meter, mechanical counter transitions and unified VFD computer/time/PAL indicators, attaching IDX without restarting playback, PREV/NEXT boundaries, named Jump selection, automatic IDX title/selection tracking during playback, and absolute elapsed/total time after a jump.
@@ -69,3 +71,9 @@ while the released PLAY state persists.
 Fastloader switch tests check immediate persistence, automatic reinsertion of
 the same stopped PRG, rollback on rejection, and independence from unsaved or
 invalid timing fields. Timing-only saves preserve the enabled flag.
+
+The embedded demo is now the Circles C64 PAL PRG. `embedded_demo_test.cpp`
+checks both logical layouts and compares every standard pulse with a duplicated
+reference. UI tests cover standard/fast selection and reinsertion after changing
+the fastloader switch. See [VICE demo tests](../experiments/demo/README.md).
+OTA remains disabled on this investigation branch.

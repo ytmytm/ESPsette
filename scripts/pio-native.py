@@ -5,6 +5,7 @@ import sys
 import re
 from pathlib import Path
 subprocess.run([sys.executable, str(Path(env['PROJECT_DIR']) / 'scripts/build-native.py')], check=True)
+subprocess.run([sys.executable, str(Path(env['PROJECT_DIR']) / 'scripts/embed-demo.py')], check=True)
 
 
 def check_fastloader_iram(source, target, env):

@@ -11,6 +11,7 @@ on:
       - 'tests/playback_awake.mjs'
       - 'tests/fixtures/**'
       - 'web/**'
+      - 'assets/demo/**'
   pull_request:
     paths:
       - '.github/workflows/demo.yml'
@@ -20,6 +21,7 @@ on:
       - 'tests/playback_awake.mjs'
       - 'tests/fixtures/**'
       - 'web/**'
+      - 'assets/demo/**'
   workflow_dispatch:
 
 permissions:

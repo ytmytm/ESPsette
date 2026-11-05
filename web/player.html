@@ -96,6 +96,7 @@ details.card{margin-top:12px}summary{cursor:pointer;color:#d7e0e8;font-weight:60
 </div></div></div><div class="deck-right"><output id="counter" class="counter" aria-label="Tape counter 000"><span class="counter-digit"><span id="counterStrip0" class="counter-strip"><span id="counterOld0">0</span><span id="counterNext0">0</span></span></span><span class="counter-digit"><span id="counterStrip1" class="counter-strip"><span id="counterOld1">0</span><span id="counterNext1">0</span></span></span><span class="counter-digit"><span id="counterStrip2" class="counter-strip"><span id="counterOld2">0</span><span id="counterNext2">0</span></span></span></output></div></div><section id="fastProgress" class="fast-progress" hidden aria-label="PRG fastloader progress"><div class="fast-progress-heading"><strong>PRG FASTLOAD</strong><output id="fastProgressBytes"></output></div><progress id="fastProgressBar" max="100" value="0" aria-label="PRG bytes sent"></progress><p id="fastProgressDetail"></p><p>VFD and counter: virtual tape time.</p></section><div id="indexControls" class="index-navigation" hidden><label for="idxPositions">TAPE POSITION</label><select id="idxPositions" aria-label="Tape position"></select><button id="seek" class="key" type="button">↦<br>JUMP</button></div><div class="deck-footer"><p class="deck-hint">Keep this tab open during LOAD.</p><a href="https://github.com/ytmytm/ESPsette" target="_blank" rel="noopener noreferrer">ESPsette on GitHub</a></div></div>
 <section id="dropzone" class="card tape-picker" aria-label="Insert a tape">
   <div class="picker-actions"><label class="file-action" for="file">TAP / TAP+IDX / PRG<input id="file" class="file-input" type="file" accept=".tap,.prg,.idx" multiple></label><button id="demo" class="secondary" type="button">Demo</button></div>
+  <p>Demo: <a href="https://csdb.dk/release/?id=262238" target="_blank" rel="noopener">Circles</a> · music Shogoon · code YTM · C64 PAL</p>
   <p id="selectedFiles" class="pending-file" hidden></p>
   <p class="picker-hint">Drop TAP + IDX together, or TAP first, then IDX.</p>
 </section>
@@ -160,10 +161,11 @@ let indexChoosing = false;
 let lastCounterValue = null;
 let counterOriginCycles = 0;
 let mockBytes = 0, mockSize = 0, mockDemo = true, mockTick = Date.now();
-let mockType = 'tap';
+const circlesPayloadBytes = 7742;
+let mockType = 'prg';
 let mockBootstrapCycles = 0;
 let previewReceiverPaused = false;
-const mock = {tapeState:'loaded', sourceType:'tap', machine:'c64', videoStandard:'pal', clockHz:985248, fileName:'draxcaught (demo)', motorOn:false,
+const mock = {tapeState:'loaded', sourceType:'tap', machine:'c64', videoStandard:'pal', clockHz:985248, fileName:'Circles (demo)', motorOn:false,
   sensePressed:true, autoPlay:true, defaultMachine:'c64-pal', playing:false, phase:'idle', playedCycles:0,
   totalCycles:117000000, bufferedMillis:null, fileOffsetReceived:0,
   freeBytes:8192, sessionId:0, logicalSize:0, error:null, gpioDisabled:false,
@@ -190,7 +192,7 @@ if (preview) {
     if (validFastloader(settings)) mock.fastloader = settings;
   } catch (_) {}
   mock.sensePressed = mock.autoPlay;
-  mock.embedded = true;
+  loadMockDemo();
 }
 
 function drawScope(s) {
@@ -236,6 +238,27 @@ function motorBlocksEdit(s) {
   return !!s?.motorOn && !s?.gpioDisabled;
 }
 
+// The built-in PRG is always C64 PAL, independently of uploaded-file defaults.
+function loadMockDemo() {
+  mockDemo = true; mockType = 'prg'; mock.sourceType = 'prg'; mock.embedded = true;
+  mock.tapeState = 'loaded'; mock.fileName = 'Circles (demo)';
+  mock.machine = 'c64'; mock.videoStandard = 'pal'; mock.clockHz = 985248;
+  mock.fastloaderActive = mock.fastloader.enabled;
+  mock.fastloaderTotalBytes = mock.fastloaderActive ? circlesPayloadBytes : 0;
+  mock.fastloaderBytes = mock.fastloaderElapsedMs = 0;
+  mock.fastloaderWaitingForData = mock.fastloaderWaitingForMotor = false;
+  mockBytes = mock.fastloaderActive ? circlesPayloadBytes : 0;
+  mockSize = 2 + circlesPayloadBytes * (mock.fastloaderActive ? 1 : 2);
+  mock.logicalSize = mock.fileOffsetReceived = mockSize;
+  mock.freeBytes = 0; mock.sessionId = 0;
+  previewReceiverPaused = false;
+  mockBootstrapCycles = prgTotalCycles(2, 'c64') + 200 * 384;
+  mock.totalCycles = mock.fastloaderActive ? mockBootstrapCycles + prgDataCycles(circlesPayloadBytes, 'c64') :
+    prgTotalCycles(circlesPayloadBytes, 'c64');
+  mock.playedCycles = 0; mock.phase = 'idle'; mock.error = null; mock.scope = '';
+  mock.sensePressed = mock.autoPlay;
+}
+
 function advanceMockFast(seconds) {
   if (mock.phase === 'done' || mock.phase === 'error') { mock.playing = false; return; }
   const payload = mock.phase === 'fastload';
@@ -278,7 +301,7 @@ function updateMock() {
   mockTick = now;
   if (mock.fastloaderActive && mockType === 'prg' && mock.tapeState === 'loaded') {
     advanceMockFast(seconds);
-    mock.freeBytes = 8192 - mockBytes;
+    mock.freeBytes = mockDemo ? 0 : 8192 - mockBytes;
     return;
   }
   if (mock.motorOn && mock.sensePressed && mock.tapeState === 'loaded' &&
@@ -353,6 +376,7 @@ async function mockApi(path, options = {}) {
     if (!validFastloader(settings)) throw new Error('Invalid fastloader settings');
     previewSetting('fastloader', JSON.stringify(settings));
     mock.fastloader = settings;
+    if (changeEnabled && mock.embedded && mock.sourceType === 'prg') loadMockDemo();
     return {...settings};
   }
   if (path === '/session') {
@@ -431,14 +455,7 @@ async function mockApi(path, options = {}) {
   }
   if (path === '/demo') {
     if (motorBlocksEdit(mock)) throw new Error('Stop MOTOR');
-    mock.tapeState = 'loaded'; mock.fileName = 'draxcaught (demo)';
-    mockDemo = true; mockType = 'tap'; mock.sourceType = 'tap'; mock.embedded = true;
-    mock.machine = 'c64'; mock.videoStandard = 'pal'; mock.clockHz = 985248;
-    mock.sessionId = 0; mock.logicalSize = 0; mock.fileOffsetReceived = 0;
-    mock.fastloaderActive = false; mock.fastloaderTotalBytes = mock.fastloaderBytes = 0;
-    previewReceiverPaused = false;
-    mock.playedCycles = 0; mock.sensePressed = mock.autoPlay; mock.scope = '';
-    mock.totalCycles = 117000000; mock.phase = 'idle'; mock.error = null;
+    loadMockDemo();
     return {tapeState:'loaded'};
   }
   throw new Error('Unknown request: ' + path);
@@ -701,10 +718,11 @@ function render(s) {
   if ($('networkInfo')) {
     $('networkInfo').textContent = location.host +
       (s.gpioDisabled ? ' · GPIO soft' : '');
-    $('otaCmd').textContent = 'make flash PROFILE=1m PORT=/dev/cu.usbserial-…';
+    $('otaCmd').textContent = s.otaReady ? 'make ota PROFILE=1m OTA_HOST=' + location.hostname :
+      'make flash PROFILE=1m PORT=/dev/cu.usbserial-…';
     $('otaHint').textContent = s.otaReady ?
       'Stop tape before OTA. Wi-Fi stays unchanged.' :
-      'OTA off while the embedded demo is in the 1MB image — use USB serial flash.';
+      'OTA is unavailable in this firmware — use USB serial flash.';
   }
   $('phase').textContent = 'Phase: ' + s.phase + ' · received ' + s.fileOffsetReceived + ' B';
   if ($('debugPanel').open) $('debugJson').textContent = JSON.stringify(s, null, 2);
@@ -1048,7 +1066,7 @@ $('demo').onclick = async () => {
       const s = await api('/state');
       render(s);
       if (s.tapeState === 'loaded') {
-        $('deckMessage').textContent = 'Demo tape loaded.';
+        $('deckMessage').textContent = 'Circles loaded · C64 PAL.';
         $('deck').scrollIntoView({behavior: 'smooth', block: 'start'});
         break;
       }
@@ -1229,6 +1247,8 @@ $('fastloaderEnabled').onchange = async () => {
         seekOffset:2, seekCycles:0, sessionBody:body};
       counterOriginCycles = 0;
       $('fastloaderMessage').textContent = 'Saved. PRG reloaded with fastloader ' + (ack.enabled ? 'on.' : 'off.');
+    } else if (last?.embedded && last.sourceType === 'prg') {
+      $('fastloaderMessage').textContent = 'Saved. Demo reloaded.';
     } else {
       $('fastloaderMessage').textContent = 'Fastloader ' + (ack.enabled ? 'enabled.' : 'disabled.') +
         (last?.sourceType === 'prg' && last.tapeState === 'loaded' ? ' Reinsert the PRG to apply.' : ' Saved.');

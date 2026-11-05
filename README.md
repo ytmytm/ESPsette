@@ -16,7 +16,7 @@ Hardware tests on **1 and 4 November 2026**:
 
 | Feature | Status |
 | --- | --- |
-| C64 loading the embedded demo TAP | Passed on real hardware |
+| Embedded Circles PRG, C64 PAL | Standard / fast mode under investigation on hardware |
 | C64 loading a TAP streamed from the browser | Passed on real hardware |
 | PRG → standard tape pulses, C64 and C16/Plus/4 PAL/NTSC | Host tests pass; hardware test pending |
 | C16/Plus/4 playback; all supported TAP v1/v2 variants | Full hardware coverage pending |
@@ -48,13 +48,29 @@ make native                   # Assemble C64 and C16/Plus4 loaders with ACME
 make build PROFILE=1m         # Assemble loaders and build for a 1 MB ESP-01
 ```
 
-`make setup` installs `uv` under `tools/bin/` and a **per-OS Python venv** at `~/.cache/ESPsette/venv-darwin` (macOS), `venv-linux`, or `venv-windows`, plus PlatformIO caches under `~/.cache/ESPsette/`. That keeps Mac/WSL/Windows from overwriting each other’s `tools/venv` on a shared disk. No global PlatformIO install is required. The default build enables real cassette GPIOs and includes the demo TAP. Build settings are in [platformio.ini](platformio.ini).
+`make setup` installs `uv` under `tools/bin/` and a **per-OS Python venv** at `~/.cache/ESPsette/venv-darwin` (macOS), `venv-linux`, or `venv-windows`, plus PlatformIO caches under `~/.cache/ESPsette/`. That keeps Mac/WSL/Windows from overwriting each other’s `tools/venv` on a shared disk. No global PlatformIO install is required. The default build enables real cassette GPIOs and includes the Circles PRG demo. Build settings are in [platformio.ini](platformio.ini).
 
 | Profile | Use |
 | --- | --- |
 | `1m` (default) | 1 MB flash, 64 KB LittleFS |
 | `4m` | ESP-01 with 4 MB flash |
 | `512k` | 512 KB flash; current firmware may not fit |
+
+## Embedded demo
+
+**Demo** inserts [Circles](https://csdb.dk/release/?id=262238), music by
+**Shogoon**, code by **YTM**. It is a **C64 PAL** PRG, always loaded with that
+profile regardless of the saved default for uploaded files. With **Use
+fastloader for PRG** off, use normal `LOAD`, then `RUN`. With it on, `LOAD`
+autostarts the bootstrap, fastloads the PRG and runs it. Changing the switch
+while the embedded demo is stopped reinserts it in the selected mode.
+
+The original [7744-byte PRG](assets/demo/circles.prg) is stored once in flash.
+Standard loading reads its data twice through a logical view; no TAP or
+second PRG copy is stored. This replaces the 251742-byte draxcaught TAP.
+[Demo credits and provenance](assets/demo/README.md) identify the original
+release and checksum. `scripts/embed-demo.py` generates its flash header
+automatically, including when building directly with PlatformIO.
 
 ## PRG fastloader
 
@@ -154,7 +170,7 @@ make flash PROFILE=1m PORT=/dev/cu.usbserial-XXXX
 
 **After flashing:** remove the GPIO0–GND jumper, disconnect DTR–RST and reset the module. GPIO0 must be HIGH at reset to run the firmware. See [wiring notes and ESP-01 connections](kicad/WIRING.md) before reconnecting the Commodore interface.
 
-OTA is disabled because the 1 MB image with the embedded demo leaves insufficient space for a second image. The existing `make ota` target requires firmware built with OTA enabled and enough free flash; it is not ready for the default setup.
+OTA remains disabled on this investigation branch while standard READ playback is being tested. The existing `make ota` target requires firmware built with OTA enabled and enough free flash; it is not ready for the default setup.
 
 ## Load a tape
 
