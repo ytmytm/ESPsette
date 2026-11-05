@@ -66,6 +66,13 @@ WRITE preview tests require ejection even after a completed PRG. Active TAP
 READ, paused files, partly buffered streams and embedded demos cannot publish
 headers or increment WRITE errors; an empty deck can receive again.
 
+On `experiment/write-nmi-sampling`, `test_write_sampler.py` additionally
+replays all twelve captures at all 40 integer-microsecond sampling phases,
+with jitter, blackout and clock-wrap tests. Preview retains tests for the
+baseline empty-deck protocol and separately permits READ/WRITE together when
+the experimental capability is present. Fastloader ownership still blocks
+reception. See the [NMI test and rollback guide](../experiments/write/NMI.md).
+
 `test_write_vice.py` replays twelve actual ROM SAVE captures from C64, C16 and
 Plus/4 PAL/NTSC through the firmware decoder. It checks direct WRITE polarity,
 MOTOR pauses between header and data, repeated SAVEs, incorrect polarity,

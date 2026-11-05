@@ -171,7 +171,7 @@ const mock = {tapeState:'loaded', sourceType:'tap', machine:'c64', videoStandard
   freeBytes:8192, sessionId:0, logicalSize:0, error:null, gpioDisabled:false,
   freeHeap:32000, maxFreeBlock:24000, maxLoopUs:0, maxHttpUs:0,
   i2sUnderruns:0, sourceUnderruns:0, uploadErrors:0,
-  writeEnabled:true, writeListening:false, writeStatus:'idle', writeCommand:'', writeCommandId:0,
+  writeEnabled:true, writeAllowsRead:true, writeListening:false, writeStatus:'idle', writeCommand:'', writeCommandId:0,
   writeName:'', writeMachine:'unknown', writeHeaders:0, writeErrors:0, writeOverflows:0,
   fastloader:{...selectedFastloader}, scope:'', scopeHz:0, otaReady:false};
 let mockScopeLevel = 0;
@@ -242,6 +242,10 @@ function deckHasSource(s) {
   return s.tapeState !== 'ejected' || Number(s.sessionId) > 0 || !!s.embedded;
 }
 
+function writePreviewBlocked(s) {
+  return s.writeAllowsRead ? s.sourceType === 'prg' && s.fastloaderActive && s.phase !== 'done' : deckHasSource(s);
+}
+
 // The built-in PRG is always C64 PAL, independently of uploaded-file defaults.
 function loadMockDemo() {
   mockDemo = true; mockType = 'prg'; mock.sourceType = 'prg'; mock.embedded = true;
@@ -261,7 +265,8 @@ function loadMockDemo() {
     prgTotalCycles(circlesPayloadBytes, 'c64');
   mock.playedCycles = 0; mock.phase = 'idle'; mock.error = null; mock.scope = '';
   mock.sensePressed = mock.autoPlay;
-  mock.writeStatus = 'requires_empty_deck'; mock.writeListening = false;
+  mock.writeStatus = writePreviewBlocked(mock) ? (mock.writeAllowsRead ? 'suspended_fastloader' : 'requires_empty_deck') : 'listening';
+  mock.writeListening = false;
 }
 
 function advanceMockFast(seconds) {
@@ -338,9 +343,10 @@ function updateMock() {
 async function mockApi(path, options = {}) {
   updateMock();
   if (path === '/state') {
-    if (deckHasSource(mock)) {
-      mock.writeStatus = 'requires_empty_deck'; mock.writeListening = false;
-    } else if (mock.writeStatus === 'requires_empty_deck') mock.writeStatus = 'listening';
+    if (writePreviewBlocked(mock)) {
+      mock.writeStatus = writePreviewBlocked(mock) ? (mock.writeAllowsRead ? 'suspended_fastloader' : 'requires_empty_deck') : 'listening';
+  mock.writeListening = false;
+    } else if (['requires_empty_deck','suspended_fastloader'].includes(mock.writeStatus)) mock.writeStatus = 'listening';
     return {...mock};
   }
   if (path === '/sense') {
@@ -397,7 +403,8 @@ async function mockApi(path, options = {}) {
       (mock.fastloader.enabled || preview && args.get('previewFastload') === '1');
     mockSize = mockType === 'prg' && !mock.fastloaderActive ? 2 + 2 * (fileSize - 2) : fileSize;
     mock.logicalSize = mockSize; mock.embedded = false;
-    mock.writeStatus = 'requires_empty_deck'; mock.writeListening = false;
+    mock.writeStatus = writePreviewBlocked(mock) ? (mock.writeAllowsRead ? 'suspended_fastloader' : 'requires_empty_deck') : 'listening';
+  mock.writeListening = false;
     mockBytes = 0; mockDemo = false;
     mock.sessionId++; mock.fileOffsetReceived = mockType === 'prg' ? 2 : 20;
     mock.sourceType = mockType;
@@ -633,7 +640,7 @@ function render(s) {
   $('fastloaderSave').disabled = editBlocked || fastloaderEnabledSaving;
   $('fastloaderDefaults').disabled = editBlocked || fastloaderEnabledSaving;
   if (preview) {
-    const writePaused = deckHasSource(s);
+    const writePaused = writePreviewBlocked(s);
     $('previewSaveName').disabled = $('previewWriteCommand').disabled = writePaused;
     $('previewPauseReceiver').disabled = !s.fastloaderActive || s.phase !== 'fastload';
     $('previewPauseReceiver').textContent = previewReceiverPaused ? 'Resume receiver' : 'Pause receiver';
@@ -757,13 +764,16 @@ function render(s) {
     incomplete:'Incomplete request', checksum_error:'Checksum error', parity_error:'Parity error',
     copy_mismatch:'Header copies differ', pulse_error:'Pulse error', sync_error:'Sync error',
     invalid_header:'Invalid header', missing_terminator:'Missing terminator',
-    unexpected_terminator:'Unexpected terminator', capture_overflow:'Capture overflow'};
+    unexpected_terminator:'Unexpected terminator', capture_overflow:'Capture overflow', capture_gap:'Sampling gap'};
   $('writeStatus').textContent = s.writeEnabled ? (writeLabels[s.writeStatus] || s.writeStatus || 'Ready') : 'Disabled';
   $('writeDetail').textContent = s.writeEnabled ?
     (s.writeName ? 'Last header: "' + s.writeName + '" · ' : '') +
     (s.writeCommand ? 'Last request #' + s.writeCommandId + ': ESP:' + s.writeCommand + ' · ' : '') +
     'Verified headers: ' + (s.writeHeaders || 0) + ' · errors: ' + (s.writeErrors || 0) +
-    ' · overflows: ' + (s.writeOverflows || 0) : '';
+    ' · overflows: ' + (s.writeOverflows || 0) +
+    (s.writeCaptureMode ? ' · ' + s.writeCaptureMode +
+      ' · max sample gap ' + s.writeSampleMaxGapUs + ' µs' +
+      ' · gaps ' + s.writeSampleGaps + ' · max work ' + s.writeSampleMaxWorkUs + ' µs' : '') : '';
   $('seek').disabled = !source || source.type !== 'tap' || source.id !== s.sessionId;
   drawScope(s);
 }
@@ -1408,10 +1418,12 @@ async function startFastloadPreview() {
 
 function receiveWritePreview(name) {
   if (!preview) return;
-  if (deckHasSource(mock)) {
-    mock.writeStatus = 'requires_empty_deck'; mock.writeListening = false;
+  if (writePreviewBlocked(mock)) {
+    mock.writeStatus = writePreviewBlocked(mock) ? (mock.writeAllowsRead ? 'suspended_fastloader' : 'requires_empty_deck') : 'listening';
+  mock.writeListening = false;
     render({...mock});
-    $('previewMessage').textContent = 'Eject the tape or PRG before receiving WRITE.';
+    $('previewMessage').textContent = mock.writeAllowsRead ? 'WRITE reception is paused for the fastloader.' :
+      'Eject the tape or PRG before receiving WRITE.';
     return;
   }
   mock.writeEnabled = true;

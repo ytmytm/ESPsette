@@ -46,10 +46,10 @@ void WriteDecoder::motorStop() {
   resetFrame();
 }
 
-void WriteDecoder::suspend() {
+void WriteDecoder::suspend(const char* reason) {
   resetFrame();
   suspended_ = true;
-  status_ = "suspended_fastloader";
+  status_ = reason;
 }
 
 void WriteDecoder::fail(const char* reason) {
@@ -68,6 +68,12 @@ void WriteDecoder::overflow() {
   if (suspended_ || stage_ == Stage::DISCARD || stage_ == Stage::DONE) return;
   ++overflowCount_;
   fail("capture_overflow");
+}
+
+void WriteDecoder::captureGap() {
+  if (suspended_ || stage_ == Stage::DISCARD || stage_ == Stage::DONE) return;
+  if (stage_ == Stage::SEARCH && !byteBits_) resetFrame();
+  else fail("capture_gap");
 }
 
 void WriteDecoder::finishHeader() {
