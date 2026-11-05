@@ -17,3 +17,7 @@ include/local_ota.h
 dist/
 
 /include/fastloader_native.h
+/include/circles_demo.h
+/include/build_version.h
+
+/src/player_page.h

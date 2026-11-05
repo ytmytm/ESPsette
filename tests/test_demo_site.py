@@ -24,6 +24,11 @@ class DemoSiteTest(unittest.TestCase):
                 self.assertIn(f'id="{control}"', page)
             self.assertIn('Fastload PRG demo', page)
             self.assertIn('Simulate ESP:TEST', page)
+            self.assertIn('music Shogoon', page)
+            self.assertIn('code YTM', page)
+            self.assertIn('https://csdb.dk/release/?id=262238', page)
+            self.assertEqual((output / 'samples/circles.prg').read_bytes(),
+                             (ROOT / 'assets/demo/circles.prg').read_bytes())
             self.assertIn('SAVE "ESP:TEST",1', page)
             self.assertIn('data:video/mp4;base64,',page)
             self.assertIn('data:video/webm;base64,',page)

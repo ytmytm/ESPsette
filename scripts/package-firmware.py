@@ -9,10 +9,13 @@ import os
 from pathlib import Path
 import re
 import shutil
+import sys
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 ENVIRONMENT = 'esp01_1m_serial'
+sys.path.insert(0, str(ROOT / 'scripts'))
+from ota_image import verify_ota_image
 
 
 def validate_tag(tag):
@@ -27,25 +30,36 @@ def package(build_dir, output_dir, tag, revision):
         validate_tag(tag)
     if not re.fullmatch(r'[0-9a-f]{40}', revision):
         raise ValueError('Expected a full Git commit SHA')
-    sources = [build_dir / ('firmware.' + ext) for ext in ('bin', 'elf')]
+    sources = [build_dir / ('firmware.' + ext) for ext in ('bin', 'bin.gz', 'elf')]
     for source in sources:
         if not source.is_file() or source.stat().st_size == 0:
             raise ValueError(f'Missing or empty build output: {source}')
+    identity = json.loads((build_dir / 'firmware.version.json').read_text())
+    if identity['commit'] != revision:
+        raise ValueError('Firmware was built from a different commit; rebuild before packaging')
+    budget = verify_ota_image(sources[0].read_bytes(), sources[1].read_bytes())
     if output_dir.exists() and any(output_dir.iterdir()):
         raise ValueError('Output directory must be empty')
     output_dir.mkdir(parents=True, exist_ok=True)
-    stem = f'ESPsette-esp01-1m-{tag or "dev"}-{revision[:7]}'
+    stem = f'ESPsette-esp01-1m-{tag or "dev"}-{identity["version"]}'
     for source in sources:
-        shutil.copyfile(source, output_dir / (stem + source.suffix))
+        suffix = source.name.removeprefix('firmware')
+        shutil.copyfile(source, output_dir / (stem + suffix))
     metadata = {
-        'release_tag': tag or None, 'git_commit': revision,
+        'release_tag': tag or None, 'git_commit': revision, 'firmware_version': identity['version'],
+        'dirty': identity['dirty'],
         'environment': ENVIRONMENT, 'flash_size_bytes': 1048576,
         'flash_address': '0x0', 'flash_mode': 'dout',
-        'flash_frequency': '40m', 'ota': False, 'fastloader_default': False, 'write_commands': True,
+        'flash_frequency': '40m', 'ota': True, 'ota_budget': budget,
+        'demo': {'name':'Circles', 'machine':'c64-pal', 'music':'Shogoon', 'code':'YTM',
+                 'source':'https://csdb.dk/release/?id=262238'}, 'fastloader_default': False, 'write_commands': True,
     }
     (output_dir / (stem + '.json')).write_text(json.dumps(metadata, indent=2) + '\n')
     (output_dir / 'FLASHING.txt').write_text(
-        'ESPsette / ESP-01 / 1 MB flash\n\n'
+        'ESPsette / ESP-01 / 1 MB flash\n'
+        f'Firmware version: {identity["version"]}\n'
+        f'Git commit: {revision}\n'
+        'Compare this version with Firmware in Network / OTA after updating.\n\n'
         'Disconnect the Commodore interface. Use 3.3 V power and UART logic.\n'
         'While flashing: GPIO0-GND jumper, EN at 3.3 V, common GND,\n'
         'adapter TXD -> ESP RXD, adapter RXD -> ESP TXD, DTR -> RST.\n'
@@ -57,7 +71,11 @@ def package(build_dir, output_dir, tag, revision):
         'Replace PORT and the binary path as needed. Without DTR, manually\n'
         'pulse RST LOW with GPIO0 grounded before running esptool.\n'
         'After flashing: remove GPIO0-GND, disconnect DTR-RST, reset to run.\n'
-        'No separate filesystem image is needed. OTA is disabled.\n'
+        'No separate filesystem image is needed. OTA is enabled.\n'
+        'For an ESP already running this OTA-enabled firmware, stop MOTOR and use:\n'
+        'make ota PROFILE=1m OTA_HOST=DEVICE_IP\n'
+        'The upload uses .bin.gz; the ESP8266 bootloader decompresses it.\n'
+        'Use the raw .bin for serial flashing. LittleFS settings are retained.\n'
     )
     files = sorted(output_dir.iterdir())
     (output_dir / 'SHA256SUMS.txt').write_text(''.join(
@@ -77,6 +95,13 @@ def main():
         if os.environ.get('GITHUB_OUTPUT'):
             with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
                 output.write(f'artifact_name={stem}\n')
+        if os.environ.get('GITHUB_STEP_SUMMARY'):
+            identity = json.loads((args.build_dir / 'firmware.version.json').read_text())
+            with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+                summary.write(f'Firmware version: `{identity["version"]}`\n\n'
+                              f'Git commit: `{revision}`\n\n'
+                              f'Package: `{stem}`\n\n'
+                              'Compare this ID with **Firmware** in **Network / OTA**.\n')
         print(f'Firmware package: {stem}')
     except (ValueError, OSError, subprocess.CalledProcessError) as error:
         parser.exit(1, f'Firmware packaging failed: {error}\n')

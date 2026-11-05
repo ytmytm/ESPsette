@@ -24,7 +24,7 @@ endif
 # Per-OS venv under ~/.cache/ESPsette/venv-{darwin,linux,windows} (see scripts/tools-env.sh).
 ESPTOOL = ESPTOOL_CFGFILE="$(CURDIR)/esptool.cfg" "$$(./scripts/venv-python.sh)" -m esptool --chip esp8266 --port "$(PORT)"
 
-.PHONY: help setup build flash ota flash-id chip-info embed-web preview fastloader-test native
+.PHONY: help setup build flash ota flash-id chip-info embed-web preview fastloader-test native version
 
 help:
 	@printf '%s\n' \
@@ -32,13 +32,14 @@ help:
 		'' \
 		'Targets:' \
 		'  make help                          Show this help' \
+		'  make version                       Show firmware Git identity without building' \
 		'  make setup                         Install local uv/Python/PlatformIO tools' \
 		'  make preview                       Open local UI with simulated ESP state' \
 		'  make fastloader-test               Run isolated fastloader sender tests' \
 		'  make native                       Assemble C64 and C16/Plus4 fastloaders (ACME)' \
 		'  make build [PROFILE=1m] [VERBOSE=1] Compile (PROFILE: 512k|1m|4m)' \
 		'  make flash PORT=... [PROFILE=1m]   Serial upload (download-mode wiring)' \
-		'  make ota OTA_HOST=... [PROFILE=1m] Experimental; disabled in default firmware' \
+		'  make ota OTA_HOST=... [PROFILE=1m] Compressed OTA; stop MOTOR first' \
 		'  make flash-id PORT=...             SPI flash manufacturer / size' \
 		'  make chip-info PORT=...            flash-id + chip-id + MAC + flash status' \
 		'' \
@@ -51,6 +52,9 @@ help:
 		'  make chip-info PORT=/dev/cu.usbserial-XXXX' \
 		'  make build PROFILE=1m' \
 		'  make flash PROFILE=1m PORT=/dev/cu.usbserial-XXXX'
+
+version:
+	@python3 scripts/build-version.py --show-only
 
 setup:
 	./scripts/setup-tools.sh

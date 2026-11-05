@@ -7,6 +7,7 @@ on:
       - '.github/workflows/firmware.yml'
       - 'platformio.ini'
       - 'requirements-tools.txt'
+      - 'assets/demo/**'
       - 'src/**'
       - 'include/**'
       - 'web/**'
@@ -15,6 +16,7 @@ on:
       - 'native/**'
       - 'experiments/fastloader/**'
       - 'experiments/write/**'
+      - 'experiments/demo/**'
   pull_request:
   workflow_dispatch:
   release:
@@ -60,6 +62,12 @@ jobs:
           /tmp/prg-test
           c++ -std=c++17 -Itests/support -Isrc tests/tape_source_ring_test.cpp src/tape_source.cpp -o /tmp/ring-test
           /tmp/ring-test
+          c++ -std=c++17 -Itests/support -Isrc tests/embedded_demo_test.cpp src/prg_encoder.cpp src/tape_source.cpp -o /tmp/embedded-demo-test
+          /tmp/embedded-demo-test
+          python3 -m unittest discover -s tests -p 'test_ota_image.py' -v
+          python3 -m unittest discover -s tests -p 'test_pio_ota.py' -v
+          python3 -m unittest discover -s tests -p 'test_build_version.py' -v
+          python3 -m unittest discover -s tests -p 'test_embedded_assets.py' -v
           python3 -m unittest discover -s tests -p 'test_firmware_package.py' -v
 
       - name: Install pinned build tools
@@ -71,6 +79,8 @@ jobs:
           make build PROFILE=1m
           firmware_dir="${XDG_CACHE_HOME:-$HOME/.cache}/ESPsette/pio/ws/$(basename "$GITHUB_WORKSPACE")/build/esp01_1m_serial"
           test -s "$firmware_dir/firmware.bin"
+          test -s "$firmware_dir/firmware.bin.gz"
+          cat "$firmware_dir/firmware.ota.json"
           printf 'firmware_dir=%s\n' "$firmware_dir" >> "$GITHUB_OUTPUT"
           "$(./scripts/venv-python.sh)" -m esptool --chip esp8266 image-info "$firmware_dir/firmware.bin"
 

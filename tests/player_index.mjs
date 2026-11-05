@@ -388,7 +388,7 @@ assert.equal(vm.runInContext('source.indexEntries.length', context), 2);
 // Demo must replace the file while preview's soft MOTOR is on.
 vm.runInContext('mock.motorOn = true; mock.gpioDisabled = true; render({...mock})', context);
 await vm.runInContext("document.getElementById('demo').onclick()", context);
-assert.match(elements.get('loaded').textContent, /draxcaught \(demo\)/);
+assert.match(elements.get('loaded').textContent, /Circles \(demo\)/);
 assert.equal(vm.runInContext('source', context), null);
 assert.equal(vm.runInContext('selectedFile', context), null);
 assert.equal(elements.get('error').textContent, '');
@@ -649,6 +649,10 @@ assert.match(elements.get('diagnostics').textContent, /stack watermark 1024 B/);
 assert.match(elements.get('diagnostics').textContent, /last reset: software watchdog/);
 vm.runInContext(`render({...mock,freeHeap:23000,resetReason:2,resetException:28,resetPc:0x40201234})`, context);
 assert.match(elements.get('diagnostics').textContent, /exception \(cause 28 @0x40201234\)/);
+vm.runInContext("render({...mock,firmwareVersion:'123456789abc'})",context);
+assert.equal(elements.get('firmwareVersion').textContent,'Firmware: 123456789abc');
+vm.runInContext("render({...mock,firmwareVersion:'abcdef012345-dirty'})",context);
+assert.equal(elements.get('firmwareVersion').textContent,'Firmware: abcdef012345-dirty');
 
 // Preview uses the configured fast rate, waits for refill and ignores MOTOR/SENSE as data controls.
 vm.runInContext(`globalThis.progressSnapshot = {state:{...mock},bytes:mockBytes,bootstrap:mockBootstrapCycles};
@@ -766,7 +770,7 @@ assert.equal(elements.get('fastProgress').hidden,false);
 const previewHeaderCount = vm.runInContext('mock.writeHeaders',context);
 elements.get('previewSaveName').onclick();
 assert.equal(vm.runInContext('mock.writeHeaders',context),previewHeaderCount);
-assert.match(elements.get('previewMessage').textContent,/WRITE reception is paused/);
+assert.match(elements.get('previewMessage').textContent,/Eject the tape or PRG/);
 elements.get('previewPauseReceiver').onclick();
 const pausedPreviewBytes=vm.runInContext('mock.fastloaderBytes',context);
 vm.runInContext('advanceMockFast(.5);render({...mock})',context);
@@ -783,6 +787,14 @@ for(let i=0;i<50 && vm.runInContext('mock.phase',context)!=='done';i++) {
 }
 assert.equal(vm.runInContext('mock.phase',context),'done');
 assert.match(elements.get('fastProgressBytes').textContent,/100%/);
+// A completed fast PRG is still inserted: WRITE stays blocked until ejection.
+const finishedHeaderCount=vm.runInContext('mock.writeHeaders',context);
+elements.get('previewSaveName').onclick();
+assert.equal(vm.runInContext('mock.writeHeaders',context),finishedHeaderCount);
+assert.match(elements.get('previewMessage').textContent,/Eject the tape or PRG/);
+vm.runInContext('mock.motorOn=false',context);
+await vm.runInContext("document.getElementById('deckEject').onclick()",context);
+assert.equal(elements.get('previewSaveName').disabled,false);
 elements.get('previewSaveName').onclick();
 assert.match(elements.get('writeDetail').textContent,/Last header: "NAZWA"/);
 assert.equal(elements.get('playbackDetails').open,true);
@@ -792,8 +804,58 @@ assert.equal(vm.runInContext('mock.writeCommandId',context),previousRequestId+1)
 assert.match(elements.get('writeDetail').textContent,/ESP:TEST/);
 assert.equal(elements.get('writeStatus').textContent,'Request received (not executed)');
 vm.runInContext('mock.motorOn=false;mock.gpioDisabled=false;',context);
+// WRITE is exclusive to an empty deck, including active READ, paused tapes,
+// partly buffered streams, embedded demos and completed ordinary PRGs.
+vm.runInContext('globalThis.emptyWriteSnapshot={...mock}',context);
+for (const inserted of [
+  {tapeState:'loaded',sourceType:'tap',phase:'data',playing:true,motorOn:true,sessionId:7,embedded:false},
+  {tapeState:'loaded',sourceType:'tap',phase:'paused',playing:false,motorOn:false,sessionId:7,embedded:false},
+  {tapeState:'ejected',sourceType:'tap',phase:'idle',playing:false,motorOn:false,sessionId:7,embedded:false},
+  {tapeState:'loaded',sourceType:'prg',phase:'idle',playing:false,motorOn:false,sessionId:0,embedded:true},
+  {tapeState:'loaded',sourceType:'prg',phase:'done',playing:false,motorOn:false,sessionId:7,embedded:false}
+]) {
+  context.insertedWriteState=inserted;
+  vm.runInContext('Object.assign(mock,insertedWriteState,{fastloaderActive:false});render({...mock})',context);
+  assert.equal(elements.get('previewSaveName').disabled,true);
+  assert.equal(elements.get('previewWriteCommand').disabled,true);
+  const before=vm.runInContext('JSON.stringify([mock.writeHeaders,mock.writeErrors,mock.writeCommandId])',context);
+  elements.get('previewWriteCommand').onclick();
+  assert.equal(vm.runInContext('JSON.stringify([mock.writeHeaders,mock.writeErrors,mock.writeCommandId])',context),before);
+  assert.equal(elements.get('writeStatus').textContent,'Eject tape to receive WRITE');
+}
+vm.runInContext('Object.assign(mock,emptyWriteSnapshot);render({...mock})',context);
+assert.equal(elements.get('previewWriteCommand').disabled,false);
+const emptyRequestId=vm.runInContext('mock.writeCommandId',context);
+elements.get('previewWriteCommand').onclick();
+assert.equal(vm.runInContext('mock.writeCommandId',context),emptyRequestId+1);
 // Preview settings survive reloading the page; real hardware uses LittleFS.
 await vm.runInContext("mockApi('/autoplay', {body:new URLSearchParams({enabled:'0'})})", context);
+// The real built-in demo is a fixed C64 PAL PRG, independent of upload defaults.
+vm.runInContext(`mock.motorOn=false;mock.gpioDisabled=false;mock.autoPlay=true;
+  mock.defaultMachine='c16-ntsc';mock.fastloader.enabled=false`, context);
+await vm.runInContext("document.getElementById('demo').onclick()", context);
+assert.equal(vm.runInContext('mock.sourceType',context),'prg');
+assert.equal(vm.runInContext('mock.machine',context),'c64');
+assert.equal(vm.runInContext('mock.videoStandard',context),'pal');
+assert.equal(vm.runInContext('mock.logicalSize',context),15486);
+assert.equal(vm.runInContext('mock.fastloaderActive',context),false);
+assert.equal(vm.runInContext('mock.totalCycles === prgTotalCycles(7742)',context),true);
+elements.get('fastloaderEnabled').checked=true;
+await vm.runInContext("document.getElementById('fastloaderEnabled').onchange()",context);
+assert.equal(vm.runInContext('mock.fastloaderActive',context),true);
+assert.equal(vm.runInContext('mock.logicalSize',context),7744);
+assert.equal(vm.runInContext('mock.fastloaderTotalBytes',context),7742);
+assert.equal(vm.runInContext('mock.embedded && source === null',context),true);
+vm.runInContext('mock.motorOn=true;advanceMockFast(mockBootstrapCycles/mock.clockHz+2)',context);
+assert.equal(vm.runInContext('mock.fastloaderBytes',context),7742);
+assert.equal(vm.runInContext('mock.phase',context),'done');
+vm.runInContext('mock.motorOn=false;mock.autoPlay=false',context);
+elements.get('fastloaderEnabled').checked=false;
+await vm.runInContext("document.getElementById('fastloaderEnabled').onchange()",context);
+assert.equal(vm.runInContext('mock.fastloaderActive',context),false);
+assert.equal(vm.runInContext('mock.logicalSize',context),15486);
+assert.equal(vm.runInContext('mock.sensePressed',context),false);
+assert.equal(vm.runInContext('mock.defaultMachine',context),'c16-ntsc');
 const reloaded = vm.createContext({...context});
 vm.runInContext(script, reloaded);
 assert.equal(vm.runInContext('mock.defaultMachine', reloaded), 'c16-pal');
