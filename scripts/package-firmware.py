@@ -41,7 +41,7 @@ def package(build_dir, output_dir, tag, revision):
     if output_dir.exists() and any(output_dir.iterdir()):
         raise ValueError('Output directory must be empty')
     output_dir.mkdir(parents=True, exist_ok=True)
-    stem = f'ESPsette-esp01-1m-{tag or "dev"}-{revision[:7]}'
+    stem = f'ESPsette-esp01-1m-{tag or "dev"}-{identity["version"]}'
     for source in sources:
         suffix = source.name.removeprefix('firmware')
         shutil.copyfile(source, output_dir / (stem + suffix))
@@ -56,7 +56,10 @@ def package(build_dir, output_dir, tag, revision):
     }
     (output_dir / (stem + '.json')).write_text(json.dumps(metadata, indent=2) + '\n')
     (output_dir / 'FLASHING.txt').write_text(
-        'ESPsette / ESP-01 / 1 MB flash\n\n'
+        'ESPsette / ESP-01 / 1 MB flash\n'
+        f'Firmware version: {identity["version"]}\n'
+        f'Git commit: {revision}\n'
+        'Compare this version with Firmware in Network / OTA after updating.\n\n'
         'Disconnect the Commodore interface. Use 3.3 V power and UART logic.\n'
         'While flashing: GPIO0-GND jumper, EN at 3.3 V, common GND,\n'
         'adapter TXD -> ESP RXD, adapter RXD -> ESP TXD, DTR -> RST.\n'
@@ -92,6 +95,13 @@ def main():
         if os.environ.get('GITHUB_OUTPUT'):
             with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
                 output.write(f'artifact_name={stem}\n')
+        if os.environ.get('GITHUB_STEP_SUMMARY'):
+            identity = json.loads((args.build_dir / 'firmware.version.json').read_text())
+            with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+                summary.write(f'Firmware version: `{identity["version"]}`\n\n'
+                              f'Git commit: `{revision}`\n\n'
+                              f'Package: `{stem}`\n\n'
+                              'Compare this ID with **Firmware** in **Network / OTA**.\n')
         print(f'Firmware package: {stem}')
     except (ValueError, OSError, subprocess.CalledProcessError) as error:
         parser.exit(1, f'Firmware packaging failed: {error}\n')

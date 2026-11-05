@@ -24,7 +24,7 @@ endif
 # Per-OS venv under ~/.cache/ESPsette/venv-{darwin,linux,windows} (see scripts/tools-env.sh).
 ESPTOOL = ESPTOOL_CFGFILE="$(CURDIR)/esptool.cfg" "$$(./scripts/venv-python.sh)" -m esptool --chip esp8266 --port "$(PORT)"
 
-.PHONY: help setup build flash ota flash-id chip-info embed-web preview fastloader-test native
+.PHONY: help setup build flash ota flash-id chip-info embed-web preview fastloader-test native version
 
 help:
 	@printf '%s\n' \
@@ -32,6 +32,7 @@ help:
 		'' \
 		'Targets:' \
 		'  make help                          Show this help' \
+		'  make version                       Show firmware Git identity without building' \
 		'  make setup                         Install local uv/Python/PlatformIO tools' \
 		'  make preview                       Open local UI with simulated ESP state' \
 		'  make fastloader-test               Run isolated fastloader sender tests' \
@@ -51,6 +52,9 @@ help:
 		'  make chip-info PORT=/dev/cu.usbserial-XXXX' \
 		'  make build PROFILE=1m' \
 		'  make flash PROFILE=1m PORT=/dev/cu.usbserial-XXXX'
+
+version:
+	@python3 scripts/build-version.py --show-only
 
 setup:
 	./scripts/setup-tools.sh

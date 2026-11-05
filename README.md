@@ -176,7 +176,9 @@ The **Network / OTA** section shows **Firmware:** with the running ESP's
 suffix means tracked files differed from that commit when built. After OTA,
 check that this ID changed to the expected commit; it comes from the firmware,
 not from the browser page. Reload once when upgrading from a page without this
-field.
+field. `make build`, `make flash` and `make ota` print the firmware ID even
+when reusing a cached build; uploads also print the ID of the prepared image.
+Use `make version` to check the current checkout without building.
 
 OTA is enabled in the default 1 MB firmware. Install this revision once over
 serial if the currently running image has OTA disabled. Then stop MOTOR and
@@ -239,6 +241,13 @@ The hosted demo is built from the same `web/player.html` by `scripts/build-demo.
 ## CI and releases
 
 GitHub Actions runs host tests and compiles the default 1 MB firmware on code pushes, pull requests and manual runs. Download the package from the run's **Artifacts** section; it contains the `.bin`, debug ELF, build metadata, checksums and flashing instructions.
+
+Package filenames contain the same 12-character firmware ID shown on the device
+(for example `ESPsette-esp01-1m-v2026-11-01-0123456789ab.bin.gz`).
+The Actions run summary, package JSON and `FLASHING.txt` also record the version
+and full commit. A locally packaged modified checkout includes `-dirty` in its name.
+Matching IDs identify the same commit; a differing ID means a different build,
+not necessarily a newer one.
 
 To release, publish a GitHub Release with a tag such as `v2026-11-01` pointing to the desired commit. The workflow builds that tag and automatically attaches the same files to the release. Tags must use `vYYYY-MM-DD` with a valid calendar date. Pushing a tag alone does not publish a release. The same package includes `.bin` for serial flashing and `.bin.gz` for OTA; the ELF and JSON flash-budget metadata are included for diagnosis.
 

@@ -25,6 +25,8 @@ env.Replace(LINKFLAGS=filtered)
 
 def prepare_ota(source, target, env):
     image = Path(env.subst('$BUILD_DIR/${PROGNAME}.bin'))
+    identity = json.loads(image.with_suffix('.version.json').read_text())
+    print(f'Firmware image: {identity["version"]} (commit {identity["commit"]})', flush=True)
     objdump = env.subst('$OBJCOPY').replace('objcopy', 'objdump')
     symbols = subprocess.check_output([objdump, '-t', str(image.with_suffix('.elf'))],
                                       env=env['ENV'], text=True)

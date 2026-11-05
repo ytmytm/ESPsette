@@ -1,5 +1,7 @@
 """Check upload selection and both image-generation hooks without a device."""
 import gzip
+import io
+from contextlib import redirect_stdout
 import json
 from pathlib import Path
 import runpy
@@ -38,6 +40,8 @@ class PioOtaTests(unittest.TestCase):
                 build = Path(temp)
                 raw = b'\xe9' + b'firmware data' * 30000
                 (build / 'firmware.bin').write_bytes(raw)
+                (build / 'firmware.version.json').write_text(json.dumps(
+                    dict(commit='a' * 40, version='a' * 12, dirty=False)))
                 env = BuildEnvironment(build, protocol)
                 runpy.run_path(str(ROOT / 'scripts/pio-ota.py'),
                                init_globals={'Import':lambda _:None, 'env':env})
@@ -51,7 +55,10 @@ class PioOtaTests(unittest.TestCase):
                     self.assertFalse(env.pre)
                 symbols = '402eb000 g *ABS* 00000000 _FS_start\n'
                 with patch('subprocess.check_output', return_value=symbols):
-                    env.post[0][1](None, None, env)
+                    captured = io.StringIO()
+                    with redirect_stdout(captured):
+                        env.post[0][1](None, None, env)
+                    self.assertIn("Firmware image: " + "a" * 12, captured.getvalue())
                     self.assertEqual(gzip.decompress((build / 'firmware.bin.gz').read_bytes()), raw)
                     budget = json.loads((build / 'firmware.ota.json').read_text())
                     self.assertEqual(budget['filesystem_start'], 0xEB000)
