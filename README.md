@@ -12,18 +12,23 @@ Files stay in the browser and pass through an 8 KB buffer on the ESP. No SD card
 
 ## Tested and pending
 
-Hardware tests on **1 and 4 November 2026**:
+Hardware results confirmed on **C64 PAL, 1–5 November 2026**:
 
 | Feature | Status |
 | --- | --- |
-| Embedded Circles PRG, C64 PAL | Standard / fast mode under investigation on hardware |
-| C64 loading a TAP streamed from the browser | Passed on real hardware |
-| PRG → standard tape pulses, C64 and C16/Plus/4 PAL/NTSC | Host tests pass; hardware test pending |
-| C16/Plus/4 playback; all supported TAP v1/v2 variants | Full hardware coverage pending |
-| IDX seeking and counter-based REW/FF | Host tests pass; hardware test pending |
-| WRITE command requests | Real ROM SAVE traces pass VICE/host tests on C64, C16 and Plus/4 PAL/NTSC; hardware retest pending; no command handlers yet |
-| PRG + fastloader | Passed on real C64 PAL hardware (4 November); C16/Plus/4 and NTSC hardware tests pending |
-| OTA updates | Disabled in the default firmware; use serial flashing |
+| C64 PAL: TAP streamed from the browser | Passed on real hardware |
+| C64 PAL: PRG → standard tape pulses | Passed on real hardware |
+| C64 PAL: PRG + fastloader | Passed on real hardware |
+| Embedded Circles PRG, C64 PAL | Standard and fast modes passed on real hardware |
+| C64 PAL: WRITE header and command requests | Passed on real hardware with an empty deck; eject TAP/PRG first |
+| C16/Plus/4 and NTSC: PRG loading and WRITE reception | Host/VICE tests pass; hardware tests pending |
+| C16/Plus/4 TAP playback; all supported TAP v1/v2 variants | Full hardware coverage pending |
+| IDX seeking and counter-based REW/FF | Host tests pass; hardware tests pending |
+| OTA updates | Disabled; use USB-UART flashing |
+
+The validated configuration uses GPIO edge interrupts for WRITE. The OTA and
+Timer1/NMI experiments were withdrawn after standard playback failures on
+hardware; they are retained on `archive/post-first-ota`, not enabled on `main`.
 
 ## Hardware
 
@@ -48,13 +53,18 @@ make native                   # Assemble C64 and C16/Plus4 loaders with ACME
 make build PROFILE=1m         # Assemble loaders and build for a 1 MB ESP-01
 ```
 
-`make setup` installs `uv` under `tools/bin/` and a **per-OS Python venv** at `~/.cache/ESPsette/venv-darwin` (macOS), `venv-linux`, or `venv-windows`, plus PlatformIO caches under `~/.cache/ESPsette/`. That keeps Mac/WSL/Windows from overwriting each other’s `tools/venv` on a shared disk. No global PlatformIO install is required. The default build enables real cassette GPIOs and includes the Circles PRG demo. Build settings are in [platformio.ini](platformio.ini).
+`make setup` installs project tools under `tools/bin/` and
+`~/.cache/ESPsette/`, with separate Python environments for each OS. No global
+PlatformIO install is required. The default build includes cassette GPIO
+support and the Circles PRG demo. OTA is disabled. See [platformio.ini](platformio.ini).
 
 | Profile | Use |
 | --- | --- |
-| `1m` (default) | 1 MB flash, 64 KB LittleFS |
-| `4m` | ESP-01 with 4 MB flash |
-| `512k` | 512 KB flash; current firmware may not fit |
+| `1m` (default) | 1 MB flash, 64 KB LittleFS; OTA disabled |
+| `4m` | 4 MB flash; OTA disabled |
+| `512k` | Current firmware exceeds 512 KB; use a larger module |
+
+Release packages target 1 MB modules.
 
 ## Embedded demo
 
@@ -65,36 +75,29 @@ fastloader for PRG** off, use normal `LOAD`, then `RUN`. With it on, `LOAD`
 autostarts the bootstrap, fastloads the PRG and runs it. Changing the switch
 while the embedded demo is stopped reinserts it in the selected mode.
 
-The original [7744-byte PRG](assets/demo/circles.prg) is stored once in flash.
-Standard loading reads its data twice through a logical view; no TAP or
-second PRG copy is stored. This replaces the 251742-byte draxcaught TAP.
-[Demo credits and provenance](assets/demo/README.md) identify the original
-release and checksum. `scripts/embed-demo.py` generates its flash header
-automatically, including when building directly with PlatformIO.
+The [7744-byte PRG](assets/demo/circles.prg) is stored once in flash; standard
+loading generates both tape copies without storing a TAP.
+[Credits and checksum](assets/demo/README.md) identify the source.
+`scripts/embed-demo.py` generates its flash header during the build.
 
 ## PRG fastloader
 
-Open **Playback settings**, toggle **Use fastloader for PRG**. Its
-position is saved immediately in LittleFS; no Save button is needed. If a PRG
-is already inserted and stopped, the browser reloads that same file from the
-start using the selected mode. Active transfers must be stopped first. The default is off. With it off, PRGs use the standard ROM
-protocol. TAP playback keeps its recorded timing. With it on, normal `LOAD`
-autostarts a small header bootstrap, then direct GPIO drives READ together
-with WRITE/SENSE to transfer the receiver and program. I2S is stopped before
-the fast stage. The current firmware accepts fast PRGs in `$0801..$7FFF`
-on C64 and `$1001..$3FFF` on C16/Plus4, and selects BASIC RUN by default.
-The session API can supply a decimal `entry` address for machine code.
+Enable **Use fastloader for PRG** in **Playback settings** (off by default).
+The switch saves immediately and reinserts a stopped PRG in the selected mode.
+Stop active transfers before changing it. TAP files keep their recorded timing.
 
-Expand **Advanced fastloader timings** in the same panel to edit setup, data
-hold, gaps between pairs/bytes, bootstrap
-hold/gap, and MOTOR settling times in microseconds. C64 and C16 have separate
-hold and byte-gap values. **Save fastloader settings** saves only these numeric
-timings, preserving the already-saved switch position. Both update paths store
-the configuration atomically in `/fastloader.json` in LittleFS and survive
-resets. Timing changes apply to the next PRG session. **Default timings** restores the fields
-without changing the enabled switch; save to apply. Settings cannot be changed
-during an active transfer. A missing or invalid file uses the tested defaults.
-If hardware fails to load, increase the relevant delays or switch fastloader off.
+Normal `LOAD` starts a small bootstrap through the ROM tape protocol. The
+bootstrap then receives the fast receiver and PRG over READ, WRITE and SENSE,
+driven directly by GPIO with I2S stopped. Supported PRG ranges are
+`$0801..$7FFF` on C64 and `$1001..$3FFF` on C16/Plus/4. Programs start with BASIC
+RUN unless the session API supplies a decimal machine-code `entry` address.
+
+**Advanced fastloader timings** contains the numeric delays in microseconds,
+including separate C64/TED hold and byte-gap values. **Save fastloader settings**
+applies them to the next PRG session; **Default timings** fills in the defaults
+for saving. The switch and timings persist in LittleFS (`/fastloader.json`).
+Missing or invalid settings use the defaults. If loading fails on hardware,
+increase the delays or disable fastloading.
 
 Native sources live in [`native/fastloader/`](native/fastloader/).
 `make native` generates the ignored `include/fastloader_native.h`; PlatformIO's
@@ -106,40 +109,36 @@ settings, wire-order and cycle-budget tests, then builds the ESP image.
 the three stages and the limits of simulation. C64 PAL fastloading has been
 confirmed on real hardware; other models/video standards await verification.
 
-During fastloading the deck shows payload bytes sent/remaining, percentage,
-measured average kB/s and an estimated remaining transfer time. Counts come
-from completed ESP payload blocks, not browser upload progress or a fixed
-9 kB/s assumption. Pauses for source data or the receiver hold the progress
-and reel animation while screen sleep protection remains active. Completed
-PRGs remain at 100% until rewound or ejected.
+During fastloading, the deck shows payload bytes sent/remaining, percentage,
+measured kB/s and estimated time remaining. Progress follows completed ESP
+payload blocks. Buffer and receiver waits pause the reels and progress while
+keeping screen sleep protection active.
 
-The VFD and mechanical counter show **virtual tape time**: the standard ROM
-signal duration of the transmitted bytes, including both ordinary copies.
-They advance rapidly as fast data arrives. Reels switch to a clearly faster animation during the fast receiver and payload stages
-(0.28 s per turn instead of 1.6 s).
-The existing reduced-motion preference still applies. The payload meter and
-ETA show actual transfer progress; virtual tape minutes are not wall-clock
-minutes. Preview simulates fast speed from the saved timing settings.
+The counter advances by the equivalent standard tape duration, so it runs much
+faster than real time. Reels also spin faster during the fast stages, unless
+reduced motion is enabled. Completed PRGs stay at 100% until rewound or ejected.
 
 ## WRITE command requests
 
-The computer can send an `ESP:` request name through a standard WRITE header,
-for example `SAVE "ESP:TEST",1`. The ESP verifies both copies and publishes the
-request in **Playback details** and `/state`. Ordinary names such as
-`SAVE "NAZWA",1` also appear there as the last verified header, without becoming
-commands. The ESP ignores all following program
-data and creates no file. This restores the command transport, not recording.
-Command handlers are not implemented yet, so verified requests are shown as
-received without execution. GPIO2 is reserved for fastloading throughout a
-selected fast PRG session; finish or eject it before sending WRITE requests.
-The WRITE ISR checks MOTOR high on each edge and rejects capture throughout
-a selected fastloader session; its interrupt is detached during that session.
-See [WRITE command protocol](docs/WRITE-COMMANDS.md) for the procedure, validation,
-state fields and GPIO ownership.
+The ESP can receive request names through standard SAVE headers.
+`SAVE "ESP:TEST",1` publishes `TEST` in **Playback details** and `/state`.
+Only the transport is implemented: there are no command handlers or planned
+uses yet, and receiving a request triggers no action.
+
+**Eject the TAP/PRG before sending a request.** The deck must remain empty,
+including after a paused or completed load; STOP alone is not enough. Then
+press PLAY in the browser to supply SENSE and enter SAVE on the computer.
+The receiver checks MOTOR on each edge and detaches its interrupt while a
+source is inserted or the fastloader owns GPIO2.
+
+Ordinary names such as `SAVE "NAZWA",1` are displayed without publishing a
+command. Program bytes are discarded; the ESP records no file.
+See the [WRITE protocol](docs/WRITE-COMMANDS.md) for framing, validation and GPIO
+ownership.
 
 ## Flash over USB-UART
 
-Download the `.bin` from [Releases](https://github.com/ytmytm/ESPsette/releases), or build it locally. Each release includes `FLASHING.txt` with the command for flashing the binary at `0x0`, plus SHA-256 checksums. The released image targets a **1 MB ESP-01** and includes the demo; no separate filesystem image is needed.
+Download the `.bin` from [Releases](https://github.com/ytmytm/ESPsette/releases), or build it locally. Each release includes `FLASHING.txt` with the command for flashing the binary at `0x0`, plus SHA-256 checksums. The released image targets a **1 MB ESP-01** and includes Circles; no separate filesystem image is needed.
 
 Disconnect the ESP-01 from the Commodore interface. Use **3.3 V power and 3.3 V UART logic**, with a supply able to handle Wi-Fi current peaks. On a USB-C Mac, use a suitable adapter for your USB-UART programmer.
 
@@ -170,15 +169,19 @@ make flash PROFILE=1m PORT=/dev/cu.usbserial-XXXX
 
 **After flashing:** remove the GPIO0–GND jumper, disconnect DTR–RST and reset the module. GPIO0 must be HIGH at reset to run the firmware. See [wiring notes and ESP-01 connections](kicad/WIRING.md) before reconnecting the Commodore interface.
 
-OTA remains disabled on this investigation branch while standard READ playback is being tested. The existing `make ota` target requires firmware built with OTA enabled and enough free flash; it is not ready for the default setup.
+## Updates
+
+**OTA is disabled in all profiles** (`ESPSETTE_OTA=0`). Update through USB-UART
+with `make flash`. The `make ota` target remains for development; the current
+firmware does not accept network updates.
 
 ## Load a tape
 
 1. Connect MOTOR → GPIO0, SENSE ← GPIO1 and READ ← GPIO3 through the interface described in [kicad/WIRING.md](kicad/WIRING.md). C16/Plus/4 needs a 1531 connector or adapter.
 2. On first boot, join `ESPsette-XXXXXX` and configure Wi-Fi in the captive portal. The device falls back to its AP if the saved network fails. No Wi-Fi credentials are built in.
 3. Open `http://DEVICE_IP/` (find the IP in your router). The default hostname is `ESPsette`; `.local` resolution is not guaranteed.
-4. Use **Demo** or **TAP / TAP+IDX / PRG** directly below the deck (drag and drop onto the deck or picker also works). TAP and PRG files are inserted immediately. PRG uses the default C64 PAL, C64 NTSC, C16 PAL or C16 NTSC profile from **Playback settings** and the filename as its tape name; the ESP generates the tape header and data pulses. Computer settings persist on the ESP in LittleFS. When multiple files are selected, the first TAP/PRG and (for TAP) the first IDX are used, regardless of order or extension case. Add an Ultimate-style `.idx` together with a TAP or later through the same picker or drop area. With IDX, choose a named position in the deck and press **JUMP**, or use **PREV/NEXT**. The list and handwritten cassette title follow the position being played. Elapsed and total time refer to the whole TAP, including after a jump.
-5. **Autoplay** on the deck presses virtual PLAY when a tape is inserted; otherwise press PLAY on the page. Type `LOAD` on the Commodore. Playback starts when MOTOR turns on and pauses whenever MOTOR stops, including after the header.
+4. Choose **Demo** or insert a TAP/PRG using the file picker or drag and drop. PRGs use the saved computer profile and filename as the tape name. For TAP navigation, add an Ultimate-style `.idx` file, select a position and press **JUMP**, or use **PREV/NEXT**. The counter still shows time within the whole tape.
+5. Press PLAY in the browser and type `LOAD` on the Commodore. **Autoplay** presses PLAY automatically when a file is inserted. MOTOR starts and pauses playback, including the pause after the header.
 
 The four profiles use the tape clocks from [VICE `vice/src/tape/tap.c`](https://github.com/VICE-Team/svn-mirror/blob/main/vice/src/tape/tap.c):
 
@@ -189,25 +192,48 @@ The four profiles use the tape clocks from [VICE `vice/src/tape/tap.c`](https://
 | C16 PAL | 886724 Hz |
 | C16 NTSC | 894886 Hz |
 
-C16 cassette timers use the slow clock (half the CPU clock). TAP v1/v2 selects PAL/NTSC from header byte 14; the PRG default does not override TAP metadata. Old saved `c64`/`c16` settings are interpreted as PAL. Repeating the active profile does not write flash, including when using a legacy PAL alias. NTSC has host-side coverage; real NTSC hardware still needs testing.
+C16 cassette timers use half the CPU clock. TAP v1/v2 selects PAL/NTSC from
+header byte 14; the PRG profile does not override TAP metadata. Saved `c64` and
+`c16` settings from older firmware mean PAL.
 
-Keep the browser tab visible while streaming. During actual playback (PLAY pressed, MOTOR on, no playback error), the page requests screen sleep protection and releases it on pause, stop, completion or connection failure. Fastloader PRG keeps protection through bootstrap MOTOR pauses and the entire GPIO transfer, including buffer waits, regardless of MOTOR/SENSE levels or the ordinary playback flag; STOP, completion, errors and connection failure release it. **Playback details** shows whether protection is active or blocked. HTTPS/localhost uses the browser [Screen Wake Lock API](https://developer.mozilla.org/en-US/docs/Web/API/Screen_Wake_Lock_API); ordinary ESP HTTP uses a browser-dependent silent-video fallback with bundled [NoSleep.js media](web/assets/wake/README.md). A tap may be needed to unlock it; use **Keep screen awake** if offered. STOP is a momentary key: it springs back visually when released, leaving PLAY released and the deck stopped. The page retries when returning to the foreground. Screen wake protection cannot guarantee background execution, override manual locking/lid closure, or bypass OS power-saving restrictions. PLAY/STOP control SENSE; the Commodore controls MOTOR. REW/FF seek while MOTOR is stopped. The animated cassette and counter show playback progress. Settings live in LittleFS; tape files stay in the browser. The page is intended for a trusted LAN and has no login.
+Keep the browser tab visible while streaming. The page requests screen sleep protection
+during playback, including fastloader MOTOR pauses and buffer waits. STOP,
+completion, errors and disconnection release that protection. Its status is
+shown in **Playback details**; use **Keep screen awake** if the browser requires
+a tap. HTTPS/localhost uses the
+[Wake Lock API](https://developer.mozilla.org/en-US/docs/Web/API/Screen_Wake_Lock_API);
+ESP HTTP uses a [silent-video fallback](web/assets/wake/README.md). Neither
+prevents manual locking, lid closure or OS suspension.
+
+PLAY and STOP control SENSE; the Commodore controls MOTOR. STOP springs back
+when released, leaving the deck stopped. REW/FF work with MOTOR stopped.
+Settings live in LittleFS; tape files stay in the browser. The page has no login
+and is intended for a trusted LAN.
 
 ## Debug and local UI preview
 
-Expand **Playback details → Debug / ESP state** on the page, or connect to colored RemoteDebug logs:
+Expand **Playback details → Debug / ESP state** on the page to inspect reset
+reason, stack/heap headroom, transfer state and error counters.
 
-```sh
-nc DEVICE_IP 23
-```
-
+Optional Telnet diagnostics are available with `nc DEVICE_IP 23`.
 Normal firmware has no UART log: GPIO1 and GPIO3 are used for SENSE and READ.
 
-Open [web/player.html](web/player.html) directly in a browser or run `make preview` to try the UI with simulated ESP state. Caveat is bundled as WOFF2 assets and embedded in the firmware, so it works offline without installed fonts or external requests. Font sources and OFL licenses are in [web/assets/fonts](web/assets/fonts). **Fastload PRG demo** runs a built-in sample with a shortened bootstrap, byte progress, accelerated counter/reels and configured timing. **Pause receiver** demonstrates a stalled transfer while keeping screen protection active. **Simulate SAVE "NAZWA"** and **Simulate ESP:TEST** show received header/request metadata; they wait until the fastload has finished or is ejected. These controls are available only in preview/demo mode and do not contact hardware. Preview saves the default computer, autoplay and fastloader settings in browser local storage; real firmware saves these settings on the ESP. See [tests/README.md](tests/README.md) for host tests and `make help` for build targets.
+Run `make preview` or open [web/player.html](web/player.html) to use simulated
+ESP state. Fonts and graphics are bundled for offline use.
 
-For manual UI testing, use [ui-test.tap](tests/fixtures/ui-test.tap) with [ui-test.idx](tests/fixtures/ui-test.idx): a two-minute synthetic tape with six navigation markers. See [fixture instructions](tests/fixtures/README.md).
+Preview controls include **Fastload PRG demo**, **Pause receiver**,
+**Simulate SAVE "NAZWA"** and **Simulate ESP:TEST**. They exercise progress,
+reels, sleep protection and received WRITE metadata without contacting hardware.
+WRITE simulation requires an empty deck, matching the firmware. Preview settings use browser local storage.
 
-The hosted demo is built from the same `web/player.html` by `scripts/build-demo.py`. It always uses simulated ESP state and includes downloadable TAP/IDX samples. GitHub Pages is updated automatically by `.github/workflows/demo.yml` after changes to the UI on `main`.
+For seeking tests, use the two-minute [ui-test.tap](tests/fixtures/ui-test.tap)
+and its [IDX](tests/fixtures/ui-test.idx) with six navigation markers.
+See [tests/README.md](tests/README.md) for host tests and `make help` for targets.
+
+The [hosted demo](https://ytmytm.github.io/ESPsette/) uses the same page with
+simulated state and downloadable samples. **Demo** loads Circles as C64 PAL
+in the selected standard/fast mode. GitHub Pages updates after UI changes on
+`main` through `.github/workflows/demo.yml`.
 
 ## CI and releases
 
@@ -230,7 +256,9 @@ No license has been selected yet.
 - [ ] Choose the release commit and confirm its GitHub Actions tests and firmware build pass.
 - [ ] Download its artifact, verify `SHA256SUMS.txt` and flash the packaged 1 MB `.bin` using `FLASHING.txt`.
 - [ ] Check cold boot/reset with MOTOR stopped, Wi-Fi setup/fallback, and the player page on desktop and phone.
-- [ ] On a real C64, load both the embedded demo and a browser-streamed TAP; check the MOTOR pause after the header, resume and completion.
+- [ ] On C64 PAL, load a browser TAP and PRGs in standard and fast modes, including Circles; check MOTOR pauses and completion.
+- [ ] Eject the source, press PLAY and verify SAVE header/ESP: request reception. Check that inserting a TAP/PRG blocks WRITE capture.
+- [ ] Confirm OTA remains disabled.
 - [ ] Test any newly advertised feature on hardware; update the tested/pending table and release notes with the actual results and limitations.
 - [ ] Confirm the wiring and flashing instructions match the tested setup.
 - [ ] Publish a GitHub Release for that commit with a valid `vYYYY-MM-DD` tag and concise release notes.

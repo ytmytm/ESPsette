@@ -28,7 +28,7 @@ c++ -std=c++17 -Itests/support -Isrc tests/embedded_demo_test.cpp src/prg_encode
 
 `playback_awake.mjs` checks native and HTTP-compatible screen protection, including visibility changes, delayed grants, denial, retry throttling, media priming, and cleanup. `computer_profile_test.cpp` checks all four VICE tape clocks, profile parsing and legacy PAL aliases. `prg_vectors_test.cpp` compares every generated C64 and C16 pulse for both PAL and NTSC with an independent block sequence. The C16 cases also check pulse durations against the Pi1551 vectors. Autostart cases check absolute $0302 loading, header code placement and checksums for both machines/video standards, including the 171-byte limit. `tape_source_ring_test.cpp` checks that consumed bytes are released from the 8 KB streaming ring. `player_index.mjs` covers TAP v1/v2 headers and record boundaries, IDX offsets, counter-based seeking, autoplay, machine defaults, controls, recovery after a lost HTTP response, immediate TAP/PRG insertion, file ordering and extension case, saved PAL/NTSC PRG defaults and TAP header overrides, preview setting persistence, Demo with soft MOTOR, the segment buffer meter, mechanical counter transitions and unified VFD computer/time/PAL indicators, attaching IDX without restarting playback, PREV/NEXT boundaries, named Jump selection, automatic IDX title/selection tracking during playback, and absolute elapsed/total time after a jump.
 
-These are host-side tests. They do not measure I2S timing, electrical polarity, DMA delays or decoding by a physical computer. The real C64 has been tested with the embedded TAP and browser TAP. C64 PAL fastloading was also confirmed on hardware on 2026-11-04; the other paths still need hardware checks.
+These are host-side tests. They do not measure I2S timing, electrical polarity, DMA delays or decoding by a physical computer. Real C64 PAL hardware tests pass for browser TAP, standard PRG, fast PRG, Circles in both modes, and WRITE requests with an empty deck. Other models and NTSC still need hardware checks.
 
 The [PRG fastloader tests](../experiments/fastloader/README.md) retain a portable
 C sender model (`make fastloader-test`), actual-code cycle analyzer and optional
@@ -64,7 +64,7 @@ payload duration with the independently generated standard pulse stream.
 
 Preview control tests run the built-in fastload sample through its shortened
 bootstrap, bounded buffer refill, receiver pause/resume and completion. They
-check WRITE isolation during fastload and header/request examples afterward,
+check WRITE isolation while any source is inserted and header/request examples after ejection,
 without changing saved settings. STOP tests check that the button springs back
 while the released PLAY state persists.
 
@@ -76,4 +76,6 @@ The embedded demo is now the Circles C64 PAL PRG. `embedded_demo_test.cpp`
 checks both logical layouts and compares every standard pulse with a duplicated
 reference. UI tests cover standard/fast selection and reinsertion after changing
 the fastloader switch. See [VICE demo tests](../experiments/demo/README.md).
-OTA remains disabled on this investigation branch.
+OTA remains disabled in the validated configuration. WRITE capture requires an
+empty deck, including after paused or completed playback; the UI and firmware
+block reception until EJECT. No Timer1/NMI receiver is enabled.

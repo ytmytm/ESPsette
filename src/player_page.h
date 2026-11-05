@@ -488,6 +488,9 @@ function motorBlocksEdit(s) {
 // REW/FF stay available; only tape insert/eject need MOTOR off on real GPIO.
 return !!s?.motorOn && !s?.gpioDisabled;
 }
+function deckHasSource(s) {
+return s.tapeState !== 'ejected' || Number(s.sessionId) > 0 || !!s.embedded;
+}
 // The built-in PRG is always C64 PAL, independently of uploaded-file defaults.
 function loadMockDemo() {
 mockDemo = true; mockType = 'prg'; mock.sourceType = 'prg'; mock.embedded = true;
@@ -507,6 +510,7 @@ mock.totalCycles = mock.fastloaderActive ? mockBootstrapCycles + prgDataCycles(c
 prgTotalCycles(circlesPayloadBytes, 'c64');
 mock.playedCycles = 0; mock.phase = 'idle'; mock.error = null; mock.scope = '';
 mock.sensePressed = mock.autoPlay;
+mock.writeStatus = 'requires_empty_deck'; mock.writeListening = false;
 }
 function advanceMockFast(seconds) {
 if (mock.phase === 'done' || mock.phase === 'error') { mock.playing = false; return; }
@@ -579,7 +583,12 @@ mock.freeBytes = 8192 - mockBytes;
 }
 async function mockApi(path, options = {}) {
 updateMock();
-if (path === '/state') return {...mock};
+if (path === '/state') {
+if (deckHasSource(mock)) {
+mock.writeStatus = 'requires_empty_deck'; mock.writeListening = false;
+} else if (mock.writeStatus === 'requires_empty_deck') mock.writeStatus = 'listening';
+return {...mock};
+}
 if (path === '/sense') {
 const pressed = options.body?.get('pressed');
 if (pressed !== '0' && pressed !== '1') throw new Error('Invalid PLAY state');
@@ -634,6 +643,7 @@ mock.fastloaderActive = mockType === 'prg' && args.get('turbo') === '1' &&
 (mock.fastloader.enabled || preview && args.get('previewFastload') === '1');
 mockSize = mockType === 'prg' && !mock.fastloaderActive ? 2 + 2 * (fileSize - 2) : fileSize;
 mock.logicalSize = mockSize; mock.embedded = false;
+mock.writeStatus = 'requires_empty_deck'; mock.writeListening = false;
 mockBytes = 0; mockDemo = false;
 mock.sessionId++; mock.fileOffsetReceived = mockType === 'prg' ? 2 : 20;
 mock.sourceType = mockType;
@@ -686,6 +696,7 @@ if (motorBlocksEdit(mock)) throw new Error('Stop MOTOR');
 mock.tapeState = 'ejected'; mockBytes = 0; mock.phase = 'idle';
 mock.totalCycles = 0; mock.playedCycles = 0; mock.logicalSize = 0;
 mock.sessionId = 0; mock.fileOffsetReceived = 0; mock.sensePressed = false; source = null;
+mock.embedded = false; mock.writeStatus = 'listening'; mock.writeListening = false;
 mock.fastloaderActive = false; mock.fastloaderTotalBytes = mock.fastloaderBytes = 0;
 previewReceiverPaused = false;
 return {tapeState:'ejected'};
@@ -856,7 +867,7 @@ for (const [name] of fastloaderFields) $('fast_' + name).disabled = editBlocked;
 $('fastloaderSave').disabled = editBlocked || fastloaderEnabledSaving;
 $('fastloaderDefaults').disabled = editBlocked || fastloaderEnabledSaving;
 if (preview) {
-const writePaused = s.sourceType === 'prg' && s.fastloaderActive && s.phase !== 'done';
+const writePaused = deckHasSource(s);
 $('previewSaveName').disabled = $('previewWriteCommand').disabled = writePaused;
 $('previewPauseReceiver').disabled = !s.fastloaderActive || s.phase !== 'fastload';
 $('previewPauseReceiver').textContent = previewReceiverPaused ? 'Resume receiver' : 'Pause receiver';
@@ -974,6 +985,7 @@ $('diagnostics').textContent = s.freeHeap == null ? '' :
 const writeLabels = {idle:'Ready', listening:s.writeListening ? 'Listening' : 'Waiting for MOTOR',
 receiving_header:'Receiving request', command_received_no_action:'Request received (not executed)',
 header_ignored:'Non-command header ignored', suspended_fastloader:'Paused for fastloader',
+requires_empty_deck:'Eject tape to receive WRITE', suspended_ota:'Paused for OTA',
 incomplete:'Incomplete request', checksum_error:'Checksum error', parity_error:'Parity error',
 copy_mismatch:'Header copies differ', pulse_error:'Pulse error', sync_error:'Sync error',
 invalid_header:'Invalid header', missing_terminator:'Missing terminator',
@@ -1601,8 +1613,10 @@ $('deck').scrollIntoView({behavior:'smooth', block:'start'});
 }
 function receiveWritePreview(name) {
 if (!preview) return;
-if (mock.sourceType === 'prg' && mock.fastloaderActive && mock.phase !== 'done') {
-$('previewMessage').textContent = 'WRITE reception is paused until the fastload finishes or is ejected.';
+if (deckHasSource(mock)) {
+mock.writeStatus = 'requires_empty_deck'; mock.writeListening = false;
+render({...mock});
+$('previewMessage').textContent = 'Eject the tape or PRG before receiving WRITE.';
 return;
 }
 mock.writeEnabled = true;

@@ -26,7 +26,9 @@ class TapeSource {
   uint8_t prefixSize() const { return prefixSize_; }
   uint16_t freeBytes() const;
   uint16_t bufferedBytes() const;
-  Kind kind() const { return kind_; }
+  // Also read directly by the WRITE ISR's ownership guard. Force a volatile
+  // inline load so it never calls flash code or caches an earlier deck state.
+  Kind __attribute__((always_inline)) kind() const volatile { return kind_; }
 
  private:
   Kind kind_ = Kind::EMPTY;

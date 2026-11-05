@@ -115,10 +115,11 @@ volatile uint8_t writeInterruptMode = CHANGE;
 volatile uint32_t writeMotorOffUs = 0;
 volatile bool writeMotorStopped = false;
 
-// Reserve GPIO2 for the entire fastloader session, including its WRITE-output
-// signature. Commands resume after completion, cancellation or ejection.
+// WRITE capture requires an empty deck, including after paused or completed
+// playback. READ/DMA and command reception must not compete.
 static bool IRAM_ATTR writeCommandsAllowed() {
-  return fastPhase == FastPhase::OFF || fastPhase == FastPhase::DONE;
+  return tapeSource.kind() == TapeSource::Kind::EMPTY &&
+         (fastPhase == FastPhase::OFF || fastPhase == FastPhase::DONE);
 }
 
 static void IRAM_ATTR setWriteInterruptMode(uint8_t mode) {
@@ -1494,7 +1495,8 @@ void handleState() {
   doc["error"] = playerError;
   doc["writeEnabled"] = !bool(ESPSETTE_GPIO_DISABLED);
   doc["writeListening"] = bool(writeActive) && writeCommandsAllowed();
-  doc["writeStatus"] = writeCommandsAllowed() ? writeSnapshot.status() : "suspended_fastloader";
+  doc["writeStatus"] = tapeSource.kind() != TapeSource::Kind::EMPTY ? "requires_empty_deck" :
+      writeCommandsAllowed() ? writeSnapshot.status() : "suspended_fastloader";
   doc["writeCommand"] = writeSnapshot.command();
   doc["writeCommandId"] = writeSnapshot.commandCount();
   doc["writeName"] = writeSnapshot.name();

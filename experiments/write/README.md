@@ -64,7 +64,9 @@ errors. `ESP:TEST` published exactly one request, without executing a handler.
   metadata. An aborted or damaged payload can be cleared by a second of
   MOTOR off before the next SAVE.
 
-Physical WRITE still requires a hardware retest. The emulator exercises ROM
+Physical WRITE passed on C64 PAL on 2026-11-05 with an empty deck. Eject any
+TAP/PRG before SAVE; ordinary READ and command reception must not run together.
+C16/Plus/4 and NTSC hardware tests remain pending. The emulator exercises ROM
 waveforms and protocol state; it cannot validate ESP ISR latency, interrupt
 loss, Wi-Fi contention or electrical behavior. ±10 us timestamp jitter tests
 are an explicit simulated bound, not a hardware measurement.
@@ -76,8 +78,10 @@ pressure. The next revision removes the 1 KB pulse queue, decodes directly in
 IRAM, selects one interrupt edge after the pilot, and processes MOTOR in its
 ISR. The state response uses a temporary bounded heap arena instead of a
 2 KB stack arena, and the browser displays reset/exception and stack
-diagnostics. These changes still require a new physical-board test; the reset
-cause has not yet been observed, so a stack overflow is a hypothesis.
+diagnostics. This path is now validated on C64 PAL with an empty deck. The
+original reset cause was not captured, so stack overflow remains a hypothesis.
+The later Timer1/NMI receiver and OTA experiments were withdrawn following
+standard playback failures; their code is retained on `archive/post-first-ota`.
 
 ## Retained fixtures
 

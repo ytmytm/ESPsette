@@ -28,3 +28,6 @@ equivalence, original PRG bytes and credits,
 standard/fast demo selection independent of uploaded-file defaults, autoplay,
 and repeated insertion after changing the saved fastloader switch.
 
+
+Both standard and fast Circles loading were confirmed on real C64 PAL hardware
+on 2026-11-05. OTA remains disabled in the validated firmware.

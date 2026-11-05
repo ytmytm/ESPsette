@@ -8,7 +8,7 @@ physical commands.
 
 This restores the previous header receiver as a command transport. It does
 not record or store programs. **Requests are published, but command handlers
-are not implemented yet.** No deck, network or filesystem action follows a
+are not implemented and no uses have been selected yet.** No deck, network or filesystem action follows a
 received request. `ESP:TEST` is a useful example for checking reception, not
 an executable operation.
 
@@ -17,15 +17,15 @@ an executable operation.
 - `SAVE "NAZWA",1`: display the last verified filename; no command is published.
 - `SAVE "ESP:TEST",1`: publish request `TEST`; no handler executes it yet.
 - The ESP stores neither program. Press PLAY to supply SENSE for a real SAVE.
-- Reception requires MOTOR high on every captured edge and no selected fastloader session.
+- Reception requires an empty deck, MOTOR high on every captured edge, and no active fastloader ownership.
 
 The browser demo has **Simulate SAVE "NAZWA"** and **Simulate ESP:TEST** buttons.
-They reproduce the UI metadata and fastloader ownership rules without hardware.
+They reproduce the UI metadata and empty-deck requirement without hardware.
 
 ## Sending a request
 
-1. Eject the current tape/PRG in the browser, then press PLAY. No source file
-   needs to be inserted. PLAY supplies SENSE; the computer controls MOTOR.
+1. Eject the current tape/PRG in the browser, then press PLAY. The deck must
+   stay empty, including after a completed fastload. PLAY supplies SENSE; the computer controls MOTOR.
 2. On C64 or C16/Plus/4, enter:
 
    ```basic
@@ -69,8 +69,16 @@ checks the physical MOTOR level on every edge, not only when a session starts:
 if (!writeActive || !writeCommandsAllowed() || !(GPI & (1u << PIN_MOTOR))) return;
 ```
 
-`writeCommandsAllowed()` accepts only fastloader phases OFF or DONE. The
-interrupt is detached in all other phases, including the standard bootstrap.
+`writeCommandsAllowed()` requires `TapeSource::Kind::EMPTY`, fastloader phase
+OFF or DONE. It reads the source kind directly through a
+volatile inline load in IRAM. The interrupt is detached whenever any TAP, PRG
+or embedded demo is present, even while stopped, buffering, paused, failed or
+finished. Checking only `tapeLoaded` would miss an inserted, partly buffered
+stream. Insertion blocks ISR decoding immediately; the loop then detaches the
+interrupt and clears the partial frame. Ejection re-arms capture and samples
+the current MOTOR level.
+OTA is disabled in the validated firmware; no network update can run during
+command reception.
 
 A request is published only after checking:
 
@@ -105,15 +113,20 @@ its ID across subsequent bad/non-command headers. IDs reset when ESP restarts.
 Command reception is suspended for the **entire selected fastloader session**:
 from inserting a fast PRG, through standard LOAD, mode signature and both fast
 stages, until completion, cancellation or ejection releases that session.
-Before using WRITE commands again, finish the transfer or eject the fast PRG.
+Before using WRITE commands again, eject the fast PRG; completion alone keeps
+the file inserted and WRITE disabled.
 
 The WRITE interrupt is detached while fastloading to avoid interrupts from
 ESP-generated data. Both ISRs also check ownership before decoding, so output
 data cannot enter the command decoder during a mode transition. Suspending
 disables capture and resets the partial decoder frame. The decoder itself
 rejects input while suspended. After completion or cancellation, GPIO2 returns
-to input and reception can restart on MOTOR. The fastloader's `$CA65` mode
+to input; reception can restart on MOTOR once the deck is empty. The fastloader's `$CA65` mode
 signature remains a separate protocol, not a standard WRITE command header.
+
+The page displays **Eject tape to receive WRITE** for every inserted source.
+Blocked READ playback cannot increment WRITE errors or publish new headers;
+previously verified filename/request history is retained.
 
 ## State API
 
@@ -122,8 +135,8 @@ signature remains a separate protocol, not a standard WRITE command header.
 | Field | Meaning |
 | --- | --- |
 | `writeEnabled` | Physical WRITE capture is available in this build |
-| `writeListening` | Capture is currently armed with MOTOR on and GPIO2 available |
-| `writeStatus` | Decoder status, including `suspended_fastloader`, `command_received_no_action`, `header_ignored`, or an error |
+| `writeListening` | Capture is armed with an empty deck, MOTOR on and GPIO2 available |
+| `writeStatus` | Decoder status, including `requires_empty_deck`, `suspended_fastloader`, `command_received_no_action`, `header_ignored`, or an error |
 | `writeCommand` | Last verified request without the `ESP:` prefix |
 | `writeCommandId` | Count of verified command requests since boot |
 | `writeName` / `writeMachine` | Last verified header filename and detected computer family |
@@ -175,5 +188,7 @@ truncation, timestamp jitter, `micros()` wraparound and aborted-SAVE recovery.
 
 The previous receiver failed a real C64 PAL `SAVE "TEST",1` with `pulse_error`
 and `unexpected_terminator`. The missing-final-edge failure was reproduced in
-VICE before this fix. The revised path still needs a hardware retest; VICE
-does not validate ESP interrupt latency, Wi-Fi load or electrical timing.
+VICE before the framing fix. On 2026-11-05, header and command reception were
+confirmed on real C64 PAL hardware with an empty deck. READ streaming and WRITE
+reception are not supported together. C16/Plus/4 and NTSC still need hardware
+validation; VICE does not validate ESP interrupt latency or electrical timing.
