@@ -16,6 +16,7 @@ class PrgEncoder {
   bool begin(uint16_t loadAddress, uint32_t dataLength, const String& name,
              Machine machine, bool ntsc = false);
   // Absolute two-byte load at $0302; code lives in the header's spare tail.
+  // Filename starts with PETSCII clear-screen/white, leaving 14 name bytes.
   // Vector bytes are generated internally; observeFirstCopy receives that
   // vector once for its checksum. The PRG ring remains untouched.
   bool beginAutostart(const uint8_t* code, size_t length, const String& name,

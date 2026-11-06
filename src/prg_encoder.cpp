@@ -65,6 +65,11 @@ bool PrgEncoder::beginAutostart(const uint8_t* code, size_t length,
   autostartEntry_[0] = machine == Machine::C16 ? 0x47 : 0x51;
   autostartEntry_[1] = 3;
   header_[0] = 3; // Absolute load, independent of the current BASIC start.
+  // ROM prints the 16-byte filename: clear the screen, then show it in white.
+  // Keep 14 name characters and leave the bootstrap at byte 21 untouched.
+  memmove(header_ + 7, header_ + 5, 14);
+  header_[5] = 147; // PETSCII clear screen.
+  header_[6] = 5;   // PETSCII white.
   memcpy(header_ + 21, code, length);
   headerChecksum_ = 0;
   for (uint8_t value : header_) headerChecksum_ ^= value;

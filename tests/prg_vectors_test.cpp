@@ -103,7 +103,8 @@ static void checkMachine(PrgEncoder::Machine machine, Timings t, bool ntsc = fal
   } else assert(encoder.clockHz() == (ntsc ? 1022730 : 985248));
 }
 
-static void checkAutostart(bool c16, bool ntsc, size_t codeLength) {
+static void checkAutostart(bool c16, bool ntsc, size_t codeLength,
+                           const char* name, const char* expectedName) {
   const Timings t = c16 ? Timings{448, 896, 1792} : Timings{384, 536, 680};
   const auto machine = c16 ? PrgEncoder::Machine::C16 : PrgEncoder::Machine::C64;
   const uint16_t entry = c16 ? 0x0347 : 0x0351;
@@ -117,14 +118,15 @@ static void checkAutostart(bool c16, bool ntsc, size_t codeLength) {
   assert(!encoder.beginAutostart(nullptr, 1, "BOOT", machine, ntsc));
   assert(!encoder.beginAutostart(code.data(), 0, "BOOT", machine, ntsc));
   assert(!encoder.beginAutostart(code.data(), 172, "BOOT", machine, ntsc));
-  assert(encoder.beginAutostart(code.data(), codeLength, "BOOT", machine, ntsc));
+  assert(encoder.beginAutostart(code.data(), codeLength, name, machine, ntsc));
   encoder.observeFirstCopy(2, stream + 2, 2);
   std::array<uint8_t, 192> header;
   header.fill(0x20);
   header[0] = 3;
   header[1] = 2; header[2] = 3;
   header[3] = 4; header[4] = 3;
-  header[5] = 'B'; header[6] = 'O'; header[7] = 'O'; header[8] = 'T';
+  header[5] = 147; header[6] = 5;
+  for (size_t i = 0; expectedName[i]; ++i) header[7 + i] = expectedName[i];
   for (size_t i = 0; i < codeLength; ++i) header[21 + i] = code[i];
   std::vector<uint32_t> expected;
   referenceBlock(expected, header.data(), header.size(), true, true, t, c16);
@@ -156,6 +158,11 @@ int main() {
   checkMachine(PrgEncoder::Machine::C64, {384, 536, 680});
   checkMachine(PrgEncoder::Machine::C16, {448, 896, 1792}, true);
   checkMachine(PrgEncoder::Machine::C64, {384, 536, 680}, true);
+  const struct { const char* name; const char* expected; } names[] = {
+    {"BOOT", "BOOT"}, {"abcdefghijklmnop", "ABCDEFGHIJKLMN"},
+    {"", "PROGRAM"}, {"!!!", "PROGRAM"}
+  };
   for (bool c16 : {false, true}) for (bool ntsc : {false, true})
-    for (size_t length : {size_t(1), size_t(171)}) checkAutostart(c16, ntsc, length);
+    for (size_t length : {size_t(1), size_t(171)})
+      for (const auto& name : names) checkAutostart(c16, ntsc, length, name.name, name.expected);
 }

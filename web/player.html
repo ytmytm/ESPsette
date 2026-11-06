@@ -734,7 +734,8 @@ function render(s) {
   const machineLabel = s.machine === 'c16' ? 'C16' : s.machine === 'c64' ? 'C64' : '';
   const indexEntry = indexed ? source.indexEntries[activeIndexPosition()] : null;
   const indexTitle = indexEntry?.label.replace(/^\s*\d{1,3}:[0-5]\d(?::[0-5]\d)?\s+(?=\S)/, '');
-  $('loaded').textContent = inserted ? indexTitle || s.fileName || source?.file?.name || 'Loaded' : 'Ejected';
+  const cassetteName = (s.fileName || source?.file?.name || 'Loaded').replace(/\.(prg|tap)$/i, '');
+  $('loaded').textContent = inserted ? indexTitle || cassetteName : 'Ejected';
   $('machineLabel').textContent = inserted ? machineLabel : '—';
   $('machineC64').setAttribute('data-active', String(inserted && s.machine === 'c64'));
   $('machineC16').setAttribute('data-active', String(inserted && s.machine === 'c16'));

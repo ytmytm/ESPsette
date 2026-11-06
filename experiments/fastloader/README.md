@@ -6,6 +6,11 @@ off. Timing settings are stored in LittleFS. C64/C16/Plus/4 PAL and NTSC have
 passed host/VICE tests. C64 PAL fastloading was confirmed on real hardware on
 2026-11-04; other hardware variants and measured throughput await verification.
 
+The bootstrap header filename starts with PETSCII clear screen (147) and
+white (5), followed by up to 14 name characters. These bytes are only sent
+to the computer; the web cassette label displays the filename without its
+`.prg` or `.tap` extension. Standard PRG header names are unchanged.
+
 Native code is in [`native/fastloader/`](../../native/fastloader/).
 [BOOTSTRAP.md](BOOTSTRAP.md) describes autostart and memory layout;
 [TIMING.md](TIMING.md) records the final timing budget.

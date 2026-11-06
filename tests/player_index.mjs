@@ -318,7 +318,13 @@ assert.equal(vm.runInContext('mock.playedCycles', context), 0);
 assert.equal(vm.runInContext('mock.sensePressed', context), true);
 
 vm.runInContext("mock.tapeState = 'loaded'; mock.fileName = 'game.tap'; mock.machine = 'c16'; mock.sourceType = 'tap'; render({...mock})", context);
-assert.match(elements.get('loaded').textContent, /game\.tap/);
+assert.equal(elements.get('loaded').textContent, 'game');
+for (const name of ['game.PRG', 'game.PrG', 'game.TAP', 'game.prg.tap', 'game.prg.backup']) {
+  context.cassetteTestName = name;
+  vm.runInContext('mock.fileName = cassetteTestName; render({...mock})', context);
+  assert.equal(elements.get('loaded').textContent, name.replace(/\.(prg|tap)$/i, ''));
+  assert.equal(vm.runInContext('mock.fileName', context), name);
+}
 assert.equal(elements.get('machineLabel').textContent, 'C16');
 assert.equal(elements.get('standardPAL').attributes['data-active'], 'true');
 assert.equal(elements.get('standardNTSC').attributes['data-active'], 'false');
@@ -342,7 +348,7 @@ await vm.runInContext('chooseFiles([uiTape])', context);
 await vm.runInContext('step()', context);
 assert.equal(vm.runInContext('source.file', context), context.uiTape);
 assert.equal(elements.get('selectedFiles').hidden, true);
-assert.match(elements.get('loaded').textContent, /ui.tap/);
+assert.equal(elements.get('loaded').textContent, 'ui');
 const uiSession = vm.runInContext('source.id', context);
 const uiOffset = vm.runInContext('source.offset', context);
 await vm.runInContext('attachIndex(uiIndex)', context);
