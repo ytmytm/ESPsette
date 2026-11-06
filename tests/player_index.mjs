@@ -373,6 +373,31 @@ assert.equal(vm.runInContext('source.indexEntries.length', context), 2);
 await vm.runInContext('chooseFiles([uiTape])', context);
 assert.equal(vm.runInContext('selectedIdx', context), null);
 assert.equal(vm.runInContext('source.indexEntries.length', context), 0);
+// RSSI is carried by full state, rendered using the same pixel dots as the VFD.
+// Values are ESP-to-router signal; invalid/disconnected samples never show full strength.
+for (const [rssi, level] of [[-45,4],[-60,4],[-61,3],[-70,3],[-71,2],[-80,2],[-81,1],[-100,1]]) {
+  context.wifiTestRssi = rssi;
+  vm.runInContext('render({...mock,wifiConnected:true,wifiRssi:wifiTestRssi})',context);
+  assert.equal(elements.get('wifiIcon').attributes['data-level'],String(level));
+  assert.match(elements.get('wifiIcon').attributes.title,new RegExp(rssi+' dBm'));
+  assert.equal(vm.runInContext('wifiPixels.filter(p=>p.dot.classList.values.has("on")).length',context),
+    vm.runInContext('wifiPixels.filter(p=>p.level<='+level+').length',context));
+}
+for (const rssi of [null,0,31,-128,'-50']) {
+  context.wifiTestRssi = rssi;
+  vm.runInContext('render({...mock,wifiConnected:true,wifiRssi:wifiTestRssi})',context);
+  assert.equal(elements.get('wifiIcon').attributes['data-level'],'1');
+  assert.match(elements.get('wifiIcon').attributes.title,/signal unavailable/);
+}
+vm.runInContext('render({...mock,wifiConnected:false,wifiRssi:-40})',context);
+assert.equal(elements.get('wifiIcon').attributes['data-level'],'0');
+assert.match(elements.get('wifiIcon').attributes['aria-label'],/disconnected/);
+vm.runInContext('render({...mock,wifiConnected:undefined})',context);
+assert.match(elements.get('wifiIcon').attributes.title,/status unknown/);
+vm.runInContext('render({...mock})',context);
+assert.equal(elements.get('wifiIcon').attributes['data-level'],'4');
+assert.equal(elements.get('wifiIcon').children.length,13*9);
+
 // PRG uses the saved computer and filename, and is inserted immediately.
 context.uiPrg = new Blob([Uint8Array.of(1, 8, 42)]);
 context.uiPrg.name = 'program.PRG';
@@ -399,11 +424,21 @@ assert.equal(vm.runInContext('source', context), null);
 assert.equal(vm.runInContext('selectedFile', context), null);
 assert.equal(elements.get('error').textContent, '');
 assert.equal(elements.get('bufferIcon').attributes['data-active'], 'false');
-vm.runInContext('mock.embedded = false; mock.sessionId = 1; mock.freeBytes = 4096; render({...mock})', context);
+vm.runInContext('mock.embedded = false; mock.sessionId = 1; mock.freeBytes = mock.bufferCapacity / 2; render({...mock})', context);
 assert.equal(elements.get('bufferIcon').attributes['data-active'], 'true');
 assert.equal(elements.get('bufferIcon').attributes['data-level'], '4');
 vm.runInContext('mock.freeBytes = 0; render({...mock})', context);
 assert.equal(elements.get('bufferIcon').attributes['data-level'], '8');
+for (const capacity of [8192,12288,16384]) {
+  context.testBufferCapacity=capacity;
+  vm.runInContext('render({...mock,bufferCapacity:testBufferCapacity,freeBytes:testBufferCapacity/2})',context);
+  assert.equal(elements.get('bufferIcon').attributes['data-level'],'4');
+  assert.equal(elements.get('buffer').textContent,String(capacity/2)+' B');
+}
+vm.runInContext('render({...mock,bufferCapacity:undefined,freeBytes:4096})',context);
+assert.equal(elements.get('bufferIcon').attributes['data-level'],'4');
+vm.runInContext('render({...mock})',context);
+
 // Real MOTOR still blocks editing; the error belongs to playback status.
 vm.runInContext('mock.gpioDisabled = false; render({...mock})', context);
 await vm.runInContext("document.getElementById('demo').onclick()", context);
@@ -644,7 +679,7 @@ assert.equal(elements.get('remainingLabel').textContent, 'Signal remaining');
 assert.equal(elements.get('deck').classList.values.has('fastloading'), false);
 assert.equal(vm.runInContext('pollDelay(progressState,false)',context),100); // Fully uploaded PRG still polls quickly.
 assert.equal(vm.runInContext("pollDelay({sourceType:'tap',playing:false},false)",context),500);
-assert.equal(vm.runInContext("pollDelay({sourceType:'tap',playing:true},true)",context),100);
+assert.equal(vm.runInContext("pollDelay({sourceType:'tap',playing:true},true)",context),250);
 vm.runInContext(`render({...mock,writeEnabled:true,writeName:'NAZWA',writeCommand:'',
   writeHeaders:1,writeStatus:'header_ignored'})`, context);
 assert.match(elements.get('writeDetail').textContent, /Last header: "NAZWA"/);
@@ -874,13 +909,13 @@ vm.runInContext(`globalThis.refillSaved={api,source,last,busy};
     indexEntries:[],timeline:[],seekCycles:0,fullTotal:98524800};
   busy=false;
   api=async (path,options)=>{
-    if(path==='/state') return {...refillState};
+    if(path==='/state' || path==='/buffer') return {...refillState};
     if(path.startsWith('/chunk?')) {
       const size=options.body.get('data').size;
       refillPosts.push(size);
       refillState.fileOffsetReceived+=size;
       refillState.freeBytes-=size;
-      return {nextOffset:refillState.fileOffsetReceived,freeBytes:refillState.freeBytes};
+      return {...refillState,nextOffset:refillState.fileOffsetReceived};
     }
     throw Error('unexpected refill endpoint');
   };`, context);
@@ -902,15 +937,72 @@ vm.runInContext(`refillPosts=[];refillState.freeBytes=512;
 await vm.runInContext('step()',context);
 assert.deepEqual(Array.from(vm.runInContext('refillPosts',context)),[512]);
 vm.runInContext('api=refillSaved.api;source=refillSaved.source;last=refillSaved.last;busy=refillSaved.busy',context);
-// Automatic polling separates full diagnostics (500 ms) from buffer/progress
-// replies (100 ms). Uploads continue between full polls without losing cached
-// metadata, and a broken compact reply keeps the same File/session.
-vm.runInContext(`globalThis.pollSaved={api,source,last,busy,clock:Date,full:lastFullStateAt,
-  pollStart:lastPollStart,pollGap:maxPollGapMs};
+// Successful /chunk replies replace the next credit GET. Bound each batch,
+// preserve current transport fields, and never retry an uncertain offset blindly.
+vm.runInContext(`globalThis.chainSaved={api,source,last,busy,full:lastFullStateAt};
+  globalThis.chainBlob=new Blob([new Uint8Array(131072)]);
+  globalThis.chainPaths=[];globalThis.chainFault='';
+  globalThis.chainState={...refillState,sessionId:777,logicalSize:131072,
+    fileOffsetReceived:20,freeBytes:4096,playedCycles:0,phase:'data',error:null,
+    playing:true,motorOn:true,sensePressed:true};
+  source={file:chainBlob,type:'tap',id:777,logicalSize:131072,offset:20,
+    indexEntries:[],timeline:[],seekCycles:0,fullTotal:98524800};
+  busy=false;last=null;lastFullStateAt=0;
+  api=async(path,options)=>{
+    chainPaths.push(path.split('?')[0]);
+    if(path==='/state'||path==='/buffer') return {...chainState};
+    const offset=Number(new URLSearchParams(path.split('?')[1]).get('offset'));
+    if(offset!==chainState.fileOffsetReceived) throw Error('duplicate or skipped bytes');
+    const n=options.body.get('data').size;
+    chainState.fileOffsetReceived+=n;chainState.playedCycles+=1000;
+    if(chainFault==='lost') {chainFault='';throw Error('lost POST response');}
+    if(chainFault==='partial') {
+      chainFault='';chainState.fileOffsetReceived-=n/2;
+      throw Object.assign(Error('partial POST'),{data:{nextOffset:chainState.fileOffsetReceived}});
+    }
+    const ack={...chainState,nextOffset:chainState.fileOffsetReceived};
+    if(chainFault==='wrong-offset') {chainFault='';ack.nextOffset++;}
+    if(chainFault==='error') {chainFault='';ack.phase='error';ack.error='buffer_underrun';}
+    return ack;
+  };`,context);
+await vm.runInContext('step(false)',context);
+assert.equal(vm.runInContext('source.offset',context),20+4*4096);
+const firstBatchPaths=vm.runInContext('chainPaths.length',context);
+await vm.runInContext('step(false)',context);
+assert.deepEqual(Array.from(vm.runInContext('chainPaths.slice('+firstBatchPaths+')',context)),Array(4).fill('/chunk'));
+assert.equal(vm.runInContext('last.playedCycles',context),8000);
+assert.equal(vm.runInContext('source.offset',context),20+8*4096);
+for (const fault of ['lost','partial','wrong-offset']) {
+  context.chainTestFault=fault;
+  const beforeOffset=vm.runInContext('source.offset',context);
+  vm.runInContext('chainFault=chainTestFault',context);
+  await vm.runInContext('step(false)',context);
+  assert.equal(vm.runInContext('source.offset',context),beforeOffset);
+  assert.equal(vm.runInContext('source.ackCredit',context),false);
+  const recoveryStart=vm.runInContext('chainPaths.length',context);
+  await vm.runInContext('step(false)',context);
+  assert.equal(vm.runInContext('chainPaths['+recoveryStart+']',context),'/buffer');
+  assert.equal(vm.runInContext('source.offset===chainState.fileOffsetReceived',context),true);
+}
+const beforeError=vm.runInContext('chainPaths.length',context);
+vm.runInContext("chainFault='error'",context);
+await vm.runInContext('step(false)',context);
+assert.equal(vm.runInContext('chainPaths.length',context),beforeError+1);
+assert.equal(vm.runInContext('source.playbackError',context),'buffer_underrun');
+assert.equal(vm.runInContext('source.ackCredit',context),false);
+assert.equal(vm.runInContext('source.file===chainBlob',context),true);
+assert.match(elements.get('transport').textContent,/Playback stopped on ESP/);
+vm.runInContext(`api=chainSaved.api;source=chainSaved.source;last=chainSaved.last;busy=chainSaved.busy;
+  lastFullStateAt=chainSaved.full`,context);
+
+// Active PLAY uses compact polling only, including MOTOR pauses and the
+// buffered tail after upload. A new session gets one metadata snapshot; full
+// polling resumes after STOP. Broken compact replies retain the File/session.
+vm.runInContext(`globalThis.pollSaved={api,source,last,busy,clock:Date,full:lastFullStateAt};
   globalThis.pollClock=1000;Date={now:()=>pollClock};
   globalThis.pollPaths=[];globalThis.badCompact=false;
   globalThis.pollState={...refillState,freeBytes:0,fileOffsetReceived:20,playedCycles:0,
-    fileName:'timer.tap',phase:'data',playing:true};
+    fileName:'timer.tap',phase:'data',playing:true,wifiConnected:true,wifiRssi:-67};
   source={file:refillBlob,type:'tap',id:123,logicalSize:16384,offset:20,
     indexEntries:[],timeline:[],seekCycles:0,fullTotal:98524800};
   globalThis.pollFile=source.file;busy=false;last=null;lastFullStateAt=0;
@@ -922,11 +1014,12 @@ vm.runInContext(`globalThis.pollSaved={api,source,last,busy,clock:Date,full:last
       sessionId:pollState.sessionId,sourceType:'tap',tapeState:'loaded',phase:'data',
       logicalSize:16384,fileOffsetReceived:pollState.fileOffsetReceived,
       freeBytes:pollState.freeBytes,playedCycles:pollState.playedCycles,
-      playing:true,motorOn:true,sensePressed:true,sourceWaiting:false};
+      playing:pollState.playing,motorOn:pollState.motorOn,sensePressed:pollState.sensePressed,
+      wifiConnected:pollState.wifiConnected,wifiRssi:pollState.wifiRssi,sourceWaiting:false};
     if(path.startsWith('/chunk?')) {
       const n=options.body.get('data').size;
       pollState.fileOffsetReceived+=n;pollState.freeBytes-=n;
-      return {nextOffset:pollState.fileOffsetReceived,freeBytes:pollState.freeBytes};
+      return {...pollState,nextOffset:pollState.fileOffsetReceived};
     }
     throw Error('unexpected cadence endpoint');
   };`,context);
@@ -936,22 +1029,41 @@ for(const tick of [1000,1100,1200,1300,1400,1500]) {
   await vm.runInContext('step(false)',context);
   assert.equal(vm.runInContext('source.file===pollFile',context),true);
   assert.equal(vm.runInContext('last.fileName',context),'timer.tap');
+  assert.equal(elements.get('wifiIcon').attributes['data-level'],'3');
   if(tick===1200) {
     assert.equal(vm.runInContext('source.offset',context),4116);
     assert.equal(vm.runInContext("pollPaths.filter(p=>p==='/state').length",context),1);
     assert.equal(vm.runInContext('last.playedCycles',context),1200*985);
   }
 }
-assert.equal(vm.runInContext("pollPaths.filter(p=>p==='/state').length",context),2);
-assert.equal(vm.runInContext("pollPaths.filter(p=>p==='/buffer').length",context),4);
+assert.equal(vm.runInContext("pollPaths.filter(p=>p==='/state').length",context),1);
+assert.equal(vm.runInContext("pollPaths.filter(p=>p==='/buffer').length",context),5);
 assert.equal(vm.runInContext("pollPaths.filter(p=>p==='/chunk').length",context),1);
 vm.runInContext('pollClock=1600;source.offset=source.logicalSize;pollState.fileOffsetReceived=16384',context);
 const cadenceRequests=vm.runInContext('pollPaths.length',context);
 await vm.runInContext('step(false)',context);
-assert.equal(vm.runInContext('pollPaths.length',context),cadenceRequests);
+assert.equal(vm.runInContext('pollPaths.length',context),cadenceRequests+1);
+assert.equal(vm.runInContext('pollPaths.at(-1)',context),'/buffer');
+// MOTOR off is a loader pause, not permission to fetch full diagnostics.
+vm.runInContext('pollClock=1700;pollState.playing=false;pollState.motorOn=false;pollState.wifiRssi=-85',context);
+await vm.runInContext('step(false)',context);
+assert.equal(vm.runInContext('pollPaths.at(-1)',context),'/buffer');
+assert.equal(elements.get('wifiIcon').attributes['data-level'],'1');
+await vm.runInContext('step()',context); // Explicit refresh also respects active PLAY.
+assert.equal(vm.runInContext('pollPaths.at(-1)',context),'/buffer');
+assert.equal(vm.runInContext("pollPaths.filter(p=>p==='/state').length",context),1);
+vm.runInContext('pollClock=1800;pollState.sensePressed=false',context);
+await vm.runInContext('step(false)',context); // Compact reply observes STOP.
+vm.runInContext('pollClock=1900',context);
+await vm.runInContext('step(false)',context);
+assert.equal(vm.runInContext('pollPaths.at(-1)',context),'/state');
+assert.equal(vm.runInContext("pollPaths.filter(p=>p==='/state').length",context),2);
+const stoppedRequests=vm.runInContext('pollPaths.length',context);
+vm.runInContext('pollClock=2000',context);
+await vm.runInContext('step(false)',context);
+assert.equal(vm.runInContext('pollPaths.length',context),stoppedRequests);
 vm.runInContext(`api=pollSaved.api;source=pollSaved.source;last=pollSaved.last;busy=pollSaved.busy;
-  Date=pollSaved.clock;lastFullStateAt=pollSaved.full;lastPollStart=pollSaved.pollStart;
-  maxPollGapMs=pollSaved.pollGap`,context);
+  Date=pollSaved.clock;lastFullStateAt=pollSaved.full`,context);
 
 // A broken state response must not be interpreted as a changed session.
 // Exercise the actual fetch/JSON wrapper independently of preview's mock API.
@@ -965,7 +1077,7 @@ const networkContext=vm.createContext({preview:false,Date,Error,Number,FormData,
       return {sessionId:1,sourceType:'tap',tapeState:'loaded',phase:'data',logicalSize:16384,
         fileOffsetReceived:8192,freeBytes:4096};
     }})});
-vm.runInContext(script.slice(script.indexOf('const requestHistory = []'),
+vm.runInContext(script.slice(script.indexOf('let lastFullStateAt = 0'),
   script.indexOf('function prgTotalCycles')),networkContext);
 await assert.rejects(vm.runInContext("api('/state')",networkContext),/Invalid JSON response/);
 responseMode='empty-object';
@@ -977,13 +1089,6 @@ assert.equal((await vm.runInContext("api('/state')",networkContext)).sessionId,1
 await vm.runInContext(`api('/chunk?sid=1&offset=20',{method:'POST',body:(()=>{
   const form=new FormData();form.append('data',new Blob([new Uint8Array(4096)]));return form;
 })()})`,networkContext);
-assert.equal(vm.runInContext('requestHistory.at(-1).bytes',networkContext),4096);
-assert.equal(vm.runInContext('requestHistory[0].status',networkContext),200);
-assert.match(vm.runInContext('requestHistory[0].error',networkContext),/Invalid JSON/);
-for(let i=0;i<14;i++) await vm.runInContext("api('/state')",networkContext);
-assert.equal(vm.runInContext('requestHistory.length',networkContext),12);
-assert.match(vm.runInContext('lastInvalidState.error',networkContext),/Incomplete ESP state/);
-
 // Retain the same File on invalid state, repeated ESP errors, and the ESP's
 // automatic release after MOTOR off. REW then reuses that File explicitly.
 vm.runInContext('mock.motorOn=false;mock.gpioDisabled=false',context);
@@ -992,7 +1097,7 @@ vm.runInContext('globalThis.failureFile=source.file;globalThis.failureSource=sou
 await vm.runInContext('step()',context);
 assert.equal(vm.runInContext('source===failureSource',context),true);
 assert.match(elements.get('transport').textContent,/Connection lost/);
-assert.match(vm.runInContext('lastPollError',context),/Incomplete ESP state/);
+assert.match(elements.get('error').textContent,/Incomplete ESP state/);
 vm.runInContext("api=failureApi;mock.phase='error';mock.error='buffer_underrun';mock.playing=false",context);
 for(let i=0;i<3;i++) {
   await vm.runInContext('step()',context);
@@ -1003,7 +1108,6 @@ for(let i=0;i<3;i++) {
 vm.runInContext("mock.tapeState='ejected';mock.sessionId=0;mock.logicalSize=0;mock.fileOffsetReceived=0",context);
 await vm.runInContext('step()',context);
 assert.equal(vm.runInContext('source.file===failureFile',context),true);
-assert.ok(vm.runInContext('transferFailureTrace',context));
 assert.equal(elements.get('rewind').disabled,false);
 await elements.get('rewind').onclick();
 assert.equal(vm.runInContext('source.file===failureFile',context),true);

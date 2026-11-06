@@ -67,7 +67,7 @@ volatile bool otaUpdating = false;
 bool sourceWaiting = false, readDmaActive = true;
 uint32_t sourceWaitCount = 0, sourceReadOffset = 0, sourceWindowStart = 0, sourceReceivedUntil = 0;
 uint32_t stoppedRunBits = 0, sourceClockHz = 985248;
-uint32_t maxPlaybackHttpUs = 0, lastSourceDataMs = 0, sourceDataAgeAtErrorMs = 0;
+uint32_t lastSourceDataMs = 0, sourceDataAgeAtErrorMs = 0;
 uint32_t lastDmaPumpUs = 0, maxDmaPumpGapUs = 0;
 bool motor = true, play = true, fast = false;
 bool motorIsOn() { return motor; }
@@ -221,7 +221,8 @@ int main(int argc, char** argv) {
     const size_t n = 4095 + (splitSource ? unsigned(argv[2][5] - '0') : 1);
     assert(tapeSource.append(20, data.data() + 20, n));
   } else {
-    upload(); upload(); // Preload the real, unchanged 8 KB source ring.
+    // Preload the entire configured source ring (or the short file).
+    while (tapeSource.freeBytes() && tapeSource.nextOffset() < data.size()) upload();
   }
   startTape();
   // Yield service must neither re-enter the producer nor run while the motor,

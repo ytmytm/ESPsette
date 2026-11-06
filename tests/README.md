@@ -26,7 +26,7 @@ c++ -std=c++17 -Itests/support -Isrc tests/embedded_demo_test.cpp src/prg_encode
 /tmp/ESPsette-demo-test
 ```
 
-`playback_awake.mjs` checks native and HTTP-compatible screen protection, including visibility changes, delayed grants, denial, retry throttling, media priming, and cleanup. `computer_profile_test.cpp` checks all four VICE tape clocks, profile parsing and legacy PAL aliases. `prg_vectors_test.cpp` compares every generated C64 and C16 pulse for both PAL and NTSC with an independent block sequence. The C16 cases also check pulse durations against the Pi1551 vectors. Autostart cases check absolute $0302 loading, header code placement and checksums for both machines/video standards, including the 171-byte limit. `tape_source_ring_test.cpp` checks that consumed bytes are released from the 8 KB streaming ring. `player_index.mjs` covers TAP v1/v2 headers and record boundaries, IDX offsets, counter-based seeking, autoplay, machine defaults, controls, recovery after a lost HTTP response, immediate TAP/PRG insertion, file ordering and extension case, saved PAL/NTSC PRG defaults and TAP header overrides, preview setting persistence, Demo with soft MOTOR, the segment buffer meter, mechanical counter transitions and unified VFD computer/time/PAL indicators, attaching IDX without restarting playback, PREV/NEXT boundaries, named Jump selection, automatic IDX title/selection tracking during playback, and absolute elapsed/total time after a jump.
+`playback_awake.mjs` checks native and HTTP-compatible screen protection, including visibility changes, delayed grants, denial, retry throttling, media priming, and cleanup. `computer_profile_test.cpp` checks all four VICE tape clocks, profile parsing and legacy PAL aliases. `prg_vectors_test.cpp` compares every generated C64 and C16 pulse for both PAL and NTSC with an independent block sequence. The C16 cases also check pulse durations against the Pi1551 vectors. Autostart cases check absolute $0302 loading, header code placement and checksums for both machines/video standards, including the 171-byte limit. `tape_source_ring_test.cpp` checks that consumed bytes are released from the 12 KB streaming ring. `player_index.mjs` covers TAP v1/v2 headers and record boundaries, IDX offsets, counter-based seeking, autoplay, machine defaults, controls, recovery after a lost HTTP response, immediate TAP/PRG insertion, file ordering and extension case, saved PAL/NTSC PRG defaults and TAP header overrides, preview setting persistence, Demo with soft MOTOR, the segment buffer meter, mechanical counter transitions and unified VFD computer/time/PAL indicators, attaching IDX without restarting playback, PREV/NEXT boundaries, named Jump selection, automatic IDX title/selection tracking during playback, and absolute elapsed/total time after a jump.
 
 These are host-side tests. They do not measure I2S timing, electrical polarity, DMA delays or decoding by a physical computer. Real C64 PAL hardware tests pass for browser TAP, standard PRG, fast PRG, Circles in both modes, and WRITE requests with an empty deck. Other models and NTSC still need hardware checks.
 
@@ -83,7 +83,7 @@ block reception until EJECT. No Timer1/NMI receiver is enabled.
 
 `test_tap_dma.py` runs the firmware's actual pulse reader, DMA producer and
 completion callback with a clocked model of the existing eight 64-word DMA
-descriptors and 8 KB source ring. Bursts of 81,197 µs HTTP calls reproduce the
+descriptors and the configured 12 KB source ring. Bursts of 81,197 µs HTTP calls reproduce the
 old 32-word refill limit's I2S underrun near 49.6 seconds. A 1,017,556 µs wait
 also defeats full refills unless cooperative yield servicing remains active.
 The corrected path checks every generated word against an independent TAP
@@ -99,8 +99,7 @@ The complete local Rambo III Side 1 TAP (715.573 seconds) also passes the model.
 This models network wait/yield timing; it does not measure ESP hardware or
 Wi-Fi interrupt latency. `maxDmaPumpGapUs` and `dmaServiceReady` in `/state`
 expose service timing/readiness for the next hardware test. The UI shows the
-maximum DMA refill gap alongside loop/HTTP timings. Neither the DMA allocation
-nor the 8 KB source ring is enlarged.
+maximum DMA refill gap alongside the source buffer diagnostics. The DMA allocation is unchanged; the source ring is now 12 KB.
 
 Source-wait tests split a four-byte TAP record at each incoming byte in both
 v1 and v2. Partial DMA words survive the wait without padding or duplicate
@@ -114,7 +113,7 @@ of the local Rambo tape. With 4 KB POSTs streamed through the existing 2 KB
 HTTPUpload buffer, the whole tape completes without changing either the source
 ring or DMA allocation. Browser tests check 4 KB framing, batched TAP refill,
 short EOF tails and immediate delivery during source waits or prefill. Initial
-loading now fills the 8 KB ring (or reaches EOF) before starting READ.
+loading now fills the configured ring (or reaches EOF) before starting READ.
 
 `sourceWaiting` / `sourceWaits` report recoverable waits. `sourceReadOffset`,
 `sourceWindowStart` and `sourceReceivedUntil` retain the missing read's source
@@ -127,27 +126,42 @@ the same File, including after the ESP releases the failed stream on MOTOR
 off; REW starts a fresh session from that File after MOTOR stops. A valid
 foreign session still invalidates the old transfer.
 
-Debug JSON now includes a browser-only `browser` object: request paths, sizes,
-response types, HTTP status and end-to-end elapsed times, poll/render timing,
-visibility, and retained file/session offsets. The last invalid state response
-and a snapshot at the first playback error survive subsequent polling. This
-can distinguish stalled browser delivery from actual session changes.
-`maxHttpUs` remains the since-boot value (including initial page delivery);
-`maxPlaybackHttpUs` tracks calls entered with READ active and resets per file.
-`sourceDataAgeAtErrorMs` records how long it had been since an accepted source
-append when the source underrun occurred. Neither the maximum since boot nor
-a host model establishes the cause of an individual hardware failure.
+Debug JSON contains the current ESP state. Browser request history and
+poll/render timing snapshots have been removed, along with ESP loop/HTTP
+maximum-time measurements. Buffer offsets, underrun counters, the DMA refill
+gap and `sourceDataAgeAtErrorMs` remain available for playback diagnostics.
 
-The automatic UI loop polls full `/state` diagnostics every 500 ms. While a
-file still needs uploading, or a PRG is fastloading, intervening `/buffer`
-requests carry only live transport fields at a 100 ms cadence. These include
-played cycles and MOTOR state, so the counter remains responsive without
-fetching settings, scope and debug data on every refill. The browser merges
-compact replies with the last full snapshot and validates both reply shapes.
-Tests use a controlled clock to verify the cadence, actual uploads between
-full polls, retained metadata and recovery after a malformed compact reply.
-The compact handler uses a 768-byte heap JSON arena and shares transport-field
-generation and serialization with the full handler. No tape/DMA buffers change.
+The VFD Wi-Fi icon uses `wifiConnected` and `wifiRssi` from both `/state`
+and compact `/buffer` responses. It shows the ESP-to-router signal, with four pixel arc levels and
+a dBm tooltip. Unknown/disconnected states and unavailable RSSI are distinct;
+preview mode supplies a sample signal. UI tests cover level thresholds,
+invalid samples and reconnection. No Wi-Fi scan or extra request is needed.
+
+The UI fetches a full `/state` snapshot for a new session, then uses only
+compact `/buffer` responses every 250 ms during standard PLAY (100 ms for
+fastloader bootstrap/payload). This includes loader MOTOR pauses and playback of the buffered tail after file
+upload completes. Full `/state` polling resumes every 500 ms after STOP,
+completion or error. Opening Debug does not trigger full polling during PLAY;
+configuration, scope and heap diagnostics remain at their last full snapshot.
+Compact replies update played cycles, MOTOR, Wi-Fi, progress and upload credit.
+They are merged with cached metadata and validated before reconciling the file.
+Tests check the endpoint sequence, live RSSI/counter updates, uploads, MOTOR
+pauses, the buffered tail, malformed replies and resuming full polls after STOP.
+The compact handler retains its 768-byte heap JSON arena; DMA buffers are
+unchanged. Wi-Fi power saving is explicitly disabled; `/state` reports
+`wifiSleepMode: 0` for this test configuration.
+
+Successful `/chunk` replies include the same live fields as `/buffer`, plus
+`nextOffset` and `loaded`. The browser renders them and reuses acknowledged
+credit in the next bounded upload batch. It sends another GET when credit is
+insufficient or a POST result is uncertain. Tests cover consecutive batches
+without credit GETs, exact offsets after lost/partial replies, invalid
+acknowledgements and stopping on a playback error reported by an upload.
+The source ring is now 12288 bytes; each POST still carries at most 4096 bytes.
+Transport replies advertise `bufferCapacity` so the UI and preview show the
+correct fill level. This adds 4096 bytes of static RAM compared with the earlier
+8 KB build, extending tolerance for network stalls without changing DMA.
+Neither change guarantees delivery through a prolonged Wi-Fi/TCP interruption.
 
 On 2026-11-06, the user confirmed this firmware working on real C64 PAL
 hardware after the Rambo III Side 1 playback investigation, including the
@@ -165,3 +179,11 @@ playback on the restored build with mDNS disabled. With mDNS enabled, a previous
 run stalled on a 3041 ms `/state` request with invalid JSON and exhausted the
 source buffer. These observations support disabling mDNS; they do not establish
 the cause of that HTTP failure.
+
+
+The user subsequently reproduced source underruns with mDNS disabled, including
+after compact-only polling and Wi-Fi power-saving changes. On 2026-11-06,
+playback passed after increasing the source ring from 8 KB to 12 KB, with Wi-Fi
+power saving disabled and live-state upload acknowledgements enabled. This
+confirms that combination in the reported hardware test; it does not identify
+the cause of the roughly three-second gaps in source delivery.

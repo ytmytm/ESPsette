@@ -1,5 +1,5 @@
 // Soft TAP playback must release ring bytes as the decoder advances; otherwise
-// freeBytes hits 0 after one fill (~8 KB) and the next read underruns.
+// freeBytes hits 0 after one complete ring fill and the next read underruns.
 #include "tape_source.h"
 
 #include <cassert>
@@ -37,6 +37,29 @@ int main() {
   assert(src.append(src.nextOffset(), chunk.data(), 1024));
   assert(src.read(20 + 4096, value));
   assert(!src.read(20, value)); // Released window is no longer readable.
+
+  // A non-power-of-two ring must preserve byte order through repeated wraps.
+  TapeSource wrapped;
+  const uint32_t end = 20 + 6 * TapeSource::BUFFER_SIZE + 73;
+  wrapped.useStream(header, end, 2);
+  std::vector<uint8_t> patterned(3079);
+  while (wrapped.nextOffset() < end) {
+    const uint32_t start = wrapped.nextOffset();
+    size_t n = wrapped.freeBytes();
+    if (n > patterned.size()) n = patterned.size();
+    if (n > end - start) n = end - start;
+    for (size_t i = 0; i < n; ++i) {
+      const uint32_t offset = start + i;
+      patterned[i] = uint8_t(offset * 73u + (offset >> 8));
+    }
+    assert(wrapped.append(start, patterned.data(), n));
+    for (uint32_t offset = wrapped.retainedFrom(); offset < wrapped.nextOffset(); ++offset) {
+      assert(wrapped.read(offset, value));
+      assert(value == uint8_t(offset * 73u + (offset >> 8)));
+    }
+    const uint32_t release = wrapped.bufferedBytes() < 1777 ? wrapped.bufferedBytes() : 1777;
+    wrapped.releaseBefore(wrapped.retainedFrom() + release);
+  }
 
   std::puts("ok");
   return 0;

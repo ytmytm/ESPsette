@@ -236,9 +236,6 @@ bool sourceWaiting = false;
 uint32_t sourceWaitCount = 0, sourceReadOffset = 0;
 uint32_t sourceWindowStart = 0, sourceReceivedUntil = 0;
 uint32_t uploadErrorCount = 0;
-uint32_t maxLoopUs = 0;
-uint32_t maxHttpUs = 0;
-uint32_t maxPlaybackHttpUs = 0;
 uint32_t lastSourceDataMs = 0, sourceDataAgeAtErrorMs = 0;
 // Cooperative refill runs on the normal CONT stack during network yields.
 // No timer, ISR, extra sample buffer or Wi-Fi masking is involved.
@@ -415,7 +412,7 @@ void IRAM_ATTR onMotorChange() {
 }
 
 void resetPlayer(uint32_t offset) {
-  maxPlaybackHttpUs = lastSourceDataMs = sourceDataAgeAtErrorMs = 0;
+  lastSourceDataMs = sourceDataAgeAtErrorMs = 0;
   sourceWaiting = false;
   sourceReadOffset = sourceWindowStart = sourceReceivedUntil = 0;
   player.decoder.offset = offset;
@@ -1012,6 +1009,10 @@ void setupPins() {
 void setupNetwork() {
   networkConfig.begin();
   networkReady = networkConfig.staConnected();
+#if !ESPSETTE_WIFI_DISABLED
+  // Streaming needs prompt packet delivery, including across loader MOTOR pauses.
+  WiFi.setSleepMode(WIFI_NONE_SLEEP);
+#endif
 }
 
 void setupWebserver() {
@@ -1206,7 +1207,6 @@ void loop() {
     pendingDemoInsert = false;
     insertEmbeddedDemo();
   }
-  const uint32_t loopStartUs = micros();
   const uint8_t motor = motorIsOn() ? HIGH : LOW;
 
   processWriteCommands();
@@ -1256,19 +1256,11 @@ void loop() {
   if (otaReady && !motorIsOn() && !fastloaderBusy() &&
       state != State::STREAMING && state != State::DRAINING) ArduinoOTA.handle();
 #endif
-  const bool readActiveBeforeHttp = readDmaActive;
-  const uint32_t httpStartUs = micros();
   HTTPServer.handleClient();
-  const uint32_t httpElapsedUs = micros() - httpStartUs;
-  if (httpElapsedUs > maxHttpUs) maxHttpUs = httpElapsedUs;
-  if (readActiveBeforeHttp && httpElapsedUs > maxPlaybackHttpUs)
-    maxPlaybackHttpUs = httpElapsedUs;
   networkConfig.handle(motor == HIGH);
 #endif
   processWriteCommands();
   yield();
-  const uint32_t loopElapsedUs = micros() - loopStartUs;
-  if (loopElapsedUs > maxLoopUs) maxLoopUs = loopElapsedUs;
 }
 
 //// web
@@ -1433,6 +1425,12 @@ static bool scanTapToCycles(uint64_t targetCycles, uint32_t& outOffset,
 // Shared live transport fields; configuration, scope and debug data stay
 // in /state. The small /buffer reply keeps uploads independent of UI polling.
 static void writeTransportState(JsonDocument& doc) {
+  doc["bufferCapacity"] = TapeSource::BUFFER_SIZE;
+  const bool wifiConnected = WiFi.status() == WL_CONNECTED;
+  doc["wifiConnected"] = wifiConnected;
+  const int rssi = wifiConnected ? WiFi.RSSI() : 0;
+  if (rssi < 0 && rssi >= -127) doc["wifiRssi"] = rssi;
+  else doc["wifiRssi"] = nullptr;
   const bool motorOn = motorIsOn();
   doc["tapeState"] = pendingDemoInsert ? "loading"
       : (demoInsertFailed && !tapeLoaded) ? "error"
@@ -1530,6 +1528,7 @@ void handleState() {
   interrupts();
   writeTransportState(doc);
   doc["firmwareCommit"] = FIRMWARE_COMMIT;
+  doc["wifiSleepMode"] = int(WiFi.getSleepMode());
   doc["machine"] = profileIsC16(sourceProfile) ? "c16" : "c64";
   doc["videoStandard"] = profileIsNtsc(sourceProfile) ? "ntsc" : "pal";
   doc["fileName"] = tapeLoaded ? tapeName : "";
@@ -1546,9 +1545,6 @@ void handleState() {
   doc["freeStack"] = ESP.getFreeContStack();
   doc["freeHeap"] = ESP.getFreeHeap();
   doc["maxFreeBlock"] = ESP.getMaxFreeBlockSize();
-  doc["maxLoopUs"] = maxLoopUs;
-  doc["maxHttpUs"] = maxHttpUs;
-  doc["maxPlaybackHttpUs"] = maxPlaybackHttpUs;
   doc["sourceDataAgeMs"] = millis() - lastSourceDataMs;
   doc["sourceDataAgeAtErrorMs"] = sourceDataAgeAtErrorMs;
   doc["dmaServiceReady"] = dmaServiceReady;
@@ -1873,7 +1869,14 @@ void handleChunk() {
       (tapeSource.freeBytes() == 0 || tapeSource.nextOffset() == tapEnd)) {
     tapeLoaded = true;
   }
-  StaticJsonDocument<128> reply;
+  // Successful uploads carry the compact live state, avoiding a follow-up GET.
+  DynamicJsonDocument reply(uploadError ? 128 : 768);
+  if (reply.capacity() == 0) {
+    HTTPServer.send(503, "application/json", "{\"error\":\"low_memory\"}");
+    uploadSeen = false;
+    return;
+  }
+  if (!uploadError) writeTransportState(reply);
   reply["nextOffset"] = tapeSource.nextOffset();
   reply["freeBytes"] = tapeSource.freeBytes();
   reply["loaded"] = tapeLoaded;
@@ -1881,9 +1884,11 @@ void handleChunk() {
     ++uploadErrorCount;
     reply["error"] = uploadError;
   }
-  String response;
-  serializeJson(reply, response);
-  HTTPServer.send(uploadError ? 409 : 200, "application/json", response);
+  if (uploadError) {
+    String response;
+    serializeJson(reply, response);
+    HTTPServer.send(409, "application/json", response);
+  } else sendStateJson(reply);
   uploadSeen = false;
 }
 

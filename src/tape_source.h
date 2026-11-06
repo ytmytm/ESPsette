@@ -6,7 +6,7 @@
 // releaseBefore() is called only after DMA has played data.
 class TapeSource {
  public:
-  static constexpr uint16_t BUFFER_SIZE = 8192;
+  static constexpr uint16_t BUFFER_SIZE = 12288;
   enum class Kind : uint8_t { EMPTY, EMBEDDED, STREAMED };
 
   void useEmbedded(const uint8_t* data, uint32_t size);

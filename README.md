@@ -6,7 +6,7 @@
 
 Small as a *pesette* — a little scale for your LOADs.
 
-Files stay in the browser and pass through an 8 KB buffer on the ESP. No SD card or tape storage in flash is needed.
+Files stay in the browser and pass through a 12 KB buffer on the ESP. No SD card or tape storage in flash is needed.
 
 ![Cassette in the web player](web/assets/cassette.webp)
 
@@ -16,7 +16,7 @@ Hardware results confirmed on **C64 PAL, 1–6 November 2026**:
 
 | Feature | Status |
 | --- | --- |
-| C64 PAL: TAP streamed from the browser | Passed on real hardware, including Rambo III Side 1 with repeated MOTOR pauses (6 November) |
+| C64 PAL: TAP streamed from the browser | Passed on real hardware, including Rambo III Side 1 with repeated MOTOR pauses; latest test uses a 12 KB source buffer and Wi-Fi power saving disabled (6 November) |
 | C64 PAL: PRG → standard tape pulses | Passed on real hardware |
 | C64 PAL: PRG + fastloader | Passed on real hardware |
 | Embedded Circles PRG, C64 PAL | Standard and fast modes passed on real hardware |
@@ -176,6 +176,10 @@ disabled, first install this version over USB-UART with `make flash`.
 Refresh the player page after flashing.
 
 OTA uses the device IP address; mDNS discovery is disabled.
+The VFD Wi-Fi icon shows the ESP-to-router signal; hover for RSSI in dBm.
+Wi-Fi power saving is disabled to reduce delivery latency.
+During PLAY, compact status and upload replies update the VFD and feed uploads. Full
+diagnostics and the waveform refresh after STOP, completion or error.
 Stop MOTOR and transfers before updating:
 
 ```sh

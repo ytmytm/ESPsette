@@ -69,6 +69,7 @@ details.card{margin-top:12px}summary{cursor:pointer;color:#d7e0e8;font-weight:60
 
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .vfd{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:16px;padding:10px;background:linear-gradient(155deg,#051b25,#020a10 65%);border:2px solid #080f14;border-radius:5px;box-shadow:inset 0 2px 6px #000,0 1px 1px #ffffff24;color:#6ff6ff}.vfd-caption{font:600 .5rem/1.2 system-ui;letter-spacing:.18em;color:#65b6c4;margin-bottom:6px;text-shadow:0 0 4px #48dcff55}.vfd-digits{width:190px}.vfd-digits[data-long="true"]{--dot-size:1px;gap:2px}.vfd-digits,.vfd-mode{display:flex;align-items:center;justify-content:center;gap:3px;min-height:20px}.vfd-glyph{display:grid;grid-template-columns:repeat(5,var(--dot-size,2px));grid-template-rows:repeat(7,var(--dot-size,2px));gap:1px;flex-shrink:0}.vfd-dot{display:block;width:var(--dot-size,2px);height:var(--dot-size,2px);background:#123440;opacity:.3}.vfd-dot.on{background:#6ff6ff;opacity:1;box-shadow:0 0 3px #37dfff99}.vfd-slash{margin:0 3px}
+.vfd-wifi{--dot-size:1px;display:grid;grid-template-columns:repeat(13,1px);grid-template-rows:repeat(9,1px);gap:1px}.vfd-wifi .vfd-dot.blank{visibility:hidden}
 .vfd-modes{display:flex;flex-direction:column;align-items:center;gap:7px;flex-shrink:0}.vfd-right{display:flex;align-items:center;justify-content:center;gap:8px}.vfd-time{min-width:0;text-align:center}.vfd-mode{--dot-size:1px;gap:2px;min-height:0}.vfd-mode .vfd-dot.on{background:#4c5961;box-shadow:none}.vfd-mode[data-active="true"] .vfd-dot.on{background:#6ff6ff;box-shadow:0 0 3px #37dfff99}
 
 
@@ -92,7 +93,7 @@ details.card{margin-top:12px}summary{cursor:pointer;color:#d7e0e8;font-weight:60
 <div id="deck" class="deck"><div class="window"><div class="cassette" id="cassette"><span id="loaded" class="tape-label">Connecting…</span><div class="reel" id="reelLeft"></div><div class="reel right" id="reelRight"></div></div><img class="deck-brand" src="assets/espsette-brand.png" alt="ESPsette"></div><div class="keys" role="group" aria-label="Datasette controls"><button id="rewind" class="key" type="button" aria-label="Previous tape position">◀◀<br><span id="rewindLabel">REW</span></button><button id="stop" class="key" type="button" aria-label="Release PLAY on SENSE">■<br>STOP</button><button id="play" class="key pressed" type="button" aria-label="Press PLAY on SENSE">▶<br>PLAY</button><button id="fastForward" class="key" type="button" aria-label="Next tape position">▶▶<br><span id="forwardLabel">FF</span></button><button id="deckEject" class="key" type="button" aria-label="Eject tape">⏏<br>EJECT</button></div><div class="deck-bottom"><div class="deck-left"><label class="autoplay" title="Autoplay automatically starts playback as soon as a tape is inserted."><input id="autoPlay" type="checkbox" role="switch" checked aria-label="Autoplay when tape is inserted"><strong>AUTOPLAY</strong></label></div><div class="deck-info"><div class="tape-progress"><div class="vfd" aria-label="Tape display">
   <div class="vfd-modes" role="group" aria-label="Computer type"><span id="machineC64" class="vfd-mode" aria-hidden="true" data-active="false"></span><span id="machineC16" class="vfd-mode" aria-hidden="true" data-active="false"></span><span id="machineLabel" class="sr-only">—</span></div>
   <div class="vfd-time"><div class="vfd-caption" aria-hidden="true">ELAPSED / TOTAL</div><div id="vfdDigits" class="vfd-digits" aria-hidden="true"></div><span id="played" class="sr-only" aria-label="Playback time">—</span></div>
-  <div class="vfd-right"><div class="vfd-modes" role="group" aria-label="Video standard"><span id="standardPAL" class="vfd-mode" aria-hidden="true" data-active="false"></span><span id="standardNTSC" class="vfd-mode" aria-hidden="true" data-active="false"></span><span id="standardLabel" class="sr-only">—</span></div><span id="bufferIcon" class="vfd-buffer" role="img" aria-label="ESP buffer inactive" data-level="0"><span class="vfd-buffer-caption" aria-hidden="true">BUF</span><span class="vfd-meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></span></div>
+  <div class="vfd-right"><div class="vfd-modes" role="group" aria-label="Video standard"><span id="standardPAL" class="vfd-mode" aria-hidden="true" data-active="false"></span><span id="standardNTSC" class="vfd-mode" aria-hidden="true" data-active="false"></span><span id="standardLabel" class="sr-only">—</span></div><span id="bufferIcon" class="vfd-buffer" role="img" aria-label="ESP buffer inactive" data-level="0"><span class="vfd-buffer-caption" aria-hidden="true">BUF</span><span class="vfd-meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></span><span id="wifiIcon" class="vfd-wifi" role="img" aria-label="ESP Wi-Fi status unknown" data-level="0"></span></div>
 </div></div></div><div class="deck-right"><output id="counter" class="counter" aria-label="Tape counter 000"><span class="counter-digit"><span id="counterStrip0" class="counter-strip"><span id="counterOld0">0</span><span id="counterNext0">0</span></span></span><span class="counter-digit"><span id="counterStrip1" class="counter-strip"><span id="counterOld1">0</span><span id="counterNext1">0</span></span></span><span class="counter-digit"><span id="counterStrip2" class="counter-strip"><span id="counterOld2">0</span><span id="counterNext2">0</span></span></span></output></div></div><section id="fastProgress" class="fast-progress" hidden aria-label="PRG fastloader progress"><div class="fast-progress-heading"><strong>PRG FASTLOAD</strong><output id="fastProgressBytes"></output></div><progress id="fastProgressBar" max="100" value="0" aria-label="PRG bytes sent"></progress><p id="fastProgressDetail"></p><p>VFD and counter: virtual tape time.</p></section><div id="indexControls" class="index-navigation" hidden><label for="idxPositions">TAPE POSITION</label><select id="idxPositions" aria-label="Tape position"></select><button id="seek" class="key" type="button">↦<br>JUMP</button></div><div class="deck-footer"><p class="deck-hint">Keep this tab open during LOAD.</p><a href="https://github.com/ytmytm/ESPsette" target="_blank" rel="noopener noreferrer">ESPsette on GitHub</a></div></div>
 <section id="dropzone" class="card tape-picker" aria-label="Insert a tape">
   <div class="picker-actions"><label class="file-action" for="file">TAP / TAP+IDX / PRG<input id="file" class="file-input" type="file" accept=".tap,.prg,.idx" multiple></label><button id="demo" class="secondary" type="button">Demo</button></div>
@@ -168,8 +169,8 @@ let previewReceiverPaused = false;
 const mock = {tapeState:'loaded', sourceType:'tap', machine:'c64', videoStandard:'pal', clockHz:985248, fileName:'Circles (demo)', motorOn:false,
   sensePressed:true, autoPlay:true, defaultMachine:'c64-pal', playing:false, phase:'idle', playedCycles:0,
   totalCycles:117000000, bufferedMillis:null, fileOffsetReceived:0,
-  freeBytes:8192, sessionId:0, logicalSize:0, error:null, gpioDisabled:false,
-  freeHeap:32000, maxFreeBlock:24000, maxLoopUs:0, maxHttpUs:0,
+  freeBytes:12288, bufferCapacity:12288, sessionId:0, logicalSize:0, error:null, gpioDisabled:false,
+  freeHeap:32000, maxFreeBlock:24000, wifiConnected:true, wifiRssi:-58,
   i2sUnderruns:0, sourceUnderruns:0, uploadErrors:0,
   writeEnabled:true, writeListening:false, writeStatus:'idle', writeCommand:'', writeCommandId:0,
   writeName:'', writeMachine:'unknown', writeHeaders:0, writeErrors:0, writeOverflows:0,
@@ -306,7 +307,7 @@ function updateMock() {
   mockTick = now;
   if (mock.fastloaderActive && mockType === 'prg' && mock.tapeState === 'loaded') {
     advanceMockFast(seconds);
-    mock.freeBytes = mockDemo ? 0 : 8192 - mockBytes;
+    mock.freeBytes = mockDemo ? 0 : mock.bufferCapacity - mockBytes;
     return;
   }
   if (mock.motorOn && mock.sensePressed && mock.tapeState === 'loaded' &&
@@ -332,7 +333,7 @@ function updateMock() {
   }
   mock.playing = mock.motorOn && mock.sensePressed && mock.tapeState === 'loaded' &&
     mock.phase === 'data';
-  mock.freeBytes = 8192 - mockBytes;
+  mock.freeBytes = mock.bufferCapacity - mockBytes;
 }
 
 async function mockApi(path, options = {}) {
@@ -419,7 +420,7 @@ async function mockApi(path, options = {}) {
     mock.playedCycles = 0; mock.tapeState = 'ejected'; mock.phase = 'idle'; mock.error = null;
     mock.sensePressed = mock.autoPlay;
     return {sessionId:mock.sessionId, nextOffset:mock.fileOffsetReceived,
-      logicalSize:mockSize, freeBytes:8192};
+      logicalSize:mockSize, freeBytes:mock.bufferCapacity};
   }
   if (path.startsWith('/chunk?')) {
     const args = new URLSearchParams(path.split('?')[1]);
@@ -430,8 +431,9 @@ async function mockApi(path, options = {}) {
     if (size > mock.freeBytes) throw Object.assign(new Error('buffer'),
       {data:{nextOffset:mock.fileOffsetReceived}});
     mockBytes += size; mock.fileOffsetReceived += size;
-    if (mockBytes >= 8192 || mock.fileOffsetReceived === mockSize) mock.tapeState = 'loaded';
-    return {nextOffset:mock.fileOffsetReceived, freeBytes:8192-mockBytes, loaded:mock.tapeState==='loaded'};
+    if (mockBytes >= mock.bufferCapacity || mock.fileOffsetReceived === mockSize) mock.tapeState = 'loaded';
+    mock.freeBytes = mock.bufferCapacity - mockBytes;
+    return {...mock, nextOffset:mock.fileOffsetReceived, loaded:mock.tapeState==='loaded'};
   }
   if (path === '/seek') {
     const args = options.body;
@@ -443,7 +445,7 @@ async function mockApi(path, options = {}) {
     mock.tapeState = 'ejected'; mock.playedCycles = 0;
     mock.totalCycles = Number(args.get('cycles'));
     mock.phase = 'idle'; mock.error = null;
-    return {sessionId:mock.sessionId, nextOffset:offset, freeBytes:8192, tapeState:'ejected'};
+    return {sessionId:mock.sessionId, nextOffset:offset, freeBytes:mock.bufferCapacity, tapeState:'ejected'};
   }
   if (path === '/eject') {
     if (motorBlocksEdit(mock)) throw new Error('Stop MOTOR');
@@ -473,19 +475,8 @@ async function mockApi(path, options = {}) {
   throw new Error('Unknown request: ' + path);
 }
 
-const requestHistory = [];
-let lastPollStart = 0, maxPollGapMs = 0, lastPollError = '';
-let lastRenderMs = 0, maxRenderMs = 0;
-let transferFailureTrace = null, lastNetworkError = null, lastInvalidState = null;
 let lastFullStateAt = 0;
 const fullStateIntervalMs = 500;
-function resetBrowserTransferDiagnostics() {
-  requestHistory.length = 0;
-  lastPollStart = maxPollGapMs = lastRenderMs = maxRenderMs = 0;
-  lastPollError = '';
-  lastFullStateAt = 0;
-  transferFailureTrace = lastNetworkError = lastInvalidState = null;
-}
 function checkedEspState(state) {
   // A truncated/captive-portal response is not a changed cassette session.
   if (!state || !Number.isSafeInteger(state.sessionId) || state.sessionId < 0 ||
@@ -497,39 +488,14 @@ function checkedEspState(state) {
     throw Error('Incomplete ESP state response; keeping the source file');
   return state;
 }
-function browserTransferDiagnostics(includeFailure = true) {
-  return {visibility:document.visibilityState || 'unknown',
-    sourceFile:source?.file?.name || null, sourceSession:source?.id ?? null,
-    sourceOffset:source?.offset ?? null, playbackError:source?.playbackError || null,
-    maxPollGapMs, lastRenderMs, maxRenderMs, lastPollError, lastNetworkError, lastInvalidState,
-    ...(includeFailure ? {atFailure:transferFailureTrace} : {}),
-    requests:requestHistory.map(item => ({...item}))};
-}
 async function api(path, options) {
   if (preview) return mockApi(path, options);
-  const started = Date.now();
-  const request = {path, method:options?.method || 'GET',
-    bytes:options?.body?.get?.('data')?.size || 0, elapsedMs:0, status:0};
-  try {
-    const response = await fetch(path, options);
-    request.status = response.status;
-    request.contentType = response.headers?.get?.('content-type') || null;
-    let data;
-    try { data = await response.json(); }
-    catch (_) { throw Error(response.ok ? 'Invalid JSON response from ' + path : response.statusText); }
-    if (!response.ok) throw Object.assign(new Error(data?.error || response.statusText), {data});
-    return ['/state', '/buffer'].includes(path.split('?')[0]) ? checkedEspState(data) : data;
-  } catch (error) {
-    request.error = error.message;
-    lastNetworkError = request;
-    if (['/state', '/buffer'].includes(path.split('?')[0]) && /Invalid JSON|Incomplete ESP state/.test(error.message))
-      lastInvalidState = request;
-    throw error;
-  } finally {
-    request.elapsedMs = Date.now() - started;
-    requestHistory.push(request);
-    if (requestHistory.length > 12) requestHistory.shift();
-  }
+  const response = await fetch(path, options);
+  let data;
+  try { data = await response.json(); }
+  catch (_) { throw Error(response.ok ? 'Invalid JSON response from ' + path : response.statusText); }
+  if (!response.ok) throw Object.assign(new Error(data?.error || response.statusText), {data});
+  return ['/state', '/buffer'].includes(path.split('?')[0]) ? checkedEspState(data) : data;
 }
 
 function prgTotalCycles(length, machine = 'c64') {
@@ -562,10 +528,15 @@ function fastRemainingSeconds(seconds) {
   return seconds < 10 ? seconds.toFixed(1) + ' s' : Math.ceil(seconds) + ' s';
 }
 
+function transportPollingActive(state, uploading) {
+  if (!state || ['error', 'done'].includes(state.phase)) return false;
+  return !!(state.playing || state.fastloaderActive &&
+    ['bootstrap', 'fastload'].includes(state.phase) ||
+    state.sensePressed && (state.tapeState === 'loaded' || uploading));
+}
 function pollDelay(state, uploading) {
-  if (state?.sourceType === 'prg' && state.fastloaderActive &&
-      ['bootstrap', 'fastload'].includes(state.phase)) return 100;
-  return uploading ? 100 : fullStateIntervalMs;
+  if (state?.fastloaderActive && ['bootstrap', 'fastload'].includes(state.phase)) return 100;
+  return uploading || transportPollingActive(state, uploading) ? 250 : fullStateIntervalMs;
 }
 
 function time(cycles, clockHz = 985248) {
@@ -650,6 +621,34 @@ drawVfdText($('machineC64'), 'C64');
 drawVfdText($('machineC16'), 'C16');
 drawVfdText($('standardPAL'), 'PAL');
 drawVfdText($('standardNTSC'), 'NTSC');
+// Concentric pixel arcs share the VFD dots; larger arcs light with stronger RSSI.
+const wifiPixels = [];
+for (const row of ['0004444444000','0440000000440','4000333330004',
+                   '0003300033000','0030000000300','0000022200000',
+                   '0000200020000','0000000000000','0000001000000']) {
+  for (const pixel of row) {
+    const dot = document.createElement('i');
+    dot.className = 'vfd-dot' + (pixel === '0' ? ' blank' : '');
+    $('wifiIcon').append(dot);
+    if (pixel !== '0') wifiPixels.push({dot, level:Number(pixel)});
+  }
+}
+let lastWifiLevel = -1;
+function renderWifi(s) {
+  const connected = s.wifiConnected === true;
+  const validRssi = connected && Number.isFinite(s.wifiRssi) && s.wifiRssi >= -127 && s.wifiRssi < 0;
+  const level = !connected ? 0 : !validRssi ? 1 :
+    s.wifiRssi >= -60 ? 4 : s.wifiRssi >= -70 ? 3 : s.wifiRssi >= -80 ? 2 : 1;
+  const label = validRssi ? 'ESP Wi-Fi: ' + s.wifiRssi + ' dBm (' + level + '/4)' :
+    connected ? 'ESP Wi-Fi connected; signal unavailable' :
+    s.wifiConnected === false ? 'ESP Wi-Fi disconnected' : 'ESP Wi-Fi status unknown';
+  $('wifiIcon').setAttribute('aria-label', label);
+  $('wifiIcon').setAttribute('title', label);
+  if (lastWifiLevel === level) return;
+  lastWifiLevel = level;
+  $('wifiIcon').setAttribute('data-level', String(level));
+  for (const pixel of wifiPixels) pixel.dot.classList.toggle('on', pixel.level <= level);
+}
 let lastVfdText = null;
 function vfdTime(cycles, clockHz) {
   return cycles == null ? '--:--' : time(cycles, clockHz).padStart(5, '0');
@@ -663,7 +662,7 @@ function renderVfd(text) {
 }
 
 function render(s) {
-  const renderStarted = Date.now();
+  renderWifi(s);
   last = s;
   const fast = fastloaderView(s);
   const playing = fast && ['bootstrap', 'fastload'].includes(s.phase) ? fast.spinning : !!s.playing;
@@ -766,18 +765,19 @@ function render(s) {
   $('remaining').textContent = fast ? fast.remaining.toLocaleString('en-US') + ' B' +
     (fast.eta !== null ? ' · ~' + fastRemainingSeconds(fast.eta) : '') :
     total ? time(Math.max(0, total - elapsed), s.clockHz) : '—';
+  const capacity = Number.isSafeInteger(s.bufferCapacity) && s.bufferCapacity > 0 ? s.bufferCapacity : 8192;
   $('buffer').textContent = s.embedded ?
     ('ROM · ' + (s.logicalSize || 0) + ' B') :
-    (s.fileOffsetReceived ? (8192 - s.freeBytes) + ' B' : '—');
+    (s.fileOffsetReceived ? (capacity - s.freeBytes) + ' B' : '—');
   const streamed = !s.embedded && s.sessionId > 0;
-  const used = Number.isFinite(s.freeBytes) ? Math.max(0, Math.min(8192, 8192 - s.freeBytes)) : 0;
-  const level = streamed ? Math.ceil(used / 8192 * 5) : 0;
+  const used = Number.isFinite(s.freeBytes) ? Math.max(0, Math.min(capacity, capacity - s.freeBytes)) : 0;
+  const level = streamed ? Math.ceil(used / capacity * 5) : 0;
   const bufferLabel = s.embedded ? 'Embedded tape; ESP streaming buffer not used' :
     !streamed ? 'ESP buffer inactive' :
     ['ESP buffer empty', 'ESP buffer low', 'ESP buffer partly filled',
       'ESP buffer half full', 'ESP buffer nearly full', 'ESP buffer full'][level];
   $('bufferIcon').setAttribute('data-active', String(streamed));
-  $('bufferIcon').setAttribute('data-level', String(streamed ? Math.ceil(used / 8192 * 8) : 0));
+  $('bufferIcon').setAttribute('data-level', String(streamed ? Math.ceil(used / capacity * 8) : 0));
   $('bufferIcon').setAttribute('aria-label', bufferLabel);
   $('bufferIcon').setAttribute('title', bufferLabel);
   if ($('networkInfo')) {
@@ -792,11 +792,9 @@ function render(s) {
       'OTA is unavailable in this firmware — use USB serial flash.';
   }
   $('phase').textContent = 'Phase: ' + s.phase + ' · received ' + s.fileOffsetReceived + ' B';
-  if ($('debugPanel').open) $('debugJson').textContent = JSON.stringify({...s, browser:browserTransferDiagnostics()}, null, 2);
+  if ($('debugPanel').open) $('debugJson').textContent = JSON.stringify(s, null, 2);
   $('diagnostics').textContent = s.freeHeap == null ? '' :
     'ESP: heap ' + s.freeHeap + ' B (largest block ' + s.maxFreeBlock + ' B)' +
-    ' · max loop/HTTP since boot ' + s.maxLoopUs + '/' + s.maxHttpUs + ' µs' +
-    (s.maxPlaybackHttpUs == null ? '' : ' · max HTTP during READ ' + s.maxPlaybackHttpUs + ' µs') +
     (s.maxDmaPumpGapUs == null ? '' : ' · max DMA refill gap ' + s.maxDmaPumpGapUs + ' µs') +
     ' · I2S/source underruns ' + s.i2sUnderruns + '/' + s.sourceUnderruns +
     (s.sourceWaits == null ? '' : ' · source waits ' + s.sourceWaits + (s.sourceWaiting ? ' (waiting)' : '')) +
@@ -822,8 +820,6 @@ function render(s) {
     ' · overflows: ' + (s.writeOverflows || 0) : '';
   $('seek').disabled = !source || source.type !== 'tap' || source.id !== s.sessionId;
   drawScope(s);
-  lastRenderMs = Date.now() - renderStarted;
-  maxRenderMs = Math.max(maxRenderMs, lastRenderMs);
 }
 
 async function parseIdx(file) {
@@ -998,26 +994,47 @@ function reconcileSource(item, state) {
   return {ok:true, changed};
 }
 
+function chunkCreditAvailable(item, state) {
+  if (!item || item.playbackError || item.offset >= item.logicalSize || state?.phase === 'error') return false;
+  const minimum = item.type === 'tap' && state.playing && !state.sourceWaiting ?
+    Math.min(1024, item.logicalSize - item.offset) : 1;
+  return state.freeBytes >= minimum;
+}
+function checkedChunkReply(ack, item, sentOffset, sentBytes) {
+  checkedEspState(ack);
+  if (ack.sessionId !== item.id || ack.sourceType !== item.type ||
+      ack.logicalSize !== item.logicalSize || ack.nextOffset !== sentOffset + sentBytes ||
+      ack.fileOffsetReceived !== ack.nextOffset || !Number.isSafeInteger(ack.freeBytes))
+    throw Error('Invalid chunk acknowledgement; resynchronizing with ESP');
+  return ack;
+}
+
 async function step(forceState = true) {
   if (busy) return;
   const now = Date.now();
-  if (lastPollStart) maxPollGapMs = Math.max(maxPollGapMs, now - lastPollStart);
-  lastPollStart = now;
   busy = true;
   try {
-    const fullPoll = forceState || !last || !lastFullStateAt || now - lastFullStateAt >= fullStateIntervalMs;
     const uploading = source && !source.playbackError && source.offset < source.logicalSize;
-    const fastProgress = last?.fastloaderActive && ['bootstrap','fastload'].includes(last.phase);
-    if (!fullPoll && !uploading && !fastProgress) return;
-    const reply = checkedEspState(await api(fullPoll ? '/state' : '/buffer'));
-    const state = fullPoll ? reply : {...last, ...reply};
+    // Fetch metadata once for a new session. During PLAY, including MOTOR pauses
+    // and the buffered tail after EOF upload, keep full /state off the refill path.
+    const initialSnapshot = !last || source && source.id !== last.sessionId;
+    const transportActive = transportPollingActive(last, uploading);
+    const fullPoll = initialSnapshot || !transportActive &&
+      (forceState || !lastFullStateAt || now - lastFullStateAt >= fullStateIntervalMs);
+    if (!fullPoll && !uploading && !transportActive) return;
+    // An acknowledged grant remains safe as READ only releases more space.
+    // Reuse it across bounded upload batches instead of fetching the same credit.
+    const useAck = !forceState && !fullPoll && source?.ackCredit &&
+      last?.sessionId === source.id && last.fileOffsetReceived === source.offset &&
+      chunkCreditAvailable(source, last);
+    const reply = useAck ? last : checkedEspState(await api(fullPoll ? '/state' : '/buffer'));
+    if (source) source.ackCredit = false;
+    let state = fullPoll ? reply : {...last, ...reply};
     if (fullPoll) lastFullStateAt = Date.now();
-    lastPollError = '';
     const hadSource = !!source;
     const recovery = reconcileSource(source, state);
     if (hadSource && !recovery.ok) {
       if (recovery.reason === 'playback_error') {
-        if (!source.playbackError) transferFailureTrace = browserTransferDiagnostics(false);
         source.playbackError = state.error || 'playback_error';
       }
       else { source = null; showIndex([]); lastFullStateAt = 0; }
@@ -1037,26 +1054,36 @@ async function step(forceState = true) {
            source.offset < source.logicalSize; requests++) {
         // Batch ordinary TAP refill instead of posting a few bytes per poll.
         // During initial fill/resume and at EOF, deliver even a short tail.
-        if (source.type === 'tap' && state.playing && !state.sourceWaiting &&
-            credit < Math.min(1024, source.logicalSize - source.offset)) break;
+        if (!chunkCreditAvailable(source, {...state, freeBytes:credit})) break;
         const blob = sourceChunk(source, source.offset, credit);
         const form = new FormData();
         form.append('data', blob, 'chunk.bin');
         try {
-          const ack = await api('/chunk?sid=' + source.id + '&offset=' + source.offset,
-            {method:'POST', body:form});
+          const sentOffset = source.offset;
+          const ack = checkedChunkReply(await api('/chunk?sid=' + source.id + '&offset=' + sentOffset,
+            {method:'POST', body:form}), source, sentOffset, blob.size);
           source.offset = ack.nextOffset;
+          source.ackCredit = true;
           credit = ack.freeBytes;
+          state = {...state, ...ack};
+          render(state);
+          if (state.phase === 'error') {
+            source.playbackError = state.error || 'playback_error';
+            source.ackCredit = false;
+            $('transport').textContent = 'Playback stopped on ESP: ' + source.playbackError +
+              '. The file remains in this tab. Stop MOTOR and press REW to restart.';
+            break;
+          }
         } catch (error) {
-          // A 409 may mean stale offset, stale session, or a full ring. The
-          // next GET /state decides which; never trust this reply alone.
+          // Any uncertain/partial POST must reconcile with a GET before retry.
+          source.ackCredit = false;
+          // A 409 may mean stale offset, stale session, or a full ring.
           if (error.data && Number.isInteger(error.data.nextOffset)) break;
           throw error;
         }
       }
     }
   } catch (error) {
-    lastPollError = error.message;
     playbackAwake.update(false);
     $('transport').textContent = 'Connection lost; the file remains in this tab.';
     $('error').textContent = 'Connection/transfer: ' + error.message;
@@ -1102,7 +1129,7 @@ async function insertTape() {
     }
     const ack = await api('/session', {method:'POST', body});
     counterOriginCycles = 0;
-    resetBrowserTransferDiagnostics();
+    lastFullStateAt = 0;
     source = {file, type:isPrg ? 'prg' : 'tap', id:ack.sessionId,
       offset:ack.nextOffset, logicalSize:ack.logicalSize || file.size,
       dataLength:isPrg ? file.size - 2 : 0,
