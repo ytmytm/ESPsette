@@ -79,3 +79,76 @@ the fastloader switch. See [VICE demo tests](../experiments/demo/README.md).
 OTA remains disabled in the validated configuration. WRITE capture requires an
 empty deck, including after paused or completed playback; the UI and firmware
 block reception until EJECT. No Timer1/NMI receiver is enabled.
+
+`test_tap_dma.py` runs the firmware's actual pulse reader, DMA producer and
+completion callback with a clocked model of the existing eight 64-word DMA
+descriptors and 8 KB source ring. Bursts of 81,197 µs HTTP calls reproduce the
+old 32-word refill limit's I2S underrun near 49.6 seconds. A 1,017,556 µs wait
+also defeats full refills unless cooperative yield servicing remains active.
+The corrected path checks every generated word against an independent TAP
+waveform, including the long pause, and restores the exact decoder position
+when MOTOR stops during HTTP. The default fixture is synthetic. To replay a
+local tape without committing it:
+
+```sh
+ESPSETTE_DMA_TAP=/path/to/file.tap python3 -m unittest discover -s tests -p test_tap_dma.py -v
+```
+
+The complete local Rambo III Side 1 TAP (715.573 seconds) also passes the model.
+This models network wait/yield timing; it does not measure ESP hardware or
+Wi-Fi interrupt latency. `maxDmaPumpGapUs` and `dmaServiceReady` in `/state`
+expose service timing/readiness for the next hardware test. The UI shows the
+maximum DMA refill gap alongside loop/HTTP timings. Neither the DMA allocation
+nor the 8 KB source ring is enlarged.
+
+Source-wait tests split a four-byte TAP record at each incoming byte in both
+v1 and v2. Partial DMA words survive the wait without padding or duplicate
+bits. A true missed DMA deadline counts as a source underrun, and an already
+released source offset fails immediately with `source_window_lost`. The failure
+position stays frozen instead of reverting to the last MOTOR pause. The full
+Rambo replay also checks 227 MOTOR stop/resume cycles against every played bit.
+
+A slow-upload model reproduces source starvation with 1 KB POSTs around 345 s
+of the local Rambo tape. With 4 KB POSTs streamed through the existing 2 KB
+HTTPUpload buffer, the whole tape completes without changing either the source
+ring or DMA allocation. Browser tests check 4 KB framing, batched TAP refill,
+short EOF tails and immediate delivery during source waits or prefill. Initial
+loading now fills the 8 KB ring (or reaches EOF) before starting READ.
+
+`sourceWaiting` / `sourceWaits` report recoverable waits. `sourceReadOffset`,
+`sourceWindowStart` and `sourceReceivedUntil` retain the missing read's source
+window at the time of failure. These are diagnostics for hardware testing; host
+models do not establish a bound on real Wi-Fi stalls.
+
+Browser recovery tests reject malformed JSON and incomplete `/state` objects
+without dropping the File or its session. Repeated playback-error polls keep
+the same File, including after the ESP releases the failed stream on MOTOR
+off; REW starts a fresh session from that File after MOTOR stops. A valid
+foreign session still invalidates the old transfer.
+
+Debug JSON now includes a browser-only `browser` object: request paths, sizes,
+response types, HTTP status and end-to-end elapsed times, poll/render timing,
+visibility, and retained file/session offsets. The last invalid state response
+and a snapshot at the first playback error survive subsequent polling. This
+can distinguish stalled browser delivery from actual session changes.
+`maxHttpUs` remains the since-boot value (including initial page delivery);
+`maxPlaybackHttpUs` tracks calls entered with READ active and resets per file.
+`sourceDataAgeAtErrorMs` records how long it had been since an accepted source
+append when the source underrun occurred. Neither the maximum since boot nor
+a host model establishes the cause of an individual hardware failure.
+
+The automatic UI loop polls full `/state` diagnostics every 500 ms. While a
+file still needs uploading, or a PRG is fastloading, intervening `/buffer`
+requests carry only live transport fields at a 100 ms cadence. These include
+played cycles and MOTOR state, so the counter remains responsive without
+fetching settings, scope and debug data on every refill. The browser merges
+compact replies with the last full snapshot and validates both reply shapes.
+Tests use a controlled clock to verify the cadence, actual uploads between
+full polls, retained metadata and recovery after a malformed compact reply.
+The compact handler uses a 768-byte heap JSON arena and shares transport-field
+generation and serialization with the full handler. No tape/DMA buffers change.
+
+On 2026-11-06, the user confirmed this firmware working on real C64 PAL
+hardware after the Rambo III Side 1 playback investigation, including the
+loader's repeated MOTOR pauses. OTA remains disabled and WRITE reception
+still requires an empty deck (EJECT).

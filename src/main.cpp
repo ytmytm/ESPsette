@@ -13,6 +13,7 @@
 #define PIN_READ  3 // GPIO3 (RxD) -> READ  (D,4) CIA#1 /FLAG, I2S, pulled to 5V in C64, normal high (input pullup), impulse low
 
 #include <Arduino.h>
+#include <Schedule.h>
 
 #if __has_include("local_ota.h")
 #include "local_ota.h" // Optional local OTA secret; ignored by Git.
@@ -227,14 +228,23 @@ const char* playerError = nullptr;
 uint8_t uploadError = 0;
 uint16_t uploadBytes = 0;
 bool uploadSeen = false;
-static const uint16_t MAX_HTTP_CHUNK = 1024;
+static const uint16_t MAX_HTTP_CHUNK = 4096;
 bool networkReady = false;
 bool otaReady = false;
 uint32_t i2sUnderrunCount = 0;
 uint32_t sourceUnderrunCount = 0;
+bool sourceWaiting = false;
+uint32_t sourceWaitCount = 0, sourceReadOffset = 0;
+uint32_t sourceWindowStart = 0, sourceReceivedUntil = 0;
 uint32_t uploadErrorCount = 0;
 uint32_t maxLoopUs = 0;
 uint32_t maxHttpUs = 0;
+uint32_t maxPlaybackHttpUs = 0;
+uint32_t lastSourceDataMs = 0, sourceDataAgeAtErrorMs = 0;
+// Cooperative refill runs on the normal CONT stack during network yields.
+// No timer, ISR, extra sample buffer or Wi-Fi masking is involved.
+bool dmaPumpBusy = false, dmaPumpFromYield = false, dmaServiceReady = false;
+uint32_t lastDmaPumpUs = 0, maxDmaPumpGapUs = 0;
 
 struct DecoderState {
   uint32_t offset;       // Next TAP record or PRG logical byte still needed.
@@ -249,6 +259,7 @@ struct TapPlayer {
   DecoderState decoder;
   uint32_t pendingWord;
   bool wordPending;
+  uint8_t pendingBits; // Unpadded partial word retained across source waits.
   uint8_t drainWordsLeft;
   uint32_t emptySince;
 } player;
@@ -268,6 +279,8 @@ volatile bool motorFell = false;
 uint32_t scheduledWords = 0; // Includes idle padding.
 uint32_t generatedTapBits = 0;
 uint32_t realBitRate = 0;
+bool readDmaActive = false;
+uint32_t stoppedRunBits = 0;
 #if ESPSETTE_GPIO_DISABLED
 uint32_t softPlayLastUs = 0;
 #endif
@@ -322,8 +335,13 @@ static void pausePlaybackNow() {
   state = State::WAITING;
 #else
   noInterrupts();
-  motorFallCallbacks = dmaCallbacks;
-  motorFallElapsedUs = lastDmaCallbackUs ? micros() - lastDmaCallbackUs : 0;
+  // Keep the actual MOTOR edge captured by the ISR, even if HTTP delayed us.
+  // The edge still matters if MOTOR went back on before HTTP yielded.
+  // A browser STOP without an edge instead needs the current position.
+  if (!motorFell) {
+    motorFallCallbacks = dmaCallbacks;
+    motorFallElapsedUs = lastDmaCallbackUs ? micros() - lastDmaCallbackUs : 0;
+  }
   interrupts();
   pauseTape();
 #endif
@@ -333,6 +351,7 @@ void handleRoot();
 void handlePlayer();
 void handleNotFound();
 void handleState();
+void handleBuffer();
 void handleSession();
 void handleSeek();
 void handleNav();
@@ -397,6 +416,9 @@ void IRAM_ATTR onMotorChange() {
 }
 
 void resetPlayer(uint32_t offset) {
+  maxPlaybackHttpUs = lastSourceDataMs = sourceDataAgeAtErrorMs = 0;
+  sourceWaiting = false;
+  sourceReadOffset = sourceWindowStart = sourceReceivedUntil = 0;
   player.decoder.offset = offset;
   player.decoder.prgPulseIndex = 0;
   player.decoder.pulseTicks = 0;
@@ -405,6 +427,7 @@ void resetPlayer(uint32_t offset) {
   player.decoder.halfWaveLevel = 0;
   player.pendingWord = 0;
   player.wordPending = false;
+  player.pendingBits = 0;
   player.drainWordsLeft = 0;
   player.emptySince = 0;
 }
@@ -481,9 +504,13 @@ void idleReadPin() {
 #endif
 }
 
+static uint32_t currentRunBits();
+
 void stopI2S() {
 #if !ESPSETTE_GPIO_DISABLED
+  if (readDmaActive) stoppedRunBits = currentRunBits();
   i2s_end();
+  readDmaActive = false;
   idleReadPin();
 #endif
 }
@@ -648,14 +675,14 @@ void pauseTape() {
     resetPlayer(sourceFormat == SourceFormat::PRG ? 2 : 20);
     playbackComplete = true;
     state = State::WAITING;
-    debugI("TAP completed at MOTOR stop");
+    if (!dmaPumpFromYield) debugI("TAP completed at MOTOR stop");
     return;
   }
   if (playedBits > generatedTapBits) {
     state = State::ERROR; // DMA ran ahead of the source; LOAD is invalid.
     playerError = "i2s_underrun";
     ++i2sUnderrunCount;
-    debugE("I2S underrun before MOTOR stop");
+    if (!dmaPumpFromYield) debugE("I2S underrun before MOTOR stop");
     return;
   }
   playedBaseCycles += (uint64_t)playedBits * CYCLES_PER_BIT;
@@ -667,7 +694,7 @@ void pauseTape() {
     if (checkpointNumber[slot] != buffer) {
       state = State::ERROR;
       playerError = "missing_checkpoint";
-      debugE("Missing DMA checkpoint at %lu", (unsigned long)buffer);
+      if (!dmaPumpFromYield) debugE("Missing DMA checkpoint at %lu", (unsigned long)buffer);
       return;
     }
     player.decoder = checkpoints[slot];
@@ -676,7 +703,7 @@ void pauseTape() {
       if (!nextTapeBit(bit)) {
         state = State::ERROR;
         playerError = "restore_failed";
-        debugE("Cannot restore TAP bit %lu", (unsigned long)playedBits);
+        if (!dmaPumpFromYield) debugE("Cannot restore TAP bit %lu", (unsigned long)playedBits);
         return;
       }
     }
@@ -684,14 +711,24 @@ void pauseTape() {
   tapeSource.releaseBefore(player.decoder.offset);
   player.pendingWord = 0;
   player.wordPending = false;
+  player.pendingBits = 0;
   player.drainWordsLeft = 0;
   player.emptySince = 0;
   state = State::WAITING;
-  debugI("Paused TAP after %lu output bits at offset %lu",
+  if (!dmaPumpFromYield) debugI("Paused TAP after %lu output bits at offset %lu",
          (unsigned long)playedBits, (unsigned long)player.decoder.offset);
 }
 
 void startTape() {
+#if !ESPSETTE_GPIO_DISABLED
+  if (!dmaServiceReady) {
+    state = State::ERROR;
+    playerError = "dma_service_alloc_failed";
+    return;
+  }
+#endif
+  lastDmaPumpUs = maxDmaPumpGapUs = 0;
+  sourceWaiting = false;
   if (playbackComplete) {
     playedBaseCycles = 0;
     playbackComplete = false;
@@ -706,7 +743,7 @@ void startTape() {
   motorFell = false;
   interrupts();
   scheduledWords = 0;
-  generatedTapBits = 0;
+  generatedTapBits = stoppedRunBits = 0;
   runStartDecoder = player.decoder;
   scopeClear();
   realBitRate = sourceClockHz / CYCLES_PER_BIT;
@@ -727,6 +764,7 @@ void startTape() {
     debugE("I2S allocation failed");
     return;
   }
+  readDmaActive = true;
   i2s_set_callback(onDmaBufferDone);
   realBitRate = (uint32_t)(i2s_get_real_rate() * 32.0f + 0.5f);
   state = State::STREAMING;
@@ -735,64 +773,66 @@ void startTape() {
 #endif
 }
 
+// A producer may reach bytes not yet received while DMA still has output.
+// Preserve the decoder/partial word and use that lead for the next HTTP chunk.
+static bool missingSource(uint32_t offset) {
+  sourceReadOffset = offset;
+  sourceWindowStart = tapeSource.retainedFrom();
+  sourceReceivedUntil = tapeSource.nextOffset();
+  if (tapeSource.kind() == TapeSource::Kind::STREAMED &&
+      offset >= sourceReceivedUntil && offset < tapeSource.size()) {
+    if (!sourceWaiting) ++sourceWaitCount;
+    sourceWaiting = true;
+    return false;
+  }
+  sourceWaiting = false;
+  state = State::ERROR;
+  playerError = offset < sourceWindowStart ? "source_window_lost" : "buffer_underrun";
+  ++sourceUnderrunCount;
+  sourceDataAgeAtErrorMs = millis() - lastSourceDataMs;
+  return false;
+}
+
 bool loadPulse() {
   uint32_t cycles;
   if (sourceFormat == SourceFormat::PRG) {
     uint32_t sourceOffset;
     const PrgEncoder::Result result = prgEncoder.pulseAt(
         player.decoder.prgPulseIndex, tapeSource, cycles, sourceOffset);
-    if (result == PrgEncoder::Result::END) return false;
-    if (result == PrgEncoder::Result::MISSING_DATA) {
-      state = State::ERROR;
-      playerError = "buffer_underrun";
-      ++sourceUnderrunCount;
-      debugE("PRG source exhausted at logical offset %lu",
-             (unsigned long)sourceOffset);
-      return false;
-    }
+    if (result == PrgEncoder::Result::END) { sourceWaiting = false; return false; }
+    if (result == PrgEncoder::Result::MISSING_DATA) return missingSource(sourceOffset);
     player.decoder.offset = sourceOffset;
     ++player.decoder.prgPulseIndex;
   } else {
-    if (player.decoder.offset >= tapEnd) return false;
     const uint32_t recordOffset = player.decoder.offset;
+    if (recordOffset >= tapEnd) { sourceWaiting = false; return false; }
     uint8_t value;
-    if (!tapeSource.read(player.decoder.offset, value)) {
-      state = State::ERROR;
-      playerError = "buffer_underrun";
-      ++sourceUnderrunCount;
-      debugE("TAP source exhausted at %lu", (unsigned long)recordOffset);
-      return false;
-    }
-    ++player.decoder.offset;
+    if (!tapeSource.read(recordOffset, value)) return missingSource(recordOffset);
     if (value != 0) {
       cycles = (uint32_t)value * 8;
+      player.decoder.offset = recordOffset + 1;
     } else {
-      if (tapEnd - player.decoder.offset < 3) {
+      if (tapEnd - recordOffset < 4) {
+        sourceWaiting = false;
         state = State::ERROR;
         playerError = "truncated_pulse";
-        debugE("Truncated TAP pulse at %lu", (unsigned long)recordOffset);
         return false;
       }
       uint8_t lo, mid, hi;
-      if (!tapeSource.read(player.decoder.offset, lo) ||
-          !tapeSource.read(player.decoder.offset + 1, mid) ||
-          !tapeSource.read(player.decoder.offset + 2, hi)) {
-        state = State::ERROR;
-        playerError = "buffer_underrun";
-        ++sourceUnderrunCount;
-        debugE("TAP source exhausted at %lu", (unsigned long)recordOffset);
-        return false;
-      }
+      if (!tapeSource.read(recordOffset + 1, lo) ||
+          !tapeSource.read(recordOffset + 2, mid) ||
+          !tapeSource.read(recordOffset + 3, hi)) return missingSource(recordOffset + 3);
       cycles = (uint32_t)lo | ((uint32_t)mid << 8) | ((uint32_t)hi << 16);
-      player.decoder.offset += 3;
+      player.decoder.offset = recordOffset + 4; // Commit only a complete record.
     }
     if (cycles == 0) {
+      sourceWaiting = false;
       state = State::ERROR;
       playerError = "zero_pulse";
-      debugE("Zero-length TAP pulse at %lu", (unsigned long)recordOffset);
       return false;
     }
   }
+  sourceWaiting = false;
   // Keep the average timing exact across pulses, including PRG half cycles.
   cycles += player.decoder.cycleRemainder;
   player.decoder.pulseTicks = cycles / CYCLES_PER_BIT;
@@ -831,7 +871,10 @@ void pumpTapeSoft() {
   for (uint32_t i = 0; i < wantBits; ++i) {
     uint8_t bit;
     if (!nextTapeBit(bit)) {
-      if (state == State::ERROR) return;
+      if (state == State::ERROR || sourceWaiting) {
+        if (sourceWaiting) tapeSource.releaseBefore(player.decoder.offset);
+        return;
+      }
       state = State::FINISHED;
       playbackComplete = true;
       if (totalTapeCycles) playedBaseCycles = totalTapeCycles;
@@ -849,7 +892,15 @@ void pumpTapeSoft() {
 #endif
 
 void pumpTape() {
-  if (state != State::STREAMING && state != State::DRAINING) return;
+  if (dmaPumpBusy || (state != State::STREAMING && state != State::DRAINING)) return;
+  struct PumpGuard {
+    PumpGuard() { dmaPumpBusy = true; }
+    ~PumpGuard() { dmaPumpBusy = false; }
+  } guard;
+  const uint32_t now = micros();
+  if (lastDmaPumpUs && uint32_t(now - lastDmaPumpUs) > maxDmaPumpGapUs)
+    maxDmaPumpGapUs = now - lastDmaPumpUs;
+  lastDmaPumpUs = now;
 #if ESPSETTE_GPIO_DISABLED
   pumpTapeSoft();
   return;
@@ -857,9 +908,13 @@ void pumpTape() {
   if (state == State::STREAMING && dmaUnderrun) {
     stopI2S();
     state = State::ERROR;
-    playerError = "i2s_underrun";
-    ++i2sUnderrunCount;
-    debugE("I2S underrun during TAP");
+    playerError = sourceWaiting ? "buffer_underrun" : "i2s_underrun";
+    if (sourceWaiting) {
+      ++sourceUnderrunCount;
+      sourceDataAgeAtErrorMs = millis() - lastSourceDataMs;
+    } else ++i2sUnderrunCount;
+    sourceWaiting = false;
+    if (!dmaPumpFromYield) debugE("READ underrun during TAP");
     return;
   }
   // Release only bytes preceding the earliest DMA checkpoint that can still
@@ -871,39 +926,44 @@ void pumpTape() {
     if (checkpointNumber[slot] == buffer)
       tapeSource.releaseBefore(checkpoints[slot].offset);
   }
-  // Limit one loop iteration so HTTP and debug handlers remain responsive.
-  for (uint8_t words = 0; words < 32; ++words) {
+  // Refill every available DMA word before servicing HTTP. At C64 PAL, the
+  // old 32-word limit produced only 16.6 ms of signal per loop: consecutive
+  // ~80 ms HTTP requests could drain DMA despite a full TAP source buffer.
+  // Bound work by the existing DMA capacity; no extra buffers are allocated.
+  const uint16_t budget = dmaPumpFromYield ? DMA_WORDS : DMA_BUFFERS * DMA_WORDS;
+  for (uint16_t words = 0; words < budget; ++words) {
     if (i2s_is_full()) return;
     if (state == State::STREAMING && !player.wordPending) {
-      if (scheduledWords % DMA_WORDS == 0) {
+      if (player.pendingBits == 0 && scheduledWords % DMA_WORDS == 0) {
         const uint32_t buffer = scheduledWords / DMA_WORDS;
         const uint8_t slot = buffer % CHECKPOINT_SLOTS;
         checkpoints[slot] = player.decoder;
         checkpointNumber[slot] = buffer;
       }
-      uint32_t word = 0;
-      uint8_t bits = 0;
       uint8_t bit;
-      while (bits < 32 && nextTapeBit(bit)) {
-        word = (word << 1) | bit;
-        ++bits;
+      while (player.pendingBits < 32 && nextTapeBit(bit)) {
+        player.pendingWord = (player.pendingWord << 1) | bit;
+        ++player.pendingBits;
         ++generatedTapBits;
       }
       if (state == State::ERROR) {
         stopI2S();
         return;
       }
-      if (bits == 0) {
+      if (sourceWaiting) return; // DMA continues with already committed words.
+      if (player.pendingBits == 0) {
         state = State::DRAINING;
         player.drainWordsLeft = DRAIN_WORDS;
       } else {
-        player.pendingWord = word << (32 - bits);
+        player.pendingWord <<= 32 - player.pendingBits;
         player.wordPending = true;
+        player.pendingBits = 0;
       }
     }
     if (player.wordPending) {
       if (!i2s_write_sample_nb(player.pendingWord)) return;
       player.wordPending = false;
+      player.pendingWord = 0;
       ++scheduledWords;
       committedWords = scheduledWords;
     } else if (state == State::DRAINING && player.drainWordsLeft != 0) {
@@ -933,8 +993,23 @@ void pumpTape() {
     playbackComplete = true;
     if (totalTapeCycles) playedBaseCycles = totalTapeCycles;
     else playedBaseCycles += (uint64_t)generatedTapBits * CYCLES_PER_BIT;
-    debugI("TAP completed");
+    if (!dmaPumpFromYield) debugI("TAP completed");
   }
+}
+
+// ESP8266 invokes this on the user stack after yield()/delay(), including
+// TCP send/receive waits. Keep it bounded, nonblocking and free of logging.
+static bool serviceTapeDma() {
+#if !ESPSETTE_GPIO_DISABLED
+  if (!dmaPumpBusy && !fastloaderBusy() &&
+      (state == State::STREAMING || state == State::DRAINING)) {
+    dmaPumpFromYield = true;
+    if (tapeShouldRun() && !motorFell) pumpTape();
+    else pausePlaybackNow();
+    dmaPumpFromYield = false;
+  }
+#endif
+  return true;
 }
 
 void setupPins() {
@@ -959,6 +1034,7 @@ void setupWebserver() {
   HTTPServer.on("/", handleRoot);
   HTTPServer.on("/player", HTTP_GET, handlePlayer);
   HTTPServer.on("/state", HTTP_GET, handleState);
+  HTTPServer.on("/buffer", HTTP_GET, handleBuffer);
   HTTPServer.on("/session", HTTP_POST, handleSession);
   HTTPServer.on("/seek", HTTP_POST, handleSeek);
   HTTPServer.on("/nav", HTTP_POST, handleNav);
@@ -1142,6 +1218,7 @@ void setup() {
   lastMotor = digitalRead(PIN_MOTOR);
   attachInterrupt(digitalPinToInterrupt(PIN_MOTOR), onMotorChange, CHANGE);
   processWriteCommands();
+  dmaServiceReady = schedule_recurrent_function_us(serviceTapeDma, 2000);
 #endif
   lastcall = millis();
   debugI("setup completed; TAP bytes=%lu", (unsigned long)tapEnd);
@@ -1212,7 +1289,7 @@ void loop() {
   } else if (state == State::WAITING) {
     if (tapeShouldRun() && tapeLoaded) startTape();
   } else if (state == State::STREAMING || state == State::DRAINING) {
-    if (!tapeShouldRun()) {
+    if (!tapeShouldRun() || motorFell) {
       if (motor == LOW && !motorFell) {
         noInterrupts();
         motorFallCallbacks = dmaCallbacks;
@@ -1229,10 +1306,13 @@ void loop() {
 #if ESPSETTE_OTA
   if (otaReady && state != State::STREAMING && state != State::DRAINING) ArduinoOTA.handle();
 #endif
+  const bool readActiveBeforeHttp = readDmaActive;
   const uint32_t httpStartUs = micros();
   HTTPServer.handleClient();
   const uint32_t httpElapsedUs = micros() - httpStartUs;
   if (httpElapsedUs > maxHttpUs) maxHttpUs = httpElapsedUs;
+  if (readActiveBeforeHttp && httpElapsedUs > maxPlaybackHttpUs)
+    maxPlaybackHttpUs = httpElapsedUs;
   networkConfig.handle(motor == HIGH);
   if (networkReady) Debug.handle();
 #endif
@@ -1275,7 +1355,7 @@ void handleNotFound() {
 }
 
 // The session protocol uses short requests. HTTPUpload buffers at most 2048
-// bytes; the browser deliberately sends at most MAX_HTTP_CHUNK per request.
+// bytes at a time; larger requests are appended incrementally to the ring.
 static bool parseDecimal(const String& input, uint32_t& output) {
   if (input.length() == 0 || input.length() > 10) return false;
   uint32_t value = 0;
@@ -1338,7 +1418,10 @@ static bool validStreamHeader(const uint8_t header[20], uint32_t size) {
 }
 
 static uint32_t currentRunBits() {
-  if (state != State::STREAMING && state != State::DRAINING) return 0;
+  // Error reporting must retain this run, not jump back to the last MOTOR pause.
+  if (state == State::ERROR && !readDmaActive) return stoppedRunBits;
+  if (state != State::STREAMING && state != State::DRAINING &&
+      !(state == State::ERROR && readDmaActive)) return 0;
 #if ESPSETTE_GPIO_DISABLED
   return generatedTapBits;
 #else
@@ -1407,32 +1490,17 @@ static bool scanTapToCycles(uint64_t targetCycles, uint32_t& outOffset,
   return true;
 }
 
-void handleState() {
-  // The ESP8266 continuation stack is only 4 KB. Keep the JSON arena off
-  // that stack so HTTP/TCP calls plus a GPIO ISR still have room.
-  DynamicJsonDocument doc(2048);
-  if (doc.capacity() == 0) {
-    HTTPServer.send(503, "application/json", "{\"error\":\"low_memory\"}");
-    return;
-  }
-  noInterrupts();
-  const WriteDecoder writeSnapshot = writeDecoder;
-  interrupts();
+// Shared live transport fields; configuration, scope and debug data stay
+// in /state. The small /buffer reply keeps uploads independent of UI polling.
+static void writeTransportState(JsonDocument& doc) {
   const bool motorOn = motorIsOn();
   doc["tapeState"] = pendingDemoInsert ? "loading"
       : (demoInsertFailed && !tapeLoaded) ? "error"
       : (tapeLoaded ? "loaded" : "ejected");
   doc["sourceType"] = sourceFormat == SourceFormat::PRG ? "prg" : "tap";
-  doc["machine"] = profileIsC16(sourceProfile) ? "c16" : "c64";
-  doc["videoStandard"] = profileIsNtsc(sourceProfile) ? "ntsc" : "pal";
   doc["clockHz"] = sourceClockHz;
-  doc["fileName"] = tapeLoaded ? tapeName : "";
   doc["motorOn"] = motorOn;
   doc["sensePressed"] = fastloaderBusy() || senseIsPressed();
-  doc["gpioDisabled"] = bool(ESPSETTE_GPIO_DISABLED);
-  doc["autoPlay"] = autoPlay;
-  doc["defaultMachine"] = profileName(defaultProfile);
-  writeFastloaderConfig(doc.createNestedObject("fastloader"), fastloaderSettings);
   doc["fastloaderActive"] = fastPhase != FastPhase::OFF;
   doc["fastloaderBytes"] = fastSent;
   doc["fastloaderTotalBytes"] = fastPhase == FastPhase::OFF ? 0 : fastLength;
@@ -1478,6 +1546,55 @@ void handleState() {
     doc["logicalSize"] = 0;
   }
   doc["sessionId"] = tapeSource.sessionId();
+  doc["error"] = playerError;
+  doc["sourceWaiting"] = sourceWaiting;
+  doc["sourceWaits"] = sourceWaitCount;
+}
+
+static void sendStateJson(JsonDocument& doc) {
+  if (doc.overflowed()) {
+    HTTPServer.send(500, "application/json", "{\"error\":\"state_overflow\"}");
+    return;
+  }
+  String response;
+  if (!response.reserve(measureJson(doc))) {
+    HTTPServer.send(503, "application/json", "{\"error\":\"low_memory\"}");
+    return;
+  }
+  serializeJson(doc, response);
+  HTTPServer.sendHeader("Cache-Control", "no-store");
+  HTTPServer.send(200, "application/json", response);
+}
+
+void handleBuffer() {
+  DynamicJsonDocument doc(768);
+  if (doc.capacity() == 0) {
+    HTTPServer.send(503, "application/json", "{\"error\":\"low_memory\"}");
+    return;
+  }
+  writeTransportState(doc);
+  sendStateJson(doc);
+}
+
+void handleState() {
+  // The ESP8266 continuation stack is only 4 KB. Keep the JSON arena off
+  // that stack so HTTP/TCP calls plus a GPIO ISR still have room.
+  DynamicJsonDocument doc(2048);
+  if (doc.capacity() == 0) {
+    HTTPServer.send(503, "application/json", "{\"error\":\"low_memory\"}");
+    return;
+  }
+  noInterrupts();
+  const WriteDecoder writeSnapshot = writeDecoder;
+  interrupts();
+  writeTransportState(doc);
+  doc["machine"] = profileIsC16(sourceProfile) ? "c16" : "c64";
+  doc["videoStandard"] = profileIsNtsc(sourceProfile) ? "ntsc" : "pal";
+  doc["fileName"] = tapeLoaded ? tapeName : "";
+  doc["gpioDisabled"] = bool(ESPSETTE_GPIO_DISABLED);
+  doc["autoPlay"] = autoPlay;
+  doc["defaultMachine"] = profileName(defaultProfile);
+  writeFastloaderConfig(doc.createNestedObject("fastloader"), fastloaderSettings);
   const auto* reset = ESP.getResetInfoPtr();
   doc["resetReason"] = reset->reason;
   if (reset->reason == REASON_EXCEPTION_RST) {
@@ -1489,8 +1606,18 @@ void handleState() {
   doc["maxFreeBlock"] = ESP.getMaxFreeBlockSize();
   doc["maxLoopUs"] = maxLoopUs;
   doc["maxHttpUs"] = maxHttpUs;
+  doc["maxPlaybackHttpUs"] = maxPlaybackHttpUs;
+  doc["sourceDataAgeMs"] = millis() - lastSourceDataMs;
+  doc["sourceDataAgeAtErrorMs"] = sourceDataAgeAtErrorMs;
+  doc["dmaServiceReady"] = dmaServiceReady;
+  doc["maxDmaPumpGapUs"] = maxDmaPumpGapUs;
   doc["i2sUnderruns"] = i2sUnderrunCount;
   doc["sourceUnderruns"] = sourceUnderrunCount;
+  doc["sourceWaiting"] = sourceWaiting;
+  doc["sourceWaits"] = sourceWaitCount;
+  doc["sourceReadOffset"] = sourceReadOffset;
+  doc["sourceWindowStart"] = sourceWindowStart;
+  doc["sourceReceivedUntil"] = sourceReceivedUntil;
   doc["uploadErrors"] = uploadErrorCount;
   doc["error"] = playerError;
   doc["writeEnabled"] = !bool(ESPSETTE_GPIO_DISABLED);
@@ -1519,18 +1646,7 @@ void handleState() {
     doc["scope"] = scopeStr;
     doc["scopeHz"] = realBitRate ? realBitRate / SCOPE_EVERY_N_BITS : 0;
   }
-  if (doc.overflowed()) {
-    HTTPServer.send(500, "application/json", "{\"error\":\"state_overflow\"}");
-    return;
-  }
-  String response;
-  if (!response.reserve(measureJson(doc))) {
-    HTTPServer.send(503, "application/json", "{\"error\":\"low_memory\"}");
-    return;
-  }
-  serializeJson(doc, response);
-  HTTPServer.sendHeader("Cache-Control", "no-store");
-  HTTPServer.send(200, "application/json", response);
+  sendStateJson(doc);
 }
 
 void handleSession() {
@@ -1693,7 +1809,7 @@ void handleNav() {
                       "Streamed TAP window missed that offset; use IDX/timeline FF");
       return;
     }
-    tapeLoaded = tapeSource.bufferedBytes() >= 4096 ||
+    tapeLoaded = tapeSource.freeBytes() == 0 ||
                  tapeSource.nextOffset() >= tapEnd;
   }
   playedBaseCycles = atCycles;
@@ -1799,6 +1915,7 @@ void handleChunkUpload() {
       if (sourceFormat == SourceFormat::PRG && fastPhase == FastPhase::OFF)
         prgEncoder.observeFirstCopy(tapeSource.nextOffset() - upload.currentSize,
                                     upload.buf, upload.currentSize);
+      lastSourceDataMs = millis();
       uploadBytes += upload.currentSize;
     }
   } else if (upload.status == UPLOAD_FILE_ABORTED) {
@@ -1809,7 +1926,7 @@ void handleChunkUpload() {
 void handleChunk() {
   if (!uploadSeen || (uploadError == 0 && uploadBytes == 0)) uploadError = 3;
   if (uploadError == 0 && !tapeLoaded &&
-      (tapeSource.bufferedBytes() >= 4096 || tapeSource.nextOffset() == tapEnd)) {
+      (tapeSource.freeBytes() == 0 || tapeSource.nextOffset() == tapEnd)) {
     tapeLoaded = true;
   }
   StaticJsonDocument<128> reply;

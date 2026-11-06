@@ -12,11 +12,11 @@ Files stay in the browser and pass through an 8 KB buffer on the ESP. No SD card
 
 ## Tested and pending
 
-Hardware results confirmed on **C64 PAL, 1–5 November 2026**:
+Hardware results confirmed on **C64 PAL, 1–6 November 2026**:
 
 | Feature | Status |
 | --- | --- |
-| C64 PAL: TAP streamed from the browser | Passed on real hardware |
+| C64 PAL: TAP streamed from the browser | Passed on real hardware, including Rambo III Side 1 with repeated MOTOR pauses (6 November) |
 | C64 PAL: PRG → standard tape pulses | Passed on real hardware |
 | C64 PAL: PRG + fastloader | Passed on real hardware |
 | Embedded Circles PRG, C64 PAL | Standard and fast modes passed on real hardware |

@@ -583,7 +583,7 @@ mock.freeBytes = 8192 - mockBytes;
 }
 async function mockApi(path, options = {}) {
 updateMock();
-if (path === '/state') {
+if (path === '/state' || path === '/buffer') {
 if (deckHasSource(mock)) {
 mock.writeStatus = 'requires_empty_deck'; mock.writeListening = false;
 } else if (mock.writeStatus === 'requires_empty_deck') mock.writeStatus = 'listening';
@@ -676,7 +676,7 @@ const size = options.body.get('data').size;
 if (size > mock.freeBytes) throw Object.assign(new Error('buffer'),
 {data:{nextOffset:mock.fileOffsetReceived}});
 mockBytes += size; mock.fileOffsetReceived += size;
-if (mockBytes >= 4096 || mock.fileOffsetReceived === mockSize) mock.tapeState = 'loaded';
+if (mockBytes >= 8192 || mock.fileOffsetReceived === mockSize) mock.tapeState = 'loaded';
 return {nextOffset:mock.fileOffsetReceived, freeBytes:8192-mockBytes, loaded:mock.tapeState==='loaded'};
 }
 if (path === '/seek') {
@@ -718,12 +718,63 @@ return {tapeState:'loaded'};
 }
 throw new Error('Unknown request: ' + path);
 }
+const requestHistory = [];
+let lastPollStart = 0, maxPollGapMs = 0, lastPollError = '';
+let lastRenderMs = 0, maxRenderMs = 0;
+let transferFailureTrace = null, lastNetworkError = null, lastInvalidState = null;
+let lastFullStateAt = 0;
+const fullStateIntervalMs = 500;
+function resetBrowserTransferDiagnostics() {
+requestHistory.length = 0;
+lastPollStart = maxPollGapMs = lastRenderMs = maxRenderMs = 0;
+lastPollError = '';
+lastFullStateAt = 0;
+transferFailureTrace = lastNetworkError = lastInvalidState = null;
+}
+function checkedEspState(state) {
+// A truncated/captive-portal response is not a changed cassette session.
+if (!state || !Number.isSafeInteger(state.sessionId) || state.sessionId < 0 ||
+!['tap', 'prg'].includes(state.sourceType) || typeof state.phase !== 'string' ||
+typeof state.tapeState !== 'string' ||
+!Number.isSafeInteger(state.logicalSize) || state.logicalSize < 0 ||
+!Number.isSafeInteger(state.fileOffsetReceived) || state.fileOffsetReceived < 0 ||
+!Number.isFinite(state.freeBytes) || state.freeBytes < 0)
+throw Error('Incomplete ESP state response; keeping the source file');
+return state;
+}
+function browserTransferDiagnostics(includeFailure = true) {
+return {visibility:document.visibilityState || 'unknown',
+sourceFile:source?.file?.name || null, sourceSession:source?.id ?? null,
+sourceOffset:source?.offset ?? null, playbackError:source?.playbackError || null,
+maxPollGapMs, lastRenderMs, maxRenderMs, lastPollError, lastNetworkError, lastInvalidState,
+...(includeFailure ? {atFailure:transferFailureTrace} : {}),
+requests:requestHistory.map(item => ({...item}))};
+}
 async function api(path, options) {
 if (preview) return mockApi(path, options);
+const started = Date.now();
+const request = {path, method:options?.method || 'GET',
+bytes:options?.body?.get?.('data')?.size || 0, elapsedMs:0, status:0};
+try {
 const response = await fetch(path, options);
-const data = await response.json().catch(() => ({}));
-if (!response.ok) throw Object.assign(new Error(data.error || response.statusText), {data});
-return data;
+request.status = response.status;
+request.contentType = response.headers?.get?.('content-type') || null;
+let data;
+try { data = await response.json(); }
+catch (_) { throw Error(response.ok ? 'Invalid JSON response from ' + path : response.statusText); }
+if (!response.ok) throw Object.assign(new Error(data?.error || response.statusText), {data});
+return ['/state', '/buffer'].includes(path.split('?')[0]) ? checkedEspState(data) : data;
+} catch (error) {
+request.error = error.message;
+lastNetworkError = request;
+if (['/state', '/buffer'].includes(path.split('?')[0]) && /Invalid JSON|Incomplete ESP state/.test(error.message))
+lastInvalidState = request;
+throw error;
+} finally {
+request.elapsedMs = Date.now() - started;
+requestHistory.push(request);
+if (requestHistory.length > 12) requestHistory.shift();
+}
 }
 function prgTotalCycles(length, machine = 'c64') {
 const [short, medium, long] = machine === 'c16' ? [448, 896, 1792] : [384, 536, 680];
@@ -754,7 +805,7 @@ return seconds < 10 ? seconds.toFixed(1) + ' s' : Math.ceil(seconds) + ' s';
 function pollDelay(state, uploading) {
 if (state?.sourceType === 'prg' && state.fastloaderActive &&
 ['bootstrap', 'fastload'].includes(state.phase)) return 100;
-return uploading ? (state?.playing ? 80 : 250) : 350;
+return uploading ? 100 : fullStateIntervalMs;
 }
 function time(cycles, clockHz = 985248) {
 if (cycles == null) return '—';
@@ -846,6 +897,7 @@ $('vfdDigits').setAttribute('data-long', String(text.replace(/ /g, '').length > 
 drawVfdText($('vfdDigits'), text);
 }
 function render(s) {
+const renderStarted = Date.now();
 last = s;
 const fast = fastloaderView(s);
 const playing = fast && ['bootstrap', 'fastload'].includes(s.phase) ? fast.spinning : !!s.playing;
@@ -877,7 +929,7 @@ const sessionTape = !!(source && source.id === s.sessionId &&
 s.sessionId > 0 && source.logicalSize === s.logicalSize);
 const inserted = s.tapeState === 'loaded' || sessionTape;
 const canServerNav = s.tapeState === 'loaded' && s.sourceType === 'tap';
-const indexed = !!(source?.type === 'tap' && source.id === s.sessionId && source.indexEntries.length);
+const indexed = !!(source?.type === 'tap' && !source.playbackError && source.id === s.sessionId && source.indexEntries.length);
 $('rewindLabel').textContent = indexed ? 'PREV' : 'REW';
 $('forwardLabel').textContent = indexed ? 'NEXT' : 'FF';
 $('deck').classList.toggle('playing', playing);
@@ -904,9 +956,9 @@ $('play').setAttribute('aria-pressed', String(!!s.sensePressed));
 // Indexed navigation is limited to the previous/next entry in the list.
 $('rewind').disabled = indexed ? !navigationTarget(-1) : !source &&
 (s.tapeState !== 'loaded' || s.sessionId !== 0) && !canServerNav;
-$('fastForward').disabled = indexed ? !navigationTarget(1) : !(navigationTarget(1) || canServerNav);
+$('fastForward').disabled = !!source?.playbackError || (indexed ? !navigationTarget(1) : !(navigationTarget(1) || canServerNav));
 syncIndexPosition();
-$('deckEject').disabled = editBlocked || s.tapeState === 'ejected' && !s.sessionId;
+$('deckEject').disabled = editBlocked || !source && s.tapeState === 'ejected' && !s.sessionId;
 if (!$('deckMessage').textContent)
 $('deckMessage').textContent = s.sensePressed ?
 (s.motorOn ?
@@ -971,11 +1023,14 @@ $('otaHint').textContent = s.otaReady ?
 'OTA is unavailable in this firmware — use USB serial flash.';
 }
 $('phase').textContent = 'Phase: ' + s.phase + ' · received ' + s.fileOffsetReceived + ' B';
-if ($('debugPanel').open) $('debugJson').textContent = JSON.stringify(s, null, 2);
+if ($('debugPanel').open) $('debugJson').textContent = JSON.stringify({...s, browser:browserTransferDiagnostics()}, null, 2);
 $('diagnostics').textContent = s.freeHeap == null ? '' :
 'ESP: heap ' + s.freeHeap + ' B (largest block ' + s.maxFreeBlock + ' B)' +
-' · max loop/HTTP ' + s.maxLoopUs + '/' + s.maxHttpUs + ' µs' +
+' · max loop/HTTP since boot ' + s.maxLoopUs + '/' + s.maxHttpUs + ' µs' +
+(s.maxPlaybackHttpUs == null ? '' : ' · max HTTP during READ ' + s.maxPlaybackHttpUs + ' µs') +
+(s.maxDmaPumpGapUs == null ? '' : ' · max DMA refill gap ' + s.maxDmaPumpGapUs + ' µs') +
 ' · I2S/source underruns ' + s.i2sUnderruns + '/' + s.sourceUnderruns +
+(s.sourceWaits == null ? '' : ' · source waits ' + s.sourceWaits + (s.sourceWaiting ? ' (waiting)' : '')) +
 ' · upload errors ' + s.uploadErrors +
 (s.freeStack == null ? '' : ' · stack watermark ' + s.freeStack + ' B') +
 (s.resetReason == null ? '' : ' · last reset: ' +
@@ -998,6 +1053,8 @@ $('writeDetail').textContent = s.writeEnabled ?
 ' · overflows: ' + (s.writeOverflows || 0) : '';
 $('seek').disabled = !source || source.type !== 'tap' || source.id !== s.sessionId;
 drawScope(s);
+lastRenderMs = Date.now() - renderStarted;
+maxRenderMs = Math.max(maxRenderMs, lastRenderMs);
 }
 async function parseIdx(file) {
 if (!file) return [];
@@ -1087,7 +1144,7 @@ $('selectedFiles').hidden = !pending;
 $('selectedFiles').textContent = pending ? 'Selected: ' + selectedFile.name : '';
 }
 function sourceChunk(item, offset, limit) {
-let length = Math.min(1024, limit, item.logicalSize - offset);
+let length = Math.min(4096, limit, item.logicalSize - offset);
 if (item.type === 'prg') {
 const withinCopy = (offset - 2) % item.dataLength;
 length = Math.min(length, item.dataLength - withinCopy);
@@ -1145,10 +1202,13 @@ busy = true;
 }
 function reconcileSource(item, state) {
 if (!item) return {ok:false, reason:'no_file'};
+// An ESP playback failure does not remove the browser's File. The firmware
+// may already have released its stream after MOTOR stopped.
+if (state.phase === 'error' && (state.sessionId === item.id || !state.sessionId))
+return {ok:false, reason:'playback_error'};
 if (state.sessionId !== item.id || state.sourceType !== item.type ||
 state.logicalSize !== item.logicalSize)
 return {ok:false, reason:'session_changed'};
-if (state.phase === 'error') return {ok:false, reason:'playback_error'};
 const offset = state.fileOffsetReceived;
 if (!Number.isSafeInteger(offset) || offset < (item.type === 'prg' ? 2 : 20) ||
 offset > item.logicalSize)
@@ -1157,29 +1217,47 @@ const changed = item.offset !== offset;
 item.offset = offset; // ESP is authoritative after an uncertain HTTP result.
 return {ok:true, changed};
 }
-async function step() {
+async function step(forceState = true) {
 if (busy) return;
+const now = Date.now();
+if (lastPollStart) maxPollGapMs = Math.max(maxPollGapMs, now - lastPollStart);
+lastPollStart = now;
 busy = true;
 try {
-const state = await api('/state');
+const fullPoll = forceState || !last || !lastFullStateAt || now - lastFullStateAt >= fullStateIntervalMs;
+const uploading = source && !source.playbackError && source.offset < source.logicalSize;
+const fastProgress = last?.fastloaderActive && ['bootstrap','fastload'].includes(last.phase);
+if (!fullPoll && !uploading && !fastProgress) return;
+const reply = checkedEspState(await api(fullPoll ? '/state' : '/buffer'));
+const state = fullPoll ? reply : {...last, ...reply};
+if (fullPoll) lastFullStateAt = Date.now();
+lastPollError = '';
 const hadSource = !!source;
 const recovery = reconcileSource(source, state);
 if (hadSource && !recovery.ok) {
-source = null;
-showIndex([]);
+if (recovery.reason === 'playback_error') {
+if (!source.playbackError) transferFailureTrace = browserTransferDiagnostics(false);
+source.playbackError = state.error || 'playback_error';
 }
+else { source = null; showIndex([]); lastFullStateAt = 0; }
+} else if (recovery.ok) source.playbackError = null;
 if ($('error').textContent.startsWith('Connection/transfer:'))
 $('error').textContent = '';
 render(state);
-$('transport').textContent = hadSource && recovery.ok ?
+$('transport').textContent = recovery.reason === 'playback_error' ?
+'Playback stopped on ESP: ' + (state.error || 'playback error') +
+'. The file remains in this tab. Stop MOTOR and press REW to restart.' :
+hadSource && recovery.ok ?
 (recovery.changed ? 'Connection restored; offset reconciled with ESP.' : 'Connected to ESP.') :
-state.sessionId ? (recovery.reason === 'playback_error' ?
-'Playback stopped; insert the file again.' :
-'This tab has no source file for the session. Insert the file again.') : 'Connected to ESP.';
+state.sessionId ? 'This tab has no source file for the session. Insert the file again.' : 'Connected to ESP.';
 if (source && recovery.ok) {
 let credit = state.freeBytes;
 for (let requests = 0; requests < 4 && credit > 0 &&
 source.offset < source.logicalSize; requests++) {
+// Batch ordinary TAP refill instead of posting a few bytes per poll.
+// During initial fill/resume and at EOF, deliver even a short tail.
+if (source.type === 'tap' && state.playing && !state.sourceWaiting &&
+credit < Math.min(1024, source.logicalSize - source.offset)) break;
 const blob = sourceChunk(source, source.offset, credit);
 const form = new FormData();
 form.append('data', blob, 'chunk.bin');
@@ -1197,6 +1275,7 @@ throw error;
 }
 }
 } catch (error) {
+lastPollError = error.message;
 playbackAwake.update(false);
 $('transport').textContent = 'Connection lost; the file remains in this tab.';
 $('error').textContent = 'Connection/transfer: ' + error.message;
@@ -1241,6 +1320,7 @@ name:file.name, cycles:String(scan.total)});
 }
 const ack = await api('/session', {method:'POST', body});
 counterOriginCycles = 0;
+resetBrowserTransferDiagnostics();
 source = {file, type:isPrg ? 'prg' : 'tap', id:ack.sessionId,
 offset:ack.nextOffset, logicalSize:ack.logicalSize || file.size,
 dataLength:isPrg ? file.size - 2 : 0,
@@ -1373,6 +1453,11 @@ if (!entry) { $('error').textContent = 'Invalid IDX position'; return; }
 await seekTo(entry);
 };
 $('rewind').onclick = async () => {
+if (source?.playbackError) {
+selectedFile = source.file;
+await insertTape();
+return;
+}
 if (!source && last?.tapeState === 'loaded' && last.sessionId === 0) {
 await acquire();
 try {
@@ -1660,7 +1745,7 @@ $('previewSaveName').onclick = () => receiveWritePreview('NAZWA');
 $('previewWriteCommand').onclick = () => receiveWritePreview('ESP:TEST');
 }
 async function loop() {
-await step();
+await step(false);
 setTimeout(loop, pollDelay(last, !!(source && source.offset < source.logicalSize)));
 }
 loop();

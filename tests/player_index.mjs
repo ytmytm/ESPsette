@@ -637,8 +637,8 @@ assert.equal(elements.get('fastProgress').hidden, true);
 assert.equal(elements.get('remainingLabel').textContent, 'Signal remaining');
 assert.equal(elements.get('deck').classList.values.has('fastloading'), false);
 assert.equal(vm.runInContext('pollDelay(progressState,false)',context),100); // Fully uploaded PRG still polls quickly.
-assert.equal(vm.runInContext("pollDelay({sourceType:'tap',playing:false},false)",context),350);
-assert.equal(vm.runInContext("pollDelay({sourceType:'tap',playing:true},true)",context),80);
+assert.equal(vm.runInContext("pollDelay({sourceType:'tap',playing:false},false)",context),500);
+assert.equal(vm.runInContext("pollDelay({sourceType:'tap',playing:true},true)",context),100);
 vm.runInContext(`render({...mock,writeEnabled:true,writeName:'NAZWA',writeCommand:'',
   writeHeaders:1,writeStatus:'header_ignored'})`, context);
 assert.match(elements.get('writeDetail').textContent, /Last header: "NAZWA"/);
@@ -852,6 +852,153 @@ assert.equal(vm.runInContext('mock.fastloaderActive',context),false);
 assert.equal(vm.runInContext('mock.logicalSize',context),15486);
 assert.equal(vm.runInContext('mock.sensePressed',context),false);
 assert.equal(vm.runInContext('mock.defaultMachine',context),'c16-ntsc');
+// Actual refill loop: batch tiny TAP credit, send 4 KB frames, and do not
+// strand a short EOF tail, a waiting receiver or initial/resumed prefill.
+context.refillBlob = new Blob([new Uint8Array(16384)]);
+vm.runInContext(`globalThis.refillSaved={api,source,last,busy};
+  globalThis.refillPosts=[];
+  globalThis.refillState={...mock,tapeState:'loaded',sourceType:'tap',phase:'data',
+    fastloaderActive:false,playing:true,motorOn:true,sensePressed:true,
+    sessionId:123,logicalSize:16384,fileOffsetReceived:20,freeBytes:512,sourceWaiting:false};
+  source={file:refillBlob,type:'tap',id:123,logicalSize:16384,offset:20,
+    indexEntries:[],timeline:[],seekCycles:0,fullTotal:98524800};
+  busy=false;
+  api=async (path,options)=>{
+    if(path==='/state') return {...refillState};
+    if(path.startsWith('/chunk?')) {
+      const size=options.body.get('data').size;
+      refillPosts.push(size);
+      refillState.fileOffsetReceived+=size;
+      refillState.freeBytes-=size;
+      return {nextOffset:refillState.fileOffsetReceived,freeBytes:refillState.freeBytes};
+    }
+    throw Error('unexpected refill endpoint');
+  };`, context);
+await vm.runInContext('step()',context);
+assert.deepEqual(Array.from(vm.runInContext('refillPosts',context)),[]);
+vm.runInContext('refillState.freeBytes=8192',context);
+await vm.runInContext('step()',context);
+assert.deepEqual(Array.from(vm.runInContext('refillPosts',context)),[4096,4096]);
+vm.runInContext(`refillPosts=[]; source.offset=refillState.fileOffsetReceived=15884;
+  refillState.freeBytes=512`,context);
+await vm.runInContext('step()',context);
+assert.deepEqual(Array.from(vm.runInContext('refillPosts',context)),[500]);
+vm.runInContext(`refillPosts=[]; source.offset=refillState.fileOffsetReceived=20;
+  refillState.freeBytes=512;refillState.sourceWaiting=true`,context);
+await vm.runInContext('step()',context);
+assert.deepEqual(Array.from(vm.runInContext('refillPosts',context)),[512]);
+vm.runInContext(`refillPosts=[];refillState.freeBytes=512;
+  refillState.sourceWaiting=false;refillState.playing=false`,context);
+await vm.runInContext('step()',context);
+assert.deepEqual(Array.from(vm.runInContext('refillPosts',context)),[512]);
+vm.runInContext('api=refillSaved.api;source=refillSaved.source;last=refillSaved.last;busy=refillSaved.busy',context);
+// Automatic polling separates full diagnostics (500 ms) from buffer/progress
+// replies (100 ms). Uploads continue between full polls without losing cached
+// metadata, and a broken compact reply keeps the same File/session.
+vm.runInContext(`globalThis.pollSaved={api,source,last,busy,clock:Date,full:lastFullStateAt,
+  pollStart:lastPollStart,pollGap:maxPollGapMs};
+  globalThis.pollClock=1000;Date={now:()=>pollClock};
+  globalThis.pollPaths=[];globalThis.badCompact=false;
+  globalThis.pollState={...refillState,freeBytes:0,fileOffsetReceived:20,playedCycles:0,
+    fileName:'timer.tap',phase:'data',playing:true};
+  source={file:refillBlob,type:'tap',id:123,logicalSize:16384,offset:20,
+    indexEntries:[],timeline:[],seekCycles:0,fullTotal:98524800};
+  globalThis.pollFile=source.file;busy=false;last=null;lastFullStateAt=0;
+  api=async(path,options)=>{
+    pollPaths.push(path.split('?')[0]);
+    pollState.playedCycles=pollClock*985;
+    if(path==='/state') return {...pollState};
+    if(path==='/buffer') return badCompact ? {} : {
+      sessionId:pollState.sessionId,sourceType:'tap',tapeState:'loaded',phase:'data',
+      logicalSize:16384,fileOffsetReceived:pollState.fileOffsetReceived,
+      freeBytes:pollState.freeBytes,playedCycles:pollState.playedCycles,
+      playing:true,motorOn:true,sensePressed:true,sourceWaiting:false};
+    if(path.startsWith('/chunk?')) {
+      const n=options.body.get('data').size;
+      pollState.fileOffsetReceived+=n;pollState.freeBytes-=n;
+      return {nextOffset:pollState.fileOffsetReceived,freeBytes:pollState.freeBytes};
+    }
+    throw Error('unexpected cadence endpoint');
+  };`,context);
+for(const tick of [1000,1100,1200,1300,1400,1500]) {
+  context.pollTick=tick;
+  vm.runInContext('pollClock=pollTick;pollState.freeBytes=pollTick===1200?4096:0;badCompact=pollTick===1300',context);
+  await vm.runInContext('step(false)',context);
+  assert.equal(vm.runInContext('source.file===pollFile',context),true);
+  assert.equal(vm.runInContext('last.fileName',context),'timer.tap');
+  if(tick===1200) {
+    assert.equal(vm.runInContext('source.offset',context),4116);
+    assert.equal(vm.runInContext("pollPaths.filter(p=>p==='/state').length",context),1);
+    assert.equal(vm.runInContext('last.playedCycles',context),1200*985);
+  }
+}
+assert.equal(vm.runInContext("pollPaths.filter(p=>p==='/state').length",context),2);
+assert.equal(vm.runInContext("pollPaths.filter(p=>p==='/buffer').length",context),4);
+assert.equal(vm.runInContext("pollPaths.filter(p=>p==='/chunk').length",context),1);
+vm.runInContext('pollClock=1600;source.offset=source.logicalSize;pollState.fileOffsetReceived=16384',context);
+const cadenceRequests=vm.runInContext('pollPaths.length',context);
+await vm.runInContext('step(false)',context);
+assert.equal(vm.runInContext('pollPaths.length',context),cadenceRequests);
+vm.runInContext(`api=pollSaved.api;source=pollSaved.source;last=pollSaved.last;busy=pollSaved.busy;
+  Date=pollSaved.clock;lastFullStateAt=pollSaved.full;lastPollStart=pollSaved.pollStart;
+  maxPollGapMs=pollSaved.pollGap`,context);
+
+// A broken state response must not be interpreted as a changed session.
+// Exercise the actual fetch/JSON wrapper independently of preview's mock API.
+let responseMode='invalid-json';
+const networkContext=vm.createContext({preview:false,Date,Error,Number,FormData,Blob,
+  fetch:async()=>({ok:responseMode!=='http-error',status:responseMode==='http-error'?503:200,
+    statusText:'Service unavailable',json:async()=>{
+      if(responseMode==='invalid-json') throw SyntaxError('truncated JSON');
+      if(responseMode==='empty-object') return {};
+      if(responseMode==='http-error') return {error:'busy'};
+      return {sessionId:1,sourceType:'tap',tapeState:'loaded',phase:'data',logicalSize:16384,
+        fileOffsetReceived:8192,freeBytes:4096};
+    }})});
+vm.runInContext(script.slice(script.indexOf('const requestHistory = []'),
+  script.indexOf('function prgTotalCycles')),networkContext);
+await assert.rejects(vm.runInContext("api('/state')",networkContext),/Invalid JSON response/);
+responseMode='empty-object';
+await assert.rejects(vm.runInContext("api('/state')",networkContext),/Incomplete ESP state/);
+responseMode='http-error';
+await assert.rejects(vm.runInContext("api('/state')",networkContext),/busy/);
+responseMode='valid';
+assert.equal((await vm.runInContext("api('/state')",networkContext)).sessionId,1);
+await vm.runInContext(`api('/chunk?sid=1&offset=20',{method:'POST',body:(()=>{
+  const form=new FormData();form.append('data',new Blob([new Uint8Array(4096)]));return form;
+})()})`,networkContext);
+assert.equal(vm.runInContext('requestHistory.at(-1).bytes',networkContext),4096);
+assert.equal(vm.runInContext('requestHistory[0].status',networkContext),200);
+assert.match(vm.runInContext('requestHistory[0].error',networkContext),/Invalid JSON/);
+for(let i=0;i<14;i++) await vm.runInContext("api('/state')",networkContext);
+assert.equal(vm.runInContext('requestHistory.length',networkContext),12);
+assert.match(vm.runInContext('lastInvalidState.error',networkContext),/Incomplete ESP state/);
+
+// Retain the same File on invalid state, repeated ESP errors, and the ESP's
+// automatic release after MOTOR off. REW then reuses that File explicitly.
+vm.runInContext('mock.motorOn=false;mock.gpioDisabled=false',context);
+await vm.runInContext('chooseFiles([fixtureTape])',context);
+vm.runInContext('globalThis.failureFile=source.file;globalThis.failureSource=source;globalThis.failureApi=api;api=async()=>({})',context);
+await vm.runInContext('step()',context);
+assert.equal(vm.runInContext('source===failureSource',context),true);
+assert.match(elements.get('transport').textContent,/Connection lost/);
+assert.match(vm.runInContext('lastPollError',context),/Incomplete ESP state/);
+vm.runInContext("api=failureApi;mock.phase='error';mock.error='buffer_underrun';mock.playing=false",context);
+for(let i=0;i<3;i++) {
+  await vm.runInContext('step()',context);
+  assert.equal(vm.runInContext('source===failureSource',context),true);
+  assert.match(elements.get('transport').textContent,/Playback stopped on ESP: buffer_underrun/);
+  assert.doesNotMatch(elements.get('transport').textContent,/no source file/);
+}
+vm.runInContext("mock.tapeState='ejected';mock.sessionId=0;mock.logicalSize=0;mock.fileOffsetReceived=0",context);
+await vm.runInContext('step()',context);
+assert.equal(vm.runInContext('source.file===failureFile',context),true);
+assert.ok(vm.runInContext('transferFailureTrace',context));
+assert.equal(elements.get('rewind').disabled,false);
+await elements.get('rewind').onclick();
+assert.equal(vm.runInContext('source.file===failureFile',context),true);
+assert.equal(vm.runInContext('!!source.playbackError',context),false);
+assert.notEqual(vm.runInContext('mock.phase',context),'error');
 const reloaded = vm.createContext({...context});
 vm.runInContext(script, reloaded);
 assert.equal(vm.runInContext('mock.defaultMachine', reloaded), 'c16-pal');
