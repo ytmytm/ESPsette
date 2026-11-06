@@ -647,6 +647,10 @@ vm.runInContext(`render({...mock,freeHeap:23000,freeStack:1024,resetReason:3})`,
 assert.match(elements.get('diagnostics').textContent, /heap 23000 B/);
 assert.match(elements.get('diagnostics').textContent, /stack watermark 1024 B/);
 assert.match(elements.get('diagnostics').textContent, /last reset: software watchdog/);
+vm.runInContext("render({...mock,firmwareVersion:'0123456789ab'})",context);
+assert.equal(elements.get('firmwareVersion').textContent,'Firmware: 0123456789ab');
+vm.runInContext("render({...mock,firmwareVersion:'0123456789ab-dirty'})",context);
+assert.equal(elements.get('firmwareVersion').textContent,'Firmware: 0123456789ab-dirty');
 vm.runInContext(`render({...mock,freeHeap:23000,resetReason:2,resetException:28,resetPc:0x40201234})`, context);
 assert.match(elements.get('diagnostics').textContent, /exception \(cause 28 @0x40201234\)/);
 

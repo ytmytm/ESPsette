@@ -63,6 +63,7 @@ constexpr unsigned CYCLES_PER_BIT = 16, DMA_WORDS = 64, DMA_BUFFERS = 8;
 constexpr unsigned CHECKPOINT_SLOTS = 16, DRAIN_WORDS = 64, DRAIN_GUARD_US = 40000;
 uint32_t tapEnd, sourceUnderrunCount = 0, i2sUnderrunCount = 0;
 bool dmaPumpBusy = false, dmaPumpFromYield = false, dmaServiceReady = true;
+volatile bool otaUpdating = false;
 bool sourceWaiting = false, readDmaActive = true;
 uint32_t sourceWaitCount = 0, sourceReadOffset = 0, sourceWindowStart = 0, sourceReceivedUntil = 0;
 uint32_t stoppedRunBits = 0, sourceClockHz = 985248;
@@ -226,12 +227,12 @@ int main(int argc, char** argv) {
   // Yield service must neither re-enter the producer nor run while the motor,
   // PLAY or fastloader ownership prevents ordinary READ.
   freeWords = 64;
-  for (int guard = 0; guard < 2; ++guard) {
-    dmaPumpBusy = guard == 0; fast = guard == 1;
+  for (int guard = 0; guard < 3; ++guard) {
+    dmaPumpBusy = guard == 0; fast = guard == 1; otaUpdating = guard == 2;
     serviceTapeDma();
     assert(output.empty() && freeWords == 64 && !dmaPumpFromYield);
   }
-  dmaPumpBusy = fast = false; motor = play = true; freeWords = 0;
+  dmaPumpBusy = fast = otaUpdating = false; motor = play = true; freeWords = 0;
   const auto expected = reference(referenceData);
   uint64_t nextUploadUs = 80000;
   size_t runOutputStart = 0;

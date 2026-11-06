@@ -30,4 +30,5 @@ and repeated insertion after changing the saved fastloader switch.
 
 
 Both standard and fast Circles loading were confirmed on real C64 PAL hardware
-on 2026-11-05. OTA remains disabled in the validated firmware.
+on 2026-11-05 with OTA disabled. On 2026-11-06, OTA over IP and Rambo III
+Side 1 playback after updating also passed on real hardware, with mDNS disabled.

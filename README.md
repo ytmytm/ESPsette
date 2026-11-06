@@ -24,11 +24,11 @@ Hardware results confirmed on **C64 PAL, 1–6 November 2026**:
 | C16/Plus/4 and NTSC: PRG loading and WRITE reception | Host/VICE tests pass; hardware tests pending |
 | C16/Plus/4 TAP playback; all supported TAP v1/v2 variants | Full hardware coverage pending |
 | IDX seeking and counter-based REW/FF | Host tests pass; hardware tests pending |
-| OTA updates | Disabled; use USB-UART flashing |
+| OTA updates, ESP-01 1 MB | Passed on real hardware over IP with mDNS disabled; Rambo III Side 1 also passed after updating (6 November) |
 
-The validated configuration uses GPIO edge interrupts for WRITE. The OTA and
-Timer1/NMI experiments were withdrawn after standard playback failures on
-hardware; they are retained on `archive/post-first-ota`, not enabled on `main`.
+WRITE uses GPIO edge interrupts and requires an empty deck. The Timer1/NMI
+experiment remains archived. Compressed OTA is enabled with mDNS disabled.
+Updating over IP and subsequent C64 PAL TAP playback passed on real hardware.
 
 ## Hardware
 
@@ -56,12 +56,12 @@ make build PROFILE=1m         # Assemble loaders and build for a 1 MB ESP-01
 `make setup` installs project tools under `tools/bin/` and
 `~/.cache/ESPsette/`, with separate Python environments for each OS. No global
 PlatformIO install is required. The default build includes cassette GPIO
-support and the Circles PRG demo. OTA is disabled. See [platformio.ini](platformio.ini).
+support, the Circles PRG demo and compressed OTA. See [platformio.ini](platformio.ini).
 
 | Profile | Use |
 | --- | --- |
-| `1m` (default) | 1 MB flash, 64 KB LittleFS; OTA disabled |
-| `4m` | 4 MB flash; OTA disabled |
+| `1m` (default) | 1 MB flash, 64 KB LittleFS; compressed OTA enabled |
+| `4m` | 4 MB flash; OTA enabled |
 | `512k` | Current firmware exceeds 512 KB; use a larger module |
 
 Release packages target 1 MB modules.
@@ -169,11 +169,32 @@ make flash PROFILE=1m PORT=/dev/cu.usbserial-XXXX
 
 **After flashing:** remove the GPIO0–GND jumper, disconnect DTR–RST and reset the module. GPIO0 must be HIGH at reset to run the firmware. See [wiring notes and ESP-01 connections](kicad/WIRING.md) before reconnecting the Commodore interface.
 
-## Updates
+## OTA and firmware version
 
-**OTA is disabled in all profiles** (`ESPSETTE_OTA=0`). Update through USB-UART
-with `make flash`. The `make ota` target remains for development; the current
-firmware does not accept network updates.
+OTA is enabled for 1 MB and 4 MB modules. If the installed firmware has OTA
+disabled, first install this version over USB-UART with `make flash`.
+Refresh the player page after flashing.
+
+OTA uses the device IP address; mDNS discovery is disabled.
+Stop MOTOR and transfers before updating:
+
+```sh
+make ota PROFILE=1m OTA_HOST=DEVICE_IP
+```
+
+The upload uses `firmware.bin.gz`; the ESP8266 bootloader decompresses it on
+reboot. Use the uncompressed `.bin` for UART flashing. Each build checks that
+the sector-aligned running image and gzip upload fit before LittleFS. OTA
+preserves settings and Wi-Fi configuration. It releases PLAY and suspends
+WRITE capture while writing flash. Updates use the local network without a
+password by default; optional authentication is described in
+[`include/local_ota.h.example`](include/local_ota.h.example).
+
+**Network / OTA → Firmware** shows the running ESP's 12-character Git commit ID.
+The page gets it from the ESP, including after an OTA reboot. `-dirty` means
+tracked files differed from that commit at build time. `make build`, `make
+flash` and `make ota` print the ID, including when the build is cached.
+`make version` prints the checkout's ID without building.
 
 ## Load a tape
 
@@ -215,7 +236,6 @@ and is intended for a trusted LAN.
 Expand **Playback details → Debug / ESP state** on the page to inspect reset
 reason, stack/heap headroom, transfer state and error counters.
 
-Optional Telnet diagnostics are available with `nc DEVICE_IP 23`.
 Normal firmware has no UART log: GPIO1 and GPIO3 are used for SENSE and READ.
 
 Run `make preview` or open [web/player.html](web/player.html) to use simulated
@@ -239,7 +259,11 @@ in the selected standard/fast mode. GitHub Pages updates after UI changes on
 
 GitHub Actions runs host tests and compiles the default 1 MB firmware on code pushes, pull requests and manual runs. Download the package from the run's **Artifacts** section; it contains the `.bin`, debug ELF, build metadata, checksums and flashing instructions.
 
-To release, publish a GitHub Release with a tag such as `v2026-11-01` pointing to the desired commit. The workflow builds that tag and automatically attaches the same files to the release. Tags must use `vYYYY-MM-DD` with a valid calendar date. Pushing a tag alone does not publish a release. Experimental OTA profiles are not included.
+To release, publish a GitHub Release with a tag such as `v2026-11-01` pointing to the desired commit. The workflow builds that tag and automatically attaches the same files to the release. Tags must use `vYYYY-MM-DD` with a valid calendar date. Pushing a tag alone does not publish a release. Release filenames contain the same 12-character ID shown on the device. The
+package includes `.bin` for UART and `.bin.gz` for OTA, plus the ELF, metadata,
+checksums and `FLASHING.txt`. The Actions summary and metadata record the full
+commit as well. A differing ID identifies a different commit, not necessarily
+a newer one.
 
 ## References
 
@@ -258,8 +282,8 @@ No license has been selected yet.
 - [ ] Check cold boot/reset with MOTOR stopped, Wi-Fi setup/fallback, and the player page on desktop and phone.
 - [ ] On C64 PAL, load a browser TAP and PRGs in standard and fast modes, including Circles; check MOTOR pauses and completion.
 - [ ] Eject the source, press PLAY and verify SAVE header/ESP: request reception. Check that inserting a TAP/PRG blocks WRITE capture.
-- [ ] Confirm OTA remains disabled.
+- [ ] In **Network / OTA**, compare **Firmware** with the commit ID in the package filename; verify it again after OTA.
 - [ ] Test any newly advertised feature on hardware; update the tested/pending table and release notes with the actual results and limitations.
 - [ ] Confirm the wiring and flashing instructions match the tested setup.
 - [ ] Publish a GitHub Release for that commit with a valid `vYYYY-MM-DD` tag and concise release notes.
-- [ ] Wait for the release workflow to pass; confirm the `.bin`, ELF, metadata, `FLASHING.txt` and checksums are attached to the release.
+- [ ] Wait for the release workflow to pass; confirm the versioned `.bin` and `.bin.gz`, ELF, metadata, `FLASHING.txt` and checksums are attached to the release.

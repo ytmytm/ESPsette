@@ -76,7 +76,8 @@ The embedded demo is now the Circles C64 PAL PRG. `embedded_demo_test.cpp`
 checks both logical layouts and compares every standard pulse with a duplicated
 reference. UI tests cover standard/fast selection and reinsertion after changing
 the fastloader switch. See [VICE demo tests](../experiments/demo/README.md).
-OTA remains disabled in the validated configuration. WRITE capture requires an
+OTA updates over IP and Rambo III Side 1 playback after updating passed
+on real hardware with mDNS disabled (2026-11-06). WRITE capture requires an
 empty deck, including after paused or completed playback; the UI and firmware
 block reception until EJECT. No Timer1/NMI receiver is enabled.
 
@@ -150,5 +151,17 @@ generation and serialization with the full handler. No tape/DMA buffers change.
 
 On 2026-11-06, the user confirmed this firmware working on real C64 PAL
 hardware after the Rambo III Side 1 playback investigation, including the
-loader's repeated MOTOR pauses. OTA remains disabled and WRITE reception
+loader's repeated MOTOR pauses. That baseline had OTA disabled; WRITE reception
 still requires an empty deck (EJECT).
+
+Restored OTA checks cover deterministic gzip, sector-aligned staging limits,
+serial/OTA upload selection, Git identity and versioned release filenames.
+`test_embedded_assets.py` decompresses the generated web page and verifies its
+assets and licenses. The 1 MB build verifies the actual linked flash budget.
+`make version`, build/upload logs, the running `/state` / `/buffer` version and
+release filenames all use the same 12-character commit ID (`-dirty` if needed).
+On 2026-11-06, the user confirmed OTA over IP and subsequent Rambo III Side 1
+playback on the restored build with mDNS disabled. With mDNS enabled, a previous
+run stalled on a 3041 ms `/state` request with invalid JSON and exhausted the
+source buffer. These observations support disabling mDNS; they do not establish
+the cause of that HTTP failure.

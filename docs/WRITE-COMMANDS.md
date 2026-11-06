@@ -17,7 +17,7 @@ an executable operation.
 - `SAVE "NAZWA",1`: display the last verified filename; no command is published.
 - `SAVE "ESP:TEST",1`: publish request `TEST`; no handler executes it yet.
 - The ESP stores neither program. Press PLAY to supply SENSE for a real SAVE.
-- Reception requires an empty deck, MOTOR high on every captured edge, and no active fastloader ownership.
+- Reception requires an empty deck, MOTOR high on every captured edge, and no active fastloader or OTA ownership.
 
 The browser demo has **Simulate SAVE "NAZWA"** and **Simulate ESP:TEST** buttons.
 They reproduce the UI metadata and empty-deck requirement without hardware.
@@ -70,15 +70,16 @@ if (!writeActive || !writeCommandsAllowed() || !(GPI & (1u << PIN_MOTOR))) retur
 ```
 
 `writeCommandsAllowed()` requires `TapeSource::Kind::EMPTY`, fastloader phase
-OFF or DONE. It reads the source kind directly through a
+OFF or DONE, and no active OTA update. It reads the source kind directly through a
 volatile inline load in IRAM. The interrupt is detached whenever any TAP, PRG
 or embedded demo is present, even while stopped, buffering, paused, failed or
 finished. Checking only `tapeLoaded` would miss an inserted, partly buffered
 stream. Insertion blocks ISR decoding immediately; the loop then detaches the
 interrupt and clears the partial frame. Ejection re-arms capture and samples
 the current MOTOR level.
-OTA is disabled in the validated firmware; no network update can run during
-command reception.
+OTA runs only with MOTOR and transfers stopped. Starting an update releases
+PLAY, stops READ and detaches WRITE capture; an update error releases that
+ownership so capture can restart with an empty deck.
 
 A request is published only after checking:
 
@@ -136,7 +137,7 @@ previously verified filename/request history is retained.
 | --- | --- |
 | `writeEnabled` | Physical WRITE capture is available in this build |
 | `writeListening` | Capture is armed with an empty deck, MOTOR on and GPIO2 available |
-| `writeStatus` | Decoder status, including `requires_empty_deck`, `suspended_fastloader`, `command_received_no_action`, `header_ignored`, or an error |
+| `writeStatus` | Decoder status, including `requires_empty_deck`, `suspended_ota`, `suspended_fastloader`, `command_received_no_action`, `header_ignored`, or an error |
 | `writeCommand` | Last verified request without the `ESP:` prefix |
 | `writeCommandId` | Count of verified command requests since boot |
 | `writeName` / `writeMachine` | Last verified header filename and detected computer family |

@@ -37,6 +37,7 @@
 #include "fastloader_native.h"
 #include "fastloader_wire.h"
 #include "write_decoder.h"
+#include "build_version.h"
 #include "player_page.h"
 #include <ArduinoJson.h>
 #include <LittleFS.h>
@@ -47,8 +48,6 @@
 #include <core_esp8266_i2s.h>
 
 #include "circles_demo.h"
-
-#include <RemoteDebug.h>
 
 #ifndef ESPSETTE_GPIO_DISABLED
 #define ESPSETTE_GPIO_DISABLED 0
@@ -81,7 +80,6 @@ static inline bool tapeShouldRun() {
   return motorIsOn() && senseIsPressed();
 }
 
-RemoteDebug Debug;
 ESP8266WebServer HTTPServer(80);
 NetworkConfig networkConfig(HTTPServer, PIN_MOTOR);
 TapeSource tapeSource;
@@ -106,6 +104,7 @@ static bool fastloaderBusy() {
          fastPhase == FastPhase::DESCRIPTOR || fastPhase == FastPhase::PAYLOAD;
 }
 WriteDecoder writeDecoder;
+volatile bool otaUpdating = false;
 // Decode in IRAM at the edge, independently of synchronous HTTP writes.
 // No pulse queue, heap allocation or logging is used by this ISR.
 volatile uint32_t writeLastEdgeUs[2] = {};
@@ -119,7 +118,7 @@ volatile bool writeMotorStopped = false;
 // WRITE capture requires an empty deck, including after paused or completed
 // playback. READ/DMA and command reception must not compete.
 static bool IRAM_ATTR writeCommandsAllowed() {
-  return tapeSource.kind() == TapeSource::Kind::EMPTY &&
+  return tapeSource.kind() == TapeSource::Kind::EMPTY && !otaUpdating &&
          (fastPhase == FastPhase::OFF || fastPhase == FastPhase::DONE);
 }
 
@@ -493,8 +492,6 @@ static void insertEmbeddedDemo() {
   state = ok ? State::WAITING : State::ERROR;
   demoInsertFailed = !ok;
   if (!ok) tapeSource.eject();
-  debugI("Circles demo %s; PRG bytes=%u fast=%u", ok ? "loaded" : "invalid",
-         unsigned(sizeof(circlesPrg)), unsigned(fast));
 }
 
 void idleReadPin() {
@@ -675,14 +672,12 @@ void pauseTape() {
     resetPlayer(sourceFormat == SourceFormat::PRG ? 2 : 20);
     playbackComplete = true;
     state = State::WAITING;
-    if (!dmaPumpFromYield) debugI("TAP completed at MOTOR stop");
     return;
   }
   if (playedBits > generatedTapBits) {
     state = State::ERROR; // DMA ran ahead of the source; LOAD is invalid.
     playerError = "i2s_underrun";
     ++i2sUnderrunCount;
-    if (!dmaPumpFromYield) debugE("I2S underrun before MOTOR stop");
     return;
   }
   playedBaseCycles += (uint64_t)playedBits * CYCLES_PER_BIT;
@@ -694,7 +689,6 @@ void pauseTape() {
     if (checkpointNumber[slot] != buffer) {
       state = State::ERROR;
       playerError = "missing_checkpoint";
-      if (!dmaPumpFromYield) debugE("Missing DMA checkpoint at %lu", (unsigned long)buffer);
       return;
     }
     player.decoder = checkpoints[slot];
@@ -703,7 +697,6 @@ void pauseTape() {
       if (!nextTapeBit(bit)) {
         state = State::ERROR;
         playerError = "restore_failed";
-        if (!dmaPumpFromYield) debugE("Cannot restore TAP bit %lu", (unsigned long)playedBits);
         return;
       }
     }
@@ -715,11 +708,10 @@ void pauseTape() {
   player.drainWordsLeft = 0;
   player.emptySince = 0;
   state = State::WAITING;
-  if (!dmaPumpFromYield) debugI("Paused TAP after %lu output bits at offset %lu",
-         (unsigned long)playedBits, (unsigned long)player.decoder.offset);
 }
 
 void startTape() {
+  if (otaUpdating) return;
 #if !ESPSETTE_GPIO_DISABLED
   if (!dmaServiceReady) {
     state = State::ERROR;
@@ -751,8 +743,6 @@ void startTape() {
   // Soft READ stream: advance the decoder on wall time for counter/scope UI.
   softPlayLastUs = micros();
   state = State::STREAMING;
-  debugI("Start soft tape at %lu; %lu bits/s",
-         (unsigned long)player.decoder.offset, (unsigned long)realBitRate);
   return;
 #else
   // This rate is remembered by the core and applied during i2s_begin(),
@@ -761,15 +751,12 @@ void startTape() {
   if (!i2s_rxtxdrive_begin(false, true, false, false)) {
     state = State::ERROR;
     playerError = "i2s_alloc_failed";
-    debugE("I2S allocation failed");
     return;
   }
   readDmaActive = true;
   i2s_set_callback(onDmaBufferDone);
   realBitRate = (uint32_t)(i2s_get_real_rate() * 32.0f + 0.5f);
   state = State::STREAMING;
-  debugI("Start tape at %lu; I2S %lu bits/s",
-         (unsigned long)player.decoder.offset, (unsigned long)realBitRate);
 #endif
 }
 
@@ -880,7 +867,6 @@ void pumpTapeSoft() {
       if (totalTapeCycles) playedBaseCycles = totalTapeCycles;
       else playedBaseCycles += (uint64_t)generatedTapBits * CYCLES_PER_BIT;
       generatedTapBits = 0;
-      debugI("Soft TAP completed");
       return;
     }
     ++generatedTapBits;
@@ -914,7 +900,6 @@ void pumpTape() {
       sourceDataAgeAtErrorMs = millis() - lastSourceDataMs;
     } else ++i2sUnderrunCount;
     sourceWaiting = false;
-    if (!dmaPumpFromYield) debugE("READ underrun during TAP");
     return;
   }
   // Release only bytes preceding the earliest DMA checkpoint that can still
@@ -993,7 +978,6 @@ void pumpTape() {
     playbackComplete = true;
     if (totalTapeCycles) playedBaseCycles = totalTapeCycles;
     else playedBaseCycles += (uint64_t)generatedTapBits * CYCLES_PER_BIT;
-    if (!dmaPumpFromYield) debugI("TAP completed");
   }
 }
 
@@ -1001,7 +985,7 @@ void pumpTape() {
 // TCP send/receive waits. Keep it bounded, nonblocking and free of logging.
 static bool serviceTapeDma() {
 #if !ESPSETTE_GPIO_DISABLED
-  if (!dmaPumpBusy && !fastloaderBusy() &&
+  if (!dmaPumpBusy && !otaUpdating && !fastloaderBusy() &&
       (state == State::STREAMING || state == State::DRAINING)) {
     dmaPumpFromYield = true;
     if (tapeShouldRun() && !motorFell) pumpTape();
@@ -1056,38 +1040,24 @@ void initializeOTA() {
 #else
   if (!networkReady) return;
   ArduinoOTA.onStart([]() {
-    debugI("* OTA: Start");
+    otaUpdating = true;
+    setSensePressed(false);
+    stopI2S();
+    processWriteCommands();
   });
-  ArduinoOTA.onEnd([]() {
-    debugI("\n*OTA: End");
-  });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    const unsigned int percent = total ? (unsigned int)((uint64_t)progress * 100 / total) : 0;
-    debugV("*OTA: Progress: %u%%\r", percent);
-  });
-  ArduinoOTA.onError([](ota_error_t error) {
-    debugE("*OTA: Error[%u]", error);
+  ArduinoOTA.onError([](ota_error_t) {
+    otaUpdating = false;
   });
   ArduinoOTA.setHostname(networkConfig.hostname().c_str());
 #if defined(ESPSETTE_OTA_PASSWORD)
   if (ESPSETTE_OTA_PASSWORD[0] != '\0')
     ArduinoOTA.setPassword(ESPSETTE_OTA_PASSWORD);
 #endif
-  ArduinoOTA.begin();
+  // Use the device IP for OTA; keep mDNS traffic out of tape streaming.
+  ArduinoOTA.begin(false);
   otaReady = true;
 #endif
 }
-
-void setupDebug() {
-  if (!networkReady) return;
-  Debug.begin(networkConfig.hostname().c_str()); // Initialize the WiFi server
-  Debug.setResetCmdEnabled(false); // Do not expose remote reset without authentication.
-  Debug.showProfiler(true); // Profiler (Good to measure times, to optimize codes)
-  Debug.showColors(true); // Colors
-}
-
-uint32_t lastcall;
-uint8_t lastMotor = 0;
 
 #if ESPSETTE_WIFI_DISABLED
 // Linking ESP8266WiFi replaces the core's weak disable with a no-op that leaves
@@ -1205,35 +1175,19 @@ void setup() {
   }
 #if !ESPSETTE_WIFI_DISABLED
   initializeOTA();
-  setupDebug();
   setupWebserver();
 #endif
   // Demo insertion is deferred to loop() after /demo.
   state = State::WAITING;
   tapeLoaded = false;
   setSensePressed(false);
-#if ESPSETTE_GPIO_DISABLED
-  lastMotor = LOW;
-#else
-  lastMotor = digitalRead(PIN_MOTOR);
+#if !ESPSETTE_GPIO_DISABLED
   attachInterrupt(digitalPinToInterrupt(PIN_MOTOR), onMotorChange, CHANGE);
   processWriteCommands();
   dmaServiceReady = schedule_recurrent_function_us(serviceTapeDma, 2000);
 #endif
-  lastcall = millis();
-  debugI("setup completed; TAP bytes=%lu", (unsigned long)tapEnd);
 #if ESPSETTE_GPIO_DISABLED
   Serial.println(F("ESPsette setup done"));
-#endif
-}
-
-void debugGPIOs() {
-#if ESPSETTE_GPIO_DISABLED
-  debugI("* GPIO disabled (soft sense=%i motor=%i)",
-         senseIsPressed() ? 1 : 0, motorIsOn() ? 1 : 0);
-#else
-  debugI("* GPIO0=%i GPIO1=%i GPIO2=%i GPIO3=%i",
-         digitalRead(0), digitalRead(1), digitalRead(2), digitalRead(3));
 #endif
 }
 
@@ -1253,12 +1207,7 @@ void loop() {
     insertEmbeddedDemo();
   }
   const uint32_t loopStartUs = micros();
-  const uint32_t timeBeginLoop = millis();
   const uint8_t motor = motorIsOn() ? HIGH : LOW;
-  if (motor != lastMotor) {
-    lastMotor = motor;
-    debugI("Motor state changed to %u", motor);
-  }
 
   processWriteCommands();
   pumpFastloader();
@@ -1304,7 +1253,8 @@ void loop() {
 
 #if !ESPSETTE_WIFI_DISABLED
 #if ESPSETTE_OTA
-  if (otaReady && state != State::STREAMING && state != State::DRAINING) ArduinoOTA.handle();
+  if (otaReady && !motorIsOn() && !fastloaderBusy() &&
+      state != State::STREAMING && state != State::DRAINING) ArduinoOTA.handle();
 #endif
   const bool readActiveBeforeHttp = readDmaActive;
   const uint32_t httpStartUs = micros();
@@ -1314,22 +1264,11 @@ void loop() {
   if (readActiveBeforeHttp && httpElapsedUs > maxPlaybackHttpUs)
     maxPlaybackHttpUs = httpElapsedUs;
   networkConfig.handle(motor == HIGH);
-  if (networkReady) Debug.handle();
 #endif
   processWriteCommands();
   yield();
-  if ((uint32_t)(millis() - lastcall) >= 10000) {
-    lastcall = millis();
-    debugGPIOs();
-  }
   const uint32_t loopElapsedUs = micros() - loopStartUs;
   if (loopElapsedUs > maxLoopUs) maxLoopUs = loopElapsedUs;
-  const uint32_t elapsed = millis() - timeBeginLoop;
-  if (elapsed > 200) {
-    debugW("Loop took %lu ms", (unsigned long)elapsed);
-  } else if (elapsed > 100) {
-    debugI("Loop took %lu ms", (unsigned long)elapsed);
-  }
 }
 
 //// web
@@ -1347,7 +1286,8 @@ void handlePlayer() {
   }
 #endif
   HTTPServer.sendHeader("Cache-Control", "no-store");
-  HTTPServer.send_P(200, "text/html; charset=utf-8", PLAYER_PAGE);
+  HTTPServer.sendHeader("Content-Encoding", "gzip");
+  HTTPServer.send_P(200, "text/html; charset=utf-8", reinterpret_cast<const char*>(PLAYER_PAGE), sizeof(PLAYER_PAGE));
 }
 
 void handleNotFound() {
@@ -1497,6 +1437,7 @@ static void writeTransportState(JsonDocument& doc) {
   doc["tapeState"] = pendingDemoInsert ? "loading"
       : (demoInsertFailed && !tapeLoaded) ? "error"
       : (tapeLoaded ? "loaded" : "ejected");
+  doc["firmwareVersion"] = FIRMWARE_VERSION;
   doc["sourceType"] = sourceFormat == SourceFormat::PRG ? "prg" : "tap";
   doc["clockHz"] = sourceClockHz;
   doc["motorOn"] = motorOn;
@@ -1588,6 +1529,7 @@ void handleState() {
   const WriteDecoder writeSnapshot = writeDecoder;
   interrupts();
   writeTransportState(doc);
+  doc["firmwareCommit"] = FIRMWARE_COMMIT;
   doc["machine"] = profileIsC16(sourceProfile) ? "c16" : "c64";
   doc["videoStandard"] = profileIsNtsc(sourceProfile) ? "ntsc" : "pal";
   doc["fileName"] = tapeLoaded ? tapeName : "";
@@ -1622,7 +1564,8 @@ void handleState() {
   doc["error"] = playerError;
   doc["writeEnabled"] = !bool(ESPSETTE_GPIO_DISABLED);
   doc["writeListening"] = bool(writeActive) && writeCommandsAllowed();
-  doc["writeStatus"] = tapeSource.kind() != TapeSource::Kind::EMPTY ? "requires_empty_deck" :
+  doc["writeStatus"] = otaUpdating ? "suspended_ota" :
+      tapeSource.kind() != TapeSource::Kind::EMPTY ? "requires_empty_deck" :
       writeCommandsAllowed() ? writeSnapshot.status() : "suspended_fastloader";
   doc["writeCommand"] = writeSnapshot.command();
   doc["writeCommandId"] = writeSnapshot.commandCount();
@@ -1635,6 +1578,7 @@ void handleState() {
   doc["writeErrors"] = writeSnapshot.errorCount();
   doc["writeOverflows"] = writeSnapshot.overflowCount();
   doc["otaReady"] = otaReady;
+  doc["otaFreeBytes"] = ESP.getFreeSketchSpace();
   {
     char scopeStr[SCOPE_LEN + 1];
     const uint16_t n = scopeFilled;
