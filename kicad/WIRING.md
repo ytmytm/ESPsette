@@ -55,6 +55,14 @@ Copy the **dual assembly option** from [plus4-tcbm2sd's schematic](https://githu
 - A FLASH pushbutton is an alternative: hold it while pressing/releasing RESET, then release FLASH. Further automatic resets may require holding it again.
 - [ESP8266 boot-mode reference](https://docs.espressif.com/projects/esptool/en/latest/esp8266/advanced-topics/boot-mode-selection.html).
 
+### Tested C64 startup
+
+On the tested C64 setup, cassette-port power starts ESPsette automatically.
+No separate supply, manual reset, C64 reset or MOTOR workaround is needed.
+The author confirmed this sequence on 2026-11-06. GPIO0's level at the instant
+of reset has not been measured; the normal SENSE/MOTOR relationship alone does
+not establish that level.
+
 ## 4. Programming header and in-circuit flashing
 
 **Flash with ESP-01 installed in its socket, with the entire ESPsette board disconnected from C64/C16.** The programmer is always removed afterward, and RESET is not pressed while it is connected. No cassette isolation jumpers, DTR disconnect jumper or DTR series resistor are planned. UART pin 3 supplies the ESP directly through the shared 3V3 rail; no supply-selection jumper is fitted.
@@ -81,7 +89,7 @@ Copy the **dual assembly option** from [plus4-tcbm2sd's schematic](https://githu
 | --- | --- |
 | FLASH | Disconnect Commodore; close `JP_FLASH`; connect the 3.3 V programmer and UART/DTR |
 | Upload | `make flash PROFILE=1m PORT=...` (DTR pulses RST); without DTR, pulse `SW_RESET` manually with FLASH closed |
-| RUN | Disconnect programmer; open `JP_FLASH`; reconnect the computer supply; follow the tested startup procedure |
+| RUN | Disconnect programmer; open `JP_FLASH`; reconnect to the C64 and power on; ESPsette starts from cassette-port power |
 
 ## 5. Tape signal map
 

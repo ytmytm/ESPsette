@@ -163,27 +163,18 @@ correct fill level. This adds 4096 bytes of static RAM compared with the earlier
 8 KB build, extending tolerance for network stalls without changing DMA.
 Neither change guarantees delivery through a prolonged Wi-Fi/TCP interruption.
 
-On 2026-11-06, the user confirmed this firmware working on real C64 PAL
-hardware after the Rambo III Side 1 playback investigation, including the
-loader's repeated MOTOR pauses. That baseline had OTA disabled; WRITE reception
-still requires an empty deck (EJECT).
-
 Restored OTA checks cover deterministic gzip, sector-aligned staging limits,
 serial/OTA upload selection, Git identity and versioned release filenames.
 `test_embedded_assets.py` decompresses the generated web page and verifies its
 assets and licenses. The 1 MB build verifies the actual linked flash budget.
 `make version`, build/upload logs, the running `/state` / `/buffer` version and
 release filenames all use the same 12-character commit ID (`-dirty` if needed).
-On 2026-11-06, the user confirmed OTA over IP and subsequent Rambo III Side 1
-playback on the restored build with mDNS disabled. With mDNS enabled, a previous
-run stalled on a 3041 ms `/state` request with invalid JSON and exhausted the
-source buffer. These observations support disabling mDNS; they do not establish
-the cause of that HTTP failure.
+On 2026-11-06, the user confirmed OTA over IP and Rambo III Side 1 playback
+on real C64 PAL hardware. The latest successful playback test used a 12 KB
+source ring, Wi-Fi power saving disabled and live-state upload acknowledgements.
+mDNS remains disabled, and WRITE reception requires an empty deck (EJECT).
 
-
-The user subsequently reproduced source underruns with mDNS disabled, including
-after compact-only polling and Wi-Fi power-saving changes. On 2026-11-06,
-playback passed after increasing the source ring from 8 KB to 12 KB, with Wi-Fi
-power saving disabled and live-state upload acknowledgements enabled. This
-confirms that combination in the reported hardware test; it does not identify
-the cause of the roughly three-second gaps in source delivery.
+Earlier failures included a 3041 ms `/state` response with invalid JSON and
+roughly three-second gaps in source delivery. Source underruns also occurred
+with mDNS disabled, compact-only polling and Wi-Fi power saving disabled. The
+successful 12 KB configuration does not establish the cause of those gaps.

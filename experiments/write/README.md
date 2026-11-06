@@ -80,8 +80,10 @@ ISR. The state response uses a temporary bounded heap arena instead of a
 2 KB stack arena, and the browser displays reset/exception and stack
 diagnostics. This path is now validated on C64 PAL with an empty deck. The
 original reset cause was not captured, so stack overflow remains a hypothesis.
-The later Timer1/NMI receiver and OTA experiments were withdrawn following
-standard playback failures; their code is retained on `archive/post-first-ota`.
+The later Timer1/NMI receiver was withdrawn following standard playback
+failures; its code remains on `archive/post-first-ota`. Compressed OTA has since
+been restored with mDNS disabled. The current GPIO-edge receiver still requires
+an empty deck; see [WRITE command requests](../../docs/WRITE-COMMANDS.md).
 
 ## Retained fixtures
 
