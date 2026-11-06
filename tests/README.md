@@ -39,7 +39,7 @@ VICE matrices for the complete standard-ROM bootstrap and isolated transport.
 configured delays through the same byte transmitter used by ESP GPIO. Browser
 tests cover saved enabled/timing settings, rejected values, defaults, active
 transfer guards, polling without losing edits, and standard/fast PRG selection.
-The full bootstrap matrix has 32 checks; transport regression has 39 including
+The full bootstrap matrix has 33 checks; transport regression has 39 including
 expected unsafe-timing failures. These do not replace ESP hardware timing tests.
 
 For manual browser checks, [fixtures/](fixtures/README.md) contains a synthetic two-minute TAP and matching IDX with six markers. The browser test also validates their duration, marker boundaries and seeking.

@@ -65,7 +65,11 @@ not establish that level.
 
 ## 4. Programming header and in-circuit flashing
 
-**Flash with ESP-01 installed in its socket, with the entire ESPsette board disconnected from C64/C16.** The programmer is always removed afterward, and RESET is not pressed while it is connected. No cassette isolation jumpers, DTR disconnect jumper or DTR series resistor are planned. UART pin 3 supplies the ESP directly through the shared 3V3 rail; no supply-selection jumper is fitted.
+These disconnection rules apply to **USB-UART flashing**. During **OTA**,
+ESPsette can remain connected to a powered-on C64/C16, which supplies its
+power; MOTOR and transfers must be stopped.
+
+**Flash with ESP-01 installed in its socket, with the entire ESPsette board physically unplugged from the Commodore cassette port, even when the computer is switched off.** The programmer is always removed afterward, and RESET is not pressed while it is connected. No cassette isolation jumpers, DTR disconnect jumper or DTR series resistor are planned. UART pin 3 supplies the ESP directly through the shared 3V3 rail; no supply-selection jumper is fitted.
 
 `J_UART`: **1 × 6, 2.54 mm**, pin 1 at the GND end. Match the CH340G adapter order **GND / CTS / VCC / TXD / RXD / DTR**, as on the [4tronix USB340G](https://shop.4tronix.co.uk/products/usb340g) type identified for this project. Labels below are from the **adapter's** perspective:
 

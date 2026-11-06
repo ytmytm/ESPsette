@@ -1,4 +1,5 @@
 #include "fastloader_wire.h"
+#include "fastloader_prg.h"
 #include <cassert>
 #include <vector>
 struct Sample { unsigned time; bool write, sense; };
@@ -17,6 +18,20 @@ struct Output {
   }
 };
 int main() {
+  assert(fastloaderPrgFits(0x0801, 0xd000 - 0x0801, false));
+  assert(fastloaderPrgFits(0x9fff, 0x2002, false)); // Cross both BASIC ROM edges.
+  assert(fastloaderPrgFits(0xcfff, 1, false));
+  assert(!fastloaderPrgFits(0xcfff, 2, false));
+  assert(!fastloaderPrgFits(0xd000, 1, false));
+  assert(!fastloaderPrgFits(0x0800, 1, false));
+  assert(!fastloaderPrgFits(0x0801, 0, false));
+  assert(!fastloaderPrgFits(0x0801, UINT32_MAX, false));
+  assert(fastloaderPrgFits(0x1001, 0x4000 - 0x1001, true));
+  assert(fastloaderPrgFits(0x3fff, 1, true));
+  assert(!fastloaderPrgFits(0x3fff, 2, true));
+  assert(!fastloaderPrgFits(0x4000, 1, true));
+  assert(!fastloaderPrgFits(0x1000, 1, true));
+
   for (bool ted : {false,true}) for (bool boot : {false,true}) {
     FastloaderSettings settings;
     // Configured timings, including values longer than the defaults.

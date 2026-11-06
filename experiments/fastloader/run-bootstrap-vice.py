@@ -19,6 +19,7 @@ parser.add_argument("--machine", choices=["c64", "c16", "plus4", "all"], default
 parser.add_argument("--ntsc", action="store_true")
 parser.add_argument("--mode", choices=["basic", "machine"], default="basic")
 parser.add_argument("--size", type=int, default=4096)
+parser.add_argument("--pad-basic", action="store_true", help="Pad the BASIC fixture to --size bytes")
 parser.add_argument("--out", type=Path, default=REPO / "tools/fastloader-vice/bootstrap-results")
 parser.add_argument("--build", type=Path, default=REPO / "tools/fastloader-vice/build")
 parser.add_argument("--roms", type=Path, default=Path("/usr/local/share/vice"))
@@ -27,12 +28,14 @@ parser.add_argument("--cia-model", type=int, choices=[0, 1], default=0)
 parser.add_argument("--prg", type=Path, help="Test an original C64 PAL BASIC PRG instead of a synthetic fixture")
 parser.add_argument("--expect-pc", type=lambda x: int(x, 0), help="Expected SYS entry for --prg")
 args = parser.parse_args()
+if args.pad_basic and (args.mode != "basic" or args.prg):
+    parser.error("--pad-basic requires a generated BASIC fixture")
 if args.prg and (args.machine != 'c64' or args.ntsc or args.mode != 'basic' or args.expect_pc is None):
     parser.error('--prg requires --machine c64, PAL, --mode basic and --expect-pc')
 if args.expect_pc is not None and not args.prg:
     parser.error('--expect-pc requires --prg')
-if not 13 <= args.size <= 30719:
-    parser.error("machine-code fixture size must be 13..30719")
+if not 13 <= args.size <= 51199:
+    parser.error("machine-code fixture size must be 13..51199")
 if args.address is not None and args.mode != "machine":
     parser.error("--address is only available for the machine-code fixture")
 out = args.out.resolve()
@@ -84,13 +87,15 @@ for machine in (["c64", "c16", "plus4"] if args.machine == "all" else [args.mach
         address, payload, entry = int.from_bytes(raw[:2], 'little'), raw[2:], 0
     elif args.mode == "basic":
         payload = basic_program(address)
+        if args.pad_basic:
+            payload += bytes((i * 73) & 255 for i in range(len(payload), args.size))
         entry = 0
     else:
         code = bytes.fromhex("a9 5a 8d f0 07 a9 a5 8d f1 07")
         payload = code + b"\x4c" + (address + len(code)).to_bytes(2, "little")
         payload += bytes((i * 73) & 255 for i in range(max(0, args.size - len(payload))))
         entry = address
-    low, high = (0x1001, 0x4000 if machine == "c16" else 0x8000) if c16 else (0x0801, 0x8000)
+    low, high = (0x1001, 0x4000 if machine == "c16" else 0x8000) if c16 else (0x0801, 0xd000)
     if not low <= address < address + len(payload) <= high:
         parser.error(f"{machine}: payload must fit ${low:04x}..${high-1:04x}")
     stream = case / "stream.bin"
@@ -108,7 +113,8 @@ for machine in (["c64", "c16", "plus4"] if args.machine == "all" else [args.mach
                         'g\n'
                         f'bsave "{stage_dump}" 0 ${stage_address:04x} ${stage_address+len(padded)-1:04x}\n'
                         'delete 1\n'
-                        'g\n'
+                        'g\n' +
+                        ('bank ram\n' if machine == 'c64' else '') +
                         f'bsave "{payload_dump}" 0 ${address:04x} ${address+len(payload)-1:04x}\n'
                         f'bsave "{marker_dump}" 0 $07f0 $07f1\n'
                         'r\nquit\n')

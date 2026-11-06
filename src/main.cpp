@@ -36,6 +36,7 @@
 #include "fastloader_settings.h"
 #include "fastloader_native.h"
 #include "fastloader_wire.h"
+#include "fastloader_prg.h"
 #include "write_decoder.h"
 #include "build_version.h"
 #include "player_page.h"
@@ -432,8 +433,7 @@ void resetPlayer(uint32_t offset) {
 static bool prepareFastPrg(uint16_t address, uint32_t length, const String& name,
                            PrgEncoder::Machine machine, bool ntsc, uint16_t entry) {
   const bool ted = machine == PrgEncoder::Machine::C16;
-  if (address < (ted ? 0x1001 : 0x0801) ||
-      uint32_t(address) + length > (ted ? 0x4000u : 0x8000u)) return false;
+  if (!fastloaderPrgFits(address, length, ted)) return false;
   uint8_t stub[171];
   const uint8_t* code = ted ? tedBootstrap : c64Bootstrap;
   const size_t count = ted ? sizeof(tedBootstrap) : sizeof(c64Bootstrap);
@@ -1642,9 +1642,8 @@ void handleSession() {
       const bool ted = machine == PrgEncoder::Machine::C16;
       uint32_t entry = 0;
       if ((HTTPServer.hasArg("entry") && !parseDecimal(HTTPServer.arg("entry"), entry)) ||
-          entry > 65535 || loadAddress < (ted ? 0x1001 : 0x0801) ||
-          (uint32_t)loadAddress + dataLength > (ted ? 0x4000u : 0x8000u)) {
-        HTTPServer.send(400, "text/plain", "Fast PRG must fit BASIC RAM; invalid entry/address");
+          entry > 65535 || !fastloaderPrgFits(loadAddress, dataLength, ted)) {
+        HTTPServer.send(400, "text/plain", "Fast PRG address range or entry is invalid");
         return;
       }
       if (!prepareFastPrg(loadAddress, dataLength, displayName, machine, video == "ntsc", entry)) {

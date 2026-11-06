@@ -159,8 +159,10 @@ not the receiver PC or registers. The ESP wire-order test separately exercises
 its actual byte transmitter with all 256 values, both pair layouts, both READ
 variants and changed settings.
 
-Validated matrices: **32/32** complete bootstrap checks and **39/39** transport
+Validated matrices: **33/33** complete bootstrap checks and **39/39** transport
 checks, including expected failures for unsafe timing. Bootstrap cases include
 BASIC/machine code, PAL/NTSC, both C64 CIA models, 255/256/257/513-byte boundaries,
-unaligned destinations and maximum supported RAM ranges. VICE timing results
+unaligned destinations and maximum supported RAM ranges, including C64
+`$0801..$CFFF` for machine-code and BASIC RUN handoff. C64 dumps select the
+monitor RAM bank to verify bytes beneath BASIC ROM. VICE timing results
 are simulations, not measured ESP throughput or analog MOTOR delays.

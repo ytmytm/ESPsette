@@ -9,11 +9,14 @@ sources are in `native/fastloader/`; `make native` builds both targets with ACME
 | Code inside standard header tail | `$0351`, 163 B | `$0347`, 153 B |
 | Full receiver | `$0400`, 482 B; send 512 B | `$0800`, 626 B; send 768 B |
 | Final ROM handoff trampoline | `$033C` | `$0333` |
-| Firmware PRG address range | `$0801..$7FFF` | `$1001..$3FFF` |
+| Firmware PRG address range | `$0801..$CFFF` | `$1001..$3FFF` |
 
 The emulator also tests Plus/4 payloads through `$7FFF`; the current firmware
-uses the common 16 KB C16 limit for its combined C16/Plus4 profile. Payloads
-under ROM/I/O or overlapping the loader are not supported.
+uses the common 16 KB C16 limit for its combined C16/Plus4 profile.
+C64 writes beneath BASIC ROM reach RAM without changing the memory mapping;
+the receiver keeps ROM/I/O visible and stops before `$D000`. A program that
+needs to read that RAM later must select its own memory mapping. Payloads
+overlapping the loader or reaching I/O are not supported.
 
 ## Standard tape stage
 

@@ -31,8 +31,8 @@ parser.add_argument("--prg", type=Path, help="Use a real PRG instead of generate
 parser.add_argument("--ntsc", action="store_true")
 parser.add_argument("--trace", action="store_true")
 args = parser.parse_args()
-if not 1 <= args.size <= 0x7000:
-    parser.error("size must be 1..28672; each machine's address range is checked separately")
+if not 1 <= args.size <= 0xc000:
+    parser.error("size must be 1..49152; each machine's address range is checked separately")
 for value in (args.hold_us, args.motor_off_us, args.motor_on_us, args.phase_ticks,
               args.pause_us, args.jitter_us):
     if value is not None and value < 0:
@@ -70,7 +70,7 @@ for machine in machines:
         if len(prg) < 3:
             parser.error("PRG must contain a load address and a nonempty payload")
         destination, payload = int.from_bytes(prg[:2], "little"), prg[2:]
-    limit = 0x4000 if machine == "c16" else 0x8000
+    limit = 0x4000 if machine == "c16" else 0xd000 if machine == "c64" else 0x8000
     if destination < 0x1000 or destination + len(payload) > limit:
         parser.error(f"{machine}: experiment supports payloads in $1000..${limit - 1:04x}")
     stream = case / "stream.bin"
@@ -83,7 +83,8 @@ for machine in machines:
     commands.write_text(f'load "{receiver}" 0\n'
                         'resourceset "TapePort1Device" "8"\n'
                         f'break ${done:04x}\n'
-                        'g $0800\n'
+                        'g $0800\n' +
+                        ('bank ram\n' if machine == 'c64' else '') +
                         f'bsave "{dump}" 0 ${destination:04x} ${destination + len(payload) - 1:04x}\n'
                         'quit\n')
     family = "C64" if machine == "c64" else "PLUS4"

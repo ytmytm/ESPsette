@@ -32,16 +32,17 @@ You need an ESP-01 with at least **1 MB flash**, the Commodore interface and a
 **2.4 GHz Wi-Fi network**. Your browser must be on the same local network as
 the ESP. The player has no login; use it on a trusted LAN.
 
-1. Install the firmware using [USB-UART](#install-over-usb-uart), then connect
-   the ESP through the [Commodore interface](kicad/WIRING.md).
+1. [Install the firmware using USB-UART](#install-over-usb-uart) with ESPsette
+   **physically unplugged from the Commodore cassette port**.
+   Disconnect the USB-UART programmer, then plug ESPsette into the cassette port.
    Turn on the C64: its cassette port powers ESPsette, which starts automatically.
    C16/Plus/4 needs a 1531 connector or adapter.
 2. On first boot, join **ESPsette-XXXXXX** and choose your Wi-Fi network in the
    setup page. If it does not open automatically, visit `http://192.168.4.1/`.
    The ESP opens this setup network again if it cannot connect.
-3. Rejoin your normal network. Find the ESP's IP address in your router and
-   open `http://DEVICE_IP/`.
-   Use the IP address; mDNS discovery is disabled.
+3. Rejoin your normal network. Open the ESP by its router-provided DNS name
+   (for example `http://espsette.lan/`) or the IP address listed in your router.
+   Its default hostname is `ESPsette`; the domain depends on your router.
 4. Choose **Demo**, select a `.tap` or `.prg`, or drop a file onto the deck.
    For PRGs, first choose your computer and PAL/NTSC in **Playback settings**.
    TAP files supply their own computer profile.
@@ -83,9 +84,6 @@ saved profile for uploaded files.
 - Fastloader off: use `LOAD`, then `RUN`.
 - Fastloader on: use `LOAD`; the demo loads and starts automatically.
 
-The original [7744-byte PRG](assets/demo/circles.prg) is included in the
-firmware. See [credits and checksum](assets/demo/README.md).
-
 ## Use the PRG fastloader
 
 Enable **Use fastloader for PRG** in **Playback settings**. It is off by default.
@@ -96,7 +94,8 @@ Use normal `LOAD`. A short program loads at standard speed, then receives the
 rest at fast speed. The web player starts it with BASIC `RUN`; machine-code
 programs need a BASIC starter for automatic launch.
 
-TAP files keep their recorded timing. Supported fastloader load ranges are `$0801..$7FFF` on C64 and `$1001..$3FFF` on C16/Plus/4.
+TAP files keep their recorded timing. The current firmware accepts fastloader
+load ranges of `$0801..$CFFF` on C64 and `$1001..$3FFF` on C16/Plus/4.
 Use standard loading for PRGs outside those ranges.
 
 During the fast stage:
@@ -160,9 +159,14 @@ no separate filesystem image is needed.
 
 ### Connect the programmer
 
-Disconnect the ESP from the Commodore interface. Use **3.3 V power and UART
-logic**, with a supply able to handle Wi-Fi current peaks. If your CH340G
-adapter has a voltage switch, select **3.3 V** and verify its signal levels.
+**Physically unplug ESPsette from the Commodore cassette port before connecting
+USB-UART, even if the computer is switched off.** Keep it unplugged throughout
+USB-UART flashing. Disconnect USB-UART completely before reconnecting ESPsette to
+the cassette port.
+
+Use **3.3 V power and UART logic**, with a supply able to handle Wi-Fi current
+peaks. If your CH340G adapter has a voltage switch, select **3.3 V** and verify
+its signal levels.
 
 Keep **GPIO0 connected to GND throughout flashing**:
 
@@ -198,14 +202,18 @@ On macOS, use your `/dev/cu.usbserial-...` port; `ls /dev/cu.*` lists ports.
 
 After flashing:
 
-1. Remove the GPIO0–GND jumper and disconnect DTR–RST.
-2. Reset the ESP. GPIO0 must be HIGH at reset for normal operation.
-3. Follow the [wiring notes](kicad/WIRING.md) before reconnecting the Commodore.
+1. Disconnect the USB-UART programmer completely and remove the GPIO0–GND jumper.
+2. Connect ESPsette to the cassette port according to the [wiring notes](kicad/WIRING.md).
+3. Turn on the C64; ESPsette starts from cassette-port power.
 
 ## Update over Wi-Fi
 
 OTA is enabled for 1 MB and 4 MB modules. If your installed firmware has OTA
 disabled, install this version over USB-UART first.
+
+**For OTA, leave ESPsette connected to the powered-on C64/C16.** The computer
+supplies its power. The disconnection requirement above applies to USB-UART
+flashing; stop MOTOR and transfers for OTA.
 
 From a [prepared source checkout](#build-from-source):
 
@@ -219,9 +227,10 @@ From a [prepared source checkout](#build-from-source):
 3. After the ESP restarts, **refresh its page**.
 4. Check **Network / OTA → Firmware** against the expected commit ID.
 
-Use the ESP's IP address. OTA preserves settings and Wi-Fi configuration.
-It has no password by default; you can
-[configure one](include/local_ota.h.example).
+`OTA_HOST` accepts an IP address or a name resolved by your router, such as
+`espsette.lan`. mDNS discovery is disabled; your router's local DNS still works.
+OTA preserves settings and Wi-Fi configuration. It has no password by default;
+you can [configure one](include/local_ota.h.example).
 
 OTA uses `.bin.gz`, which the bootloader decompresses. Each build checks that
 the update fits in flash alongside the running image and saved settings.
