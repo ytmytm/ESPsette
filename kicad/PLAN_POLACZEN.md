@@ -1,5 +1,33 @@
 # Plan połączeń KiCad (C64 datasette ↔ ESP-01)
 
+## Wariant testowy tej gałęzi — 2026-11-09
+
+Firmware na gałęzi `test/motor-gpio1-sense-gpio0` wymaga poniższej
+przeróbki istniejącej płytki. Zastępuje ona przypisanie MOTOR/SENSE opisane
+w dalszej części dokumentu; pozostałe połączenia pozostają zgodne z bazą.
+To wariant do testu, bez potwierdzenia działania na sprzęcie.
+
+- Rozciąć MOTOR→GPIO0 i SENSE→GPIO1 przy ESP.
+- Dawny MOTOR z emitera 4N35 podłączyć przez **1 kΩ do GPIO1**.
+  Pull-down 10 kΩ pozostaje przy emiterze, przed rezystorem szeregowym.
+  Polaryzacja MOTOR pozostaje bez zmian: HIGH = silnik włączony.
+- Dawną ścieżkę SENSE wraz z pull-upem 10 kΩ do 3V3 podłączyć do **GPIO0**.
+- READ pozostaje na GPIO3 (I2S), WRITE na GPIO2 (dwukierunkowo dla fastloadera).
+- JP_FLASH musi zwierać **GPIO0 po stronie ESP** do GND; po przecięciu
+  ścieżki nie może zostać na dawnym MOTOR.
+- RXD programatora pozostaje bezpośrednio na GPIO1. Rezystor 1 kΩ znajduje
+  się wyłącznie w odgałęzieniu MOTOR. Programować po fizycznym odłączeniu
+  płytki od C64/C16, zgodnie z dotychczasową procedurą.
+
+Rezystor ogranicza konflikt transoptora z UART TX podczas startu ROM;
+firmware zwalnia UART na GPIO1 i ustawia wejście MOTOR na początku `setup()`.
+Przed wdrożeniem sprawdzić start z MOTOR off/on, PLAY/STOP, zwykłe TAP/PRG,
+fastloader, odbiór WRITE i programowanie USB-UART. HIGH na GPIO2 przy starcie
+oraz poziom napięcia na SENSE z pull-upem Commodore do 5 V nadal wymagają
+weryfikacji; zamiana pinów nie rozwiązuje tych kwestii.
+
+## Bazowa płytka — zapis wcześniejszych ustaleń
+
 Stan: 2026-11-02. Poniższe decyzje zastępują wcześniejszą propozycję zmiany
 polaryzacji MOTOR i dodania inwertera READ. Autor potwierdził, że wariant
 MOTOR oraz bezpośredni READ działały na rzeczywistym sprzęcie z obecnym

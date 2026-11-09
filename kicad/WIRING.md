@@ -1,5 +1,9 @@
 # ESPsette hardware plan
 
+**This branch uses MOTOR on GPIO1 and SENSE on GPIO0.** Apply the
+[experimental modification](#experimental-motorsense-swap--2026-11-09)
+before using this firmware. The base-board mapping below is historical.
+
 Status: KiCad schematic in progress. Hardware decisions confirmed by the author on 2026-11-02 are recorded in [PLAN_POLACZEN.md](PLAN_POLACZEN.md). The author reports successful physical tests of the selected MOTOR topology and direct READ connection with the current firmware on 2026-11-01. These decisions supersede the earlier alternative circuits.
 
 ## 1. ESP-01 and CAD assets
@@ -38,6 +42,31 @@ Copy the **dual assembly option** from [plus4-tcbm2sd's schematic](https://githu
 - Programmer 3.3 V, ESP VCC and the regulator output share the same `3V3` net. No regulator-output isolation is fitted. During programming the board is disconnected from C64/C16; the programmer is removed before reconnecting the computer.
 - Never feed 5 V into ESP VCC or GPIO. Some adapters marked “3.3 V” only change UART logic and still supply 5 V on VCC; measure first.
 - References: [Espressif power guidance](https://docs.espressif.com/projects/esp-techpedia/en/latest/esp-friends/get-started/try-firmware/try-firmware-hardware/esp8266.html), [power troubleshooting](https://docs.espressif.com/projects/esptool/en/latest/esp8266/troubleshooting.html).
+
+## Experimental MOTOR/SENSE swap — 2026-11-09
+
+Branch `test/motor-gpio1-sense-gpio0` targets a modified version of the base
+board described below: **MOTOR = GPIO1 through a 1 kΩ series resistor;
+SENSE = GPIO0 with its existing 10 kΩ pull-up to 3V3**. READ stays on GPIO3
+and bidirectional WRITE stays on GPIO2. The MOTOR 10 kΩ pull-down stays on
+the optocoupler side of the series resistor; MOTOR remains active HIGH.
+This branch has not yet been tested on hardware.
+
+Cut the old MOTOR/GPIO0 and SENSE/GPIO1 connections near the ESP and cross
+the two signal branches as described in
+[the modification instructions](PLAN_POLACZEN.md#wariant-testowy-tej-gałęzi--2026-11-09).
+Keep JP_FLASH on the ESP's GPIO0 side of the cut. Keep programmer RXD directly
+connected to GPIO1; only the MOTOR branch gets the series resistor. The
+USB-UART flashing procedure below still applies with the board unplugged
+from the Commodore. The old MOTOR/SENSE mapping in the remaining sections
+documents the base board, not this experimental firmware.
+
+GPIO1 transmits ROM boot messages before firmware releases UART TX and
+configures MOTOR as an input. The series resistor limits contention current;
+verify MOTOR levels/edges during fastloader transfers. Also verify cold starts
+with MOTOR off/on, PLAY/STOP, standard playback, WRITE commands and serial
+flashing. GPIO2 must still be HIGH at boot; the Commodore SENSE pull-up to
+5 V remains an interface-voltage consideration.
 
 ## 3. Reset, boot straps and FLASH jumper
 

@@ -7,8 +7,8 @@
 // 1MB
 
 // revised on 27.4, 1.5
-#define PIN_MOTOR 0 // GPIO0       <- MOTOR (C,3) $01 bit 5 (through optocoupler with gnd pulldown 10k) // 0 = motor off, 1 = motor on
-#define PIN_SENSE 1 // GPIO1 (TxD) -> SENSE (F,6) $01 bit 4 (with pullup to 3.3V, 10k) // 0 = pushed, 1 = released
+#define PIN_MOTOR 1 // GPIO1 (TxD) <- MOTOR (C,3), optocoupler -> 1k -> GPIO1; 10k pulldown on optocoupler side; HIGH = on
+#define PIN_SENSE 0 // GPIO0 -> SENSE (F,6), 10k pullup to 3.3V; LOW = PLAY; keep HIGH during boot
 #define PIN_WRITE 2
 #define PIN_READ  3 // GPIO3 (RxD) -> READ  (D,4) CIA#1 /FLAG, I2S, pulled to 5V in C64, normal high (input pullup), impulse low
 
@@ -997,9 +997,11 @@ void setupPins() {
 #if ESPSETTE_GPIO_DISABLED
   softSensePressed = false;
 #else
+  // ROM drives GPIO1 as UART TX before setup(); the MOTOR branch needs its
+  // external 1k series resistor. Release TX before reading active-HIGH MOTOR.
+  pinMode(PIN_MOTOR, FUNCTION_3);
   pinMode(PIN_MOTOR, INPUT);
   pinMode(PIN_WRITE, INPUT_PULLUP);
-  pinMode(PIN_SENSE, FUNCTION_3); // Release UART TX for GPIO1.
   digitalWrite(PIN_SENSE, HIGH); // Release PLAY until a tape or demo is ready.
   pinMode(PIN_SENSE, OUTPUT);
   idleReadPin();
