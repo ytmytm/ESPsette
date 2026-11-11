@@ -6,13 +6,15 @@ sources are in `native/fastloader/`; `make native` builds both targets with ACME
 | Component | C64 | C16 / Plus/4 |
 | --- | --- | --- |
 | Autostart vector, standard data block | `$0302..$0303` | `$0302..$0303` |
-| Code inside standard header tail | `$0351`, 163 B | `$0347`, 157 B |
+| Code inside standard header tail | `$0351`, 163 B | `$0348`, 157 B |
 | Full receiver | `$0400`, 482 B; send 512 B | `$0800`, 610 B; send 768 B |
 | Final ROM handoff trampoline | `$033C` | `$0333` |
-| Firmware PRG address range | `$0801..$CFFF` | `$1001..$3FFF` |
+| Firmware PRG address range | `$0801..$CFFF` | `$1001..$FCFF` |
 
-The emulator also tests Plus/4 payloads through `$7FFF`; the current firmware
-uses the common 16 KB C16 limit for its combined C16/Plus4 profile.
+The combined C16/Plus4 profile targets C16 with 64 KB RAM and Plus/4.
+Programs through `$FCFF` are supported; writes beneath TED BASIC/KERNAL ROM
+reach RAM without changing the mapping, as on C64. `$FD00` starts I/O.
+Small programs remain usable on a stock 16 KB C16.
 C64 writes beneath BASIC ROM reach RAM without changing the memory mapping;
 the receiver keeps ROM/I/O visible and stops before `$D000`. A program that
 needs to read that RAM later must select its own memory mapping. Payloads
@@ -22,8 +24,12 @@ overlapping the loader or reaching I/O are not supported.
 
 `PrgEncoder::beginAutostart()` generates a type-3 absolute header for a two-byte
 load at `$0302`. The vector targets code in the unused header tail, after the
-16-character filename. It has 171 available bytes. TED stores the type byte
-separately at `$F8`, so its code lands at `$0347`, not `$0348`.
+filename. C64 has 16 filename bytes and 171 code bytes. TED stores the type
+byte separately at `$F8` and prints 17 filename bytes (ROM `$E9F3..$E9FD`,
+Y=4..20 inclusive). Its seventeenth display byte is padded with a space;
+code begins at tape offset 22 / RAM `$0348`, with 170 bytes available.
+Putting code at offset 21 / `$0347` would print its first opcode as a stray
+character after the name.
 
 The production encoder generates both copies, parity and checksums, using its
 ordinary pilot lengths. Two hundred short tail pulses allow the ROM to finish
@@ -106,7 +112,7 @@ python3 experiments/fastloader/run-bootstrap-matrix.py
 Monitor commands only type LOAD and observe execution/memory. ROM device-1
 traps are disabled. Tests compare every downloaded receiver/payload byte and
 confirm BASIC POKE or machine-code marker execution after ROM restoration.
-The 32-case matrix covers three machines, both video standards, both launch
+The regression matrix covers three machines, both video standards, both launch
 paths, block/page boundaries, unaligned destinations, maximum RAM payloads and
 both C64 CIA variants. The ESP GPIO implementation and configurable delays also
 have host wire-order tests. C64 PAL fastloading was confirmed on real hardware
@@ -139,3 +145,19 @@ port read; the timing analyzer covers the slower WRITE-high branch.
 The user confirmed that the corrected C16 fastloader works on real hardware
 on 2026-11-11. VICE regression results: 33/33 complete bootstrap checks and
 39/39 transport checks, including expected failures with unsafe timings.
+
+## TED filename and 64 KB range regression
+
+The ROM display test now stops after the FOUND filename loop and compares all
+17 displayed bytes, including the trailing space. PAL/NTSC long-name cases and
+maximum payloads through `$FCFF` pass for both BASIC RUN and machine-code
+handoff. The expanded bootstrap matrix passes 38/38 checks.
+
+Original local Aardvark (12,287 payload bytes, SYS 9458), Acidball (25,557 bytes,
+SYS 4114) and AFL_Boulderdash (31,518 bytes, SYS 4128) each pass cold C16/64-KB
+PAL ROM loading, full receiver/payload comparison and the BASIC SYS breakpoint.
+Boulderdash's payload ends at `$8B1F` exclusive, exercising RAM beneath ROM.
+Local game binaries are not included in the repository.
+
+The user confirmed the filename and larger-PRG fixes work on hardware on
+2026-11-11.

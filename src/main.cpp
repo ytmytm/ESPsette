@@ -1645,7 +1645,9 @@ void handleSession() {
       uint32_t entry = 0;
       if ((HTTPServer.hasArg("entry") && !parseDecimal(HTTPServer.arg("entry"), entry)) ||
           entry > 65535 || !fastloaderPrgFits(loadAddress, dataLength, ted)) {
-        HTTPServer.send(400, "text/plain", "Fast PRG address range or entry is invalid");
+        HTTPServer.send(400, "text/plain", ted ?
+            "Fast C16/Plus4 PRG must fit $1001..$FCFF with entry 0..65535; larger programs require expanded RAM" :
+            "Fast C64 PRG must fit $0801..$CFFF with entry 0..65535");
         return;
       }
       if (!prepareFastPrg(loadAddress, dataLength, displayName, machine, video == "ntsc", entry)) {

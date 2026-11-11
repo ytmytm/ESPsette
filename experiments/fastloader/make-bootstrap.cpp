@@ -19,7 +19,7 @@ int main(int argc, char** argv) {
   const bool ntsc = std::string(argv[2]) == "ntsc";
   std::ifstream input(argv[3], std::ios::binary);
   const std::vector<uint8_t> stub((std::istreambuf_iterator<char>(input)), {});
-  const uint16_t entry = c16 ? 0x0347 : 0x0351;
+  const uint16_t entry = c16 ? 0x0348 : 0x0351;
   if (stub.size() < 3 || (stub[0] | (stub[1] << 8)) != entry) return 2;
   const uint8_t stream[] = {2, 3, (uint8_t)entry, (uint8_t)(entry >> 8),
                                  (uint8_t)entry, (uint8_t)(entry >> 8)};

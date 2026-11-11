@@ -10,7 +10,7 @@ ptr = $f7
 result = $fd
 expected = $ff
 !if C16 {
-    * = $0347                   ; header type is stored separately at $f8
+    * = $0348                   ; type at $f8; ROM prints 17 filename bytes
     motor_mask = $08
     write_mask = $02
     port_off = $0a              ; physical WRITE low (7501 output inverts)

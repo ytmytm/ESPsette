@@ -26,12 +26,20 @@ cases += [("unaligned", ["--mode", "machine", "--size", "513", "--address", "0x2
 cases += [(f"maximum-{machine}", ["--machine", machine, "--mode", "machine",
                                 "--address", hex(address), "--size", str(size)])
           for machine, address, size in (("c64", 0x0801, 51199),
-                                         ("c16", 0x1001, 12287),
-                                         ("plus4", 0x1001, 28671))]
+                                         ("c16", 0x1001, 60671),
+                                         ("plus4", 0x1001, 60671))]
 cases += [("maximum-c64-basic", ["--machine", "c64", "--mode", "basic",
                                  "--pad-basic", "--size", "51199"])]
 cases += [(f"new-cia-{video}", ["--machine", "c64", "--cia-model", "1"] +
            (["--ntsc"] if video == "ntsc" else [])) for video in ("pal", "ntsc")]
+
+cases += [(f"ted-name-{video}", ["--machine", "c16", "--name", "abcdefghijklmnop"] +
+           (["--ntsc"] if video == "ntsc" else [])) for video in ("pal", "ntsc")]
+cases += [("stock-c16-16k", ["--machine", "c16", "--ram-kib", "16",
+                              "--mode", "machine", "--address", "0x1001", "--size", "12287"])]
+cases += [(f"maximum-{machine}-basic", ["--machine", machine, "--mode", "basic",
+                                       "--pad-basic", "--size", "60671"])
+          for machine in ("c16", "plus4")]
 
 
 def run(case):

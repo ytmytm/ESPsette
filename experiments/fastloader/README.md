@@ -9,7 +9,8 @@ on 2026-11-11; remaining hardware variants and measured throughput await verific
 
 The bootstrap header filename starts with PETSCII clear screen (147).
 C64 adds white (5) and up to 14 name characters; C16/Plus/4 retains its
-text color on the white background and allows up to 15 name characters. These bytes are only sent
+text color on the white background and allows up to 15 name characters,
+plus a space for the ROM's seventeenth display byte. These bytes are only sent
 to the computer; the web cassette label displays the filename without its
 `.prg` or `.tap` extension. Standard PRG header names are unchanged.
 
@@ -163,7 +164,7 @@ not the receiver PC or registers. The ESP wire-order test separately exercises
 its actual byte transmitter with all 256 values, both pair layouts, both READ
 variants and changed settings.
 
-Validated matrices: **33/33** complete bootstrap checks and **39/39** transport
+Validated matrices: **38/38** complete bootstrap checks and **39/39** transport
 checks, including expected failures for unsafe timing. Bootstrap cases include
 BASIC/machine code, PAL/NTSC, both C64 CIA models, 255/256/257/513-byte boundaries,
 unaligned destinations and maximum supported RAM ranges, including C64

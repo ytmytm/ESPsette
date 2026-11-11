@@ -491,9 +491,10 @@ function checkedEspState(state) {
 async function api(path, options) {
   if (preview) return mockApi(path, options);
   const response = await fetch(path, options);
+  const text = await response.text();
   let data;
-  try { data = await response.json(); }
-  catch (_) { throw Error(response.ok ? 'Invalid JSON response from ' + path : response.statusText); }
+  try { data = JSON.parse(text); }
+  catch (_) { throw Error(response.ok ? 'Invalid JSON response from ' + path : text.trim() || response.statusText); }
   if (!response.ok) throw Object.assign(new Error(data?.error || response.statusText), {data});
   return ['/state', '/buffer'].includes(path.split('?')[0]) ? checkedEspState(data) : data;
 }
@@ -1151,6 +1152,8 @@ async function insertTape() {
     $('deck').scrollIntoView({behavior:'smooth', block:'start'});
   } catch (error) {
     $('error').textContent = 'Cannot insert file: ' + error.message;
+    $('playbackDetails').open = true;
+    $('error').scrollIntoView({behavior:'smooth', block:'nearest'});
   } finally { busy = false; }
   selectedFilesText();
   await step();

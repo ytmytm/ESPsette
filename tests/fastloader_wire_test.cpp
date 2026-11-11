@@ -28,8 +28,15 @@ int main() {
   assert(!fastloaderPrgFits(0x0801, UINT32_MAX, false));
   assert(fastloaderPrgFits(0x1001, 0x4000 - 0x1001, true));
   assert(fastloaderPrgFits(0x3fff, 1, true));
-  assert(!fastloaderPrgFits(0x3fff, 2, true));
-  assert(!fastloaderPrgFits(0x4000, 1, true));
+  assert(fastloaderPrgFits(0x3fff, 2, true));
+  assert(fastloaderPrgFits(0x4000, 1, true));
+  assert(fastloaderPrgFits(0x1001, 31518, true)); // AFL_Boulderdash, ends $8B1F.
+  assert(fastloaderPrgFits(0x1001, 25557, true)); // Acidball, ends $73D6.
+  assert(fastloaderPrgFits(0x1001, 0xfd00 - 0x1001, true));
+  assert(fastloaderPrgFits(0xfcff, 1, true));
+  assert(!fastloaderPrgFits(0xfcff, 2, true));
+  assert(!fastloaderPrgFits(0xfd00, 1, true));
+  assert(!fastloaderPrgFits(0x1001, UINT32_MAX, true));
   assert(!fastloaderPrgFits(0x1000, 1, true));
 
   for (bool ted : {false,true}) for (bool boot : {false,true}) {

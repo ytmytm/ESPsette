@@ -59,19 +59,21 @@ bool PrgEncoder::begin(uint16_t loadAddress, uint32_t dataLength,
 
 bool PrgEncoder::beginAutostart(const uint8_t* code, size_t length,
                                const String& name, Machine machine, bool ntsc) {
-  if (!code || !length || length > HEADER_BYTES - 21) return false;
+  // TED's ROM prints buffer offsets 4..20 inclusive: 17 filename bytes.
+  const uint8_t codeOffset = machine == Machine::C16 ? 22 : 21;
+  if (!code || !length || length > HEADER_BYTES - codeOffset) return false;
   if (!begin(0x0302, 2, name, machine, ntsc)) return false;
   autostart_ = true;
-  autostartEntry_[0] = machine == Machine::C16 ? 0x47 : 0x51;
+  autostartEntry_[0] = machine == Machine::C16 ? 0x48 : 0x51;
   autostartEntry_[1] = 3;
   header_[0] = 3; // Absolute load, independent of the current BASIC start.
   // TED has a white background: retain its text color after clearing.
-  // Leave the bootstrap at byte 21 untouched on both machines.
+  // TED needs an extra space after the usual 16 filename bytes.
   const uint8_t controls = machine == Machine::C16 ? 1 : 2;
   memmove(header_ + 5 + controls, header_ + 5, 16 - controls);
   header_[5] = 147; // PETSCII clear screen.
   if (controls == 2) header_[6] = 5; // PETSCII white, C64 only.
-  memcpy(header_ + 21, code, length);
+  memcpy(header_ + codeOffset, code, length);
   headerChecksum_ = 0;
   for (uint8_t value : header_) headerChecksum_ ^= value;
   totalPulses_ += 200;

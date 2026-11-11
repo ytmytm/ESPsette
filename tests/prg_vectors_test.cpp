@@ -107,7 +107,7 @@ static void checkAutostart(bool c16, bool ntsc, size_t codeLength,
                            const char* name, const char* expectedName) {
   const Timings t = c16 ? Timings{448, 896, 1792} : Timings{384, 536, 680};
   const auto machine = c16 ? PrgEncoder::Machine::C16 : PrgEncoder::Machine::C64;
-  const uint16_t entry = c16 ? 0x0347 : 0x0351;
+  const uint16_t entry = c16 ? 0x0348 : 0x0351;
   const uint8_t stream[] = {2, 3, (uint8_t)entry, (uint8_t)(entry >> 8),
                                   (uint8_t)entry, (uint8_t)(entry >> 8)};
   TapeSource source;
@@ -117,7 +117,7 @@ static void checkAutostart(bool c16, bool ntsc, size_t codeLength,
   PrgEncoder encoder;
   assert(!encoder.beginAutostart(nullptr, 1, "BOOT", machine, ntsc));
   assert(!encoder.beginAutostart(code.data(), 0, "BOOT", machine, ntsc));
-  assert(!encoder.beginAutostart(code.data(), 172, "BOOT", machine, ntsc));
+  assert(!encoder.beginAutostart(code.data(), c16 ? 171 : 172, "BOOT", machine, ntsc));
   assert(encoder.beginAutostart(code.data(), codeLength, name, machine, ntsc));
   encoder.observeFirstCopy(2, stream + 2, 2);
   std::array<uint8_t, 192> header;
@@ -130,7 +130,7 @@ static void checkAutostart(bool c16, bool ntsc, size_t codeLength,
   const size_t nameStart = c16 ? 6 : 7;
   for (size_t i = 0; expectedName[i] && nameStart + i < 21; ++i)
     header[nameStart + i] = expectedName[i];
-  for (size_t i = 0; i < codeLength; ++i) header[21 + i] = code[i];
+  for (size_t i = 0; i < codeLength; ++i) header[(c16 ? 22 : 21) + i] = code[i];
   std::vector<uint32_t> expected;
   referenceBlock(expected, header.data(), header.size(), true, true, t, c16);
   referenceBlock(expected, header.data(), header.size(), false, true, t, c16);
@@ -166,6 +166,6 @@ int main() {
     {"", "PROGRAM"}, {"!!!", "PROGRAM"}
   };
   for (bool c16 : {false, true}) for (bool ntsc : {false, true})
-    for (size_t length : {size_t(1), size_t(171)})
+    for (size_t length : {size_t(1), size_t(c16 ? 170 : 171)})
       for (const auto& name : names) checkAutostart(c16, ntsc, length, name.name, name.expected);
 }

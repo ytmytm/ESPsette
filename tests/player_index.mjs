@@ -1069,13 +1069,14 @@ vm.runInContext(`api=pollSaved.api;source=pollSaved.source;last=pollSaved.last;b
 // Exercise the actual fetch/JSON wrapper independently of preview's mock API.
 let responseMode='invalid-json';
 const networkContext=vm.createContext({preview:false,Date,Error,Number,FormData,Blob,
-  fetch:async()=>({ok:responseMode!=='http-error',status:responseMode==='http-error'?503:200,
-    statusText:'Service unavailable',json:async()=>{
-      if(responseMode==='invalid-json') throw SyntaxError('truncated JSON');
-      if(responseMode==='empty-object') return {};
-      if(responseMode==='http-error') return {error:'busy'};
-      return {sessionId:1,sourceType:'tap',tapeState:'loaded',phase:'data',logicalSize:16384,
-        fileOffsetReceived:8192,freeBytes:4096};
+  fetch:async()=>({ok:!['http-error','plain-error'].includes(responseMode),status:responseMode==='http-error'?503:responseMode==='plain-error'?400:200,
+    statusText:'Service unavailable',text:async()=>{
+      if(responseMode==='invalid-json') return '{';
+      if(responseMode==='plain-error') return 'Fast C16/Plus4 PRG must fit $1001..$FCFF';
+      if(responseMode==='empty-object') return '{}';
+      if(responseMode==='http-error') return JSON.stringify({error:'busy'});
+      return JSON.stringify({sessionId:1,sourceType:'tap',tapeState:'loaded',phase:'data',logicalSize:16384,
+        fileOffsetReceived:8192,freeBytes:4096});
     }})});
 vm.runInContext(script.slice(script.indexOf('let lastFullStateAt = 0'),
   script.indexOf('function prgTotalCycles')),networkContext);
@@ -1084,6 +1085,8 @@ responseMode='empty-object';
 await assert.rejects(vm.runInContext("api('/state')",networkContext),/Incomplete ESP state/);
 responseMode='http-error';
 await assert.rejects(vm.runInContext("api('/state')",networkContext),/busy/);
+responseMode='plain-error';
+await assert.rejects(vm.runInContext("api('/session')",networkContext),/must fit \$1001\.\.\$FCFF/);
 responseMode='valid';
 assert.equal((await vm.runInContext("api('/state')",networkContext)).sessionId,1);
 await vm.runInContext(`api('/chunk?sid=1&offset=20',{method:'POST',body:(()=>{
@@ -1119,4 +1122,15 @@ assert.equal(vm.runInContext('mock.defaultMachine', reloaded), 'c16-pal');
 assert.equal(vm.runInContext('mock.autoPlay', reloaded), false);
 assert.equal(vm.runInContext('mock.fastloader.enabled', reloaded), false);
 assert.equal(vm.runInContext('mock.fastloader.holdC64Us', reloaded), 16);
+
+// Insertion failures must reveal the error even when playback details are collapsed.
+vm.runInContext(`source=null;mock.motorOn=false;mock.gpioDisabled=false;busy=false;
+  globalThis.insertErrorApi=api;
+  api=async(path,options)=>{if(path==='/session') throw Error('PRG address range is invalid');
+    return insertErrorApi(path,options)};`,context);
+elements.get('playbackDetails').open=false;
+await vm.runInContext('chooseFiles([uiTape])',context);
+assert.equal(elements.get('playbackDetails').open,true);
+assert.match(elements.get('error').textContent,/Cannot insert file: PRG address range/);
+vm.runInContext('api=insertErrorApi',context);
 console.log('IDX/TAP, VICE counter, English UI, session recovery and fastloader settings OK');

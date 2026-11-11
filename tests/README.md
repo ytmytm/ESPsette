@@ -26,7 +26,7 @@ c++ -std=c++17 -Itests/support -Isrc tests/embedded_demo_test.cpp src/prg_encode
 /tmp/ESPsette-demo-test
 ```
 
-`playback_awake.mjs` checks native and HTTP-compatible screen protection, including visibility changes, delayed grants, denial, retry throttling, media priming, and cleanup. `computer_profile_test.cpp` checks all four VICE tape clocks, profile parsing and legacy PAL aliases. `prg_vectors_test.cpp` compares every generated C64 and C16 pulse for both PAL and NTSC with an independent block sequence. The C16 cases also check pulse durations against the Pi1551 vectors. Autostart cases check absolute $0302 loading, header code placement and checksums for both machines/video standards, including the 171-byte limit. `tape_source_ring_test.cpp` checks that consumed bytes are released from the 12 KB streaming ring. `player_index.mjs` covers TAP v1/v2 headers and record boundaries, IDX offsets, counter-based seeking, autoplay, machine defaults, controls, recovery after a lost HTTP response, immediate TAP/PRG insertion, file ordering and extension case, saved PAL/NTSC PRG defaults and TAP header overrides, preview setting persistence, Demo with soft MOTOR, the segment buffer meter, mechanical counter transitions and unified VFD computer/time/PAL indicators, attaching IDX without restarting playback, PREV/NEXT boundaries, named Jump selection, automatic IDX title/selection tracking during playback, and absolute elapsed/total time after a jump.
+`playback_awake.mjs` checks native and HTTP-compatible screen protection, including visibility changes, delayed grants, denial, retry throttling, media priming, and cleanup. `computer_profile_test.cpp` checks all four VICE tape clocks, profile parsing and legacy PAL aliases. `prg_vectors_test.cpp` compares every generated C64 and C16 pulse for both PAL and NTSC with an independent block sequence. The C16 cases also check pulse durations against the Pi1551 vectors. Autostart cases check absolute $0302 loading, header code placement and checksums for both machines/video standards, including the C64 171-byte / TED 170-byte code limits and TED's 17-byte displayed filename. `tape_source_ring_test.cpp` checks that consumed bytes are released from the 12 KB streaming ring. `player_index.mjs` covers TAP v1/v2 headers and record boundaries, IDX offsets, counter-based seeking, autoplay, machine defaults, controls, recovery after a lost HTTP response, immediate TAP/PRG insertion, file ordering and extension case, saved PAL/NTSC PRG defaults and TAP header overrides, preview setting persistence, Demo with soft MOTOR, the segment buffer meter, mechanical counter transitions and unified VFD computer/time/PAL indicators, attaching IDX without restarting playback, PREV/NEXT boundaries, named Jump selection, automatic IDX title/selection tracking during playback, and absolute elapsed/total time after a jump.
 
 These are host-side tests. They do not measure I2S timing, electrical polarity, DMA delays or decoding by a physical computer. Real C64 PAL hardware tests pass for browser TAP, standard PRG, fast PRG, Circles in both modes, and WRITE requests with an empty deck. Other models and NTSC still need hardware checks.
 
@@ -39,7 +39,7 @@ VICE matrices for the complete standard-ROM bootstrap and isolated transport.
 configured delays through the same byte transmitter used by ESP GPIO. Browser
 tests cover saved enabled/timing settings, rejected values, defaults, active
 transfer guards, polling without losing edits, and standard/fast PRG selection.
-The full bootstrap matrix has 33 checks; transport regression has 39 including
+The full bootstrap matrix has 38 checks; transport regression has 39 including
 expected unsafe-timing failures. These do not replace ESP hardware timing tests.
 
 For manual browser checks, [fixtures/](fixtures/README.md) contains a synthetic two-minute TAP and matching IDX with six markers. The browser test also validates their duration, marker boundaries and seeking.
@@ -178,3 +178,12 @@ Earlier failures included a 3041 ms `/state` response with invalid JSON and
 roughly three-second gaps in source delivery. Source underruns also occurred
 with mDNS disabled, compact-only polling and Wi-Fi power saving disabled. The
 successful 12 KB configuration does not establish the cause of those gaps.
+
+TED fast PRGs use the C16-with-64-KB/Plus4 range `$1001..$FCFF`, including RAM
+beneath ROM. `fastloader_wire_test.cpp` covers the original Aardvark, Acidball
+and AFL_Boulderdash address ranges and the I/O boundary. VICE bootstrap tests
+compare the 17 bytes actually displayed by the TED ROM before confirming the
+name, compare every loaded payload byte in the RAM bank and verify execution.
+The matrix covers maximum TED BASIC/machine-code payloads, long names in
+PAL/NTSC and a separate stock 16 KB C16 case. Browser tests check that plain-text
+firmware errors retain their message and failed insertion opens Playback details.

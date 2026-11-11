@@ -17,6 +17,8 @@ REPO = ROOT.parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--machine", choices=["c64", "c16", "plus4", "all"], default="all")
 parser.add_argument("--ntsc", action="store_true")
+parser.add_argument("--ram-kib", type=int, choices=[16, 32, 64], help="TED RAM size (default: 64 KiB)")
+parser.add_argument("--name", default="ESPSETTE BOOT", help="Bootstrap filename")
 parser.add_argument("--mode", choices=["basic", "machine"], default="basic")
 parser.add_argument("--size", type=int, default=4096)
 parser.add_argument("--pad-basic", action="store_true", help="Pad the BASIC fixture to --size bytes")
@@ -25,17 +27,17 @@ parser.add_argument("--build", type=Path, default=REPO / "tools/fastloader-vice/
 parser.add_argument("--roms", type=Path, default=Path("/usr/local/share/vice"))
 parser.add_argument("--address", type=lambda x: int(x, 0), help="Machine-code fixture load/entry address")
 parser.add_argument("--cia-model", type=int, choices=[0, 1], default=0)
-parser.add_argument("--prg", type=Path, help="Test an original C64 PAL BASIC PRG instead of a synthetic fixture")
+parser.add_argument("--prg", type=Path, help="Test an original BASIC PRG instead of a synthetic fixture")
 parser.add_argument("--expect-pc", type=lambda x: int(x, 0), help="Expected SYS entry for --prg")
 args = parser.parse_args()
 if args.pad_basic and (args.mode != "basic" or args.prg):
     parser.error("--pad-basic requires a generated BASIC fixture")
-if args.prg and (args.machine != 'c64' or args.ntsc or args.mode != 'basic' or args.expect_pc is None):
-    parser.error('--prg requires --machine c64, PAL, --mode basic and --expect-pc')
+if args.prg and (args.machine == 'all' or args.mode != 'basic' or args.expect_pc is None):
+    parser.error('--prg requires one --machine, --mode basic and --expect-pc')
 if args.expect_pc is not None and not args.prg:
     parser.error('--expect-pc requires --prg')
-if not 13 <= args.size <= 51199:
-    parser.error("machine-code fixture size must be 13..51199")
+if not 13 <= args.size <= 60671:
+    parser.error("machine-code fixture size must be 13..60671")
 if args.address is not None and args.mode != "machine":
     parser.error("--address is only available for the machine-code fixture")
 out = args.out.resolve()
@@ -57,6 +59,7 @@ def basic_program(address):
 results = []
 for machine in (["c64", "c16", "plus4"] if args.machine == "all" else [args.machine]):
     c16 = machine != "c64"
+    ram_kib = args.ram_kib or 64
     case = out / (machine + ("-ntsc" if args.ntsc else "-pal"))
     case.mkdir(exist_ok=True)
     stage_address = 0x0800 if c16 else 0x0400
@@ -79,7 +82,7 @@ for machine in (["c64", "c16", "plus4"] if args.machine == "all" else [args.mach
         raise RuntimeError("bootstrap must release the physical WRITE driver immediately")
     periods, tap = case / "standard-periods.bin", case / "bootstrap.tap"
     subprocess.run([str(exporter), "c16" if c16 else "c64", "ntsc" if args.ntsc else "pal",
-                    str(stub), str(periods), str(tap), "ESPSETTE BOOT"], check=True)
+                    str(stub), str(periods), str(tap), args.name], check=True)
     address = (0x1001 if c16 else 0x0801) if args.mode == "basic" else 0x2000
     if args.address is not None:
         address = args.address
@@ -96,7 +99,7 @@ for machine in (["c64", "c16", "plus4"] if args.machine == "all" else [args.mach
         payload = code + b"\x4c" + (address + len(code)).to_bytes(2, "little")
         payload += bytes((i * 73) & 255 for i in range(max(0, args.size - len(payload))))
         entry = address
-    low, high = (0x1001, 0x4000 if machine == "c16" else 0x8000) if c16 else (0x0801, 0xd000)
+    low, high = (0x1001, min(ram_kib * 1024, 0xfd00)) if c16 else (0x0801, 0xd000)
     if not low <= address < address + len(payload) <= high:
         parser.error(f"{machine}: payload must fit ${low:04x}..${high-1:04x}")
     stream = case / "stream.bin"
@@ -105,17 +108,21 @@ for machine in (["c64", "c16", "plus4"] if args.machine == "all" else [args.mach
     stage_dump, payload_dump, marker_dump = (case / name for name in ("stage-loaded.bin", "payload.bin", "marker.bin"))
     for path in (stage_dump, payload_dump, marker_dump):
         path.unlink(missing_ok=True)
+    filename_dump = case / "filename.bin"
+    filename_dump.unlink(missing_ok=True)
     commands = case / "monitor.txt"
     commands.write_text('resourceset "TapePort1Device" "8"\n'
                         '> $07f0 00 00\n'
                         f'break ${stage_address:04x}\n' +
                         (f'break ${args.expect_pc:04x}\n' if args.prg else 'watch store $07f1 if A == $a5\n') +
-                        'keybuf load\\x0d\n'
+                        ('break $e9ff\n' if c16 else '') +
+                        'keybuf load\\x0d\n' +
+                        (f'g\nbsave "{filename_dump}" 0 $0337 $0347\ndelete 3\n' if c16 else '') +
                         'g\n'
                         f'bsave "{stage_dump}" 0 ${stage_address:04x} ${stage_address+len(padded)-1:04x}\n'
                         'delete 1\n'
                         'g\n' +
-                        ('bank ram\n' if machine == 'c64' else '') +
+                        'bank ram\n' +
                         f'bsave "{payload_dump}" 0 ${address:04x} ${address+len(payload)-1:04x}\n'
                         f'bsave "{marker_dump}" 0 $07f0 $07f1\n'
                         'r\nquit\n')
@@ -129,7 +136,7 @@ for machine in (["c64", "c16", "plus4"] if args.machine == "all" else [args.mach
                                      "kernal-318004-05.bin" if c16 else "kernal-901227-03.bin")),
                "-basic", str(roms / ("basic-318006-01.bin" if c16 else "basic-901226-01.bin"))]
     if c16:
-        command += ["-functionlo", str(roms / "3plus1-317053-01.bin"),
+        command += ["-ramsize", str(ram_kib), "-functionlo", str(roms / "3plus1-317053-01.bin"),
                     "-functionhi", str(roms / "3plus1-317054-01.bin")]
     else:
         command += ["-chargen", str(roms / "chargen-901225-01.bin"), "-cia1model", str(args.cia_model)]
@@ -146,7 +153,10 @@ for machine in (["c64", "c16", "plus4"] if args.machine == "all" else [args.mach
     actual = payload_dump.read_bytes() if payload_dump.exists() else b""
     marker = marker_dump.read_bytes() if marker_dump.exists() else b""
     stage_ok = stage_dump.exists() and stage_dump.read_bytes() == padded
-    result = dict(machine=machine, ntsc=args.ntsc, mode=args.mode, address=address,
+    clean_name = ''.join(c for c in args.name.upper() if c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ')[:16] or 'PROGRAM'
+    expected_name = (bytes([147]) + clean_name[:15].encode()).ljust(17, b' ')
+    filename_ok = not c16 or (filename_dump.exists() and filename_dump.read_bytes() == expected_name)
+    result = dict(machine=machine, ram_kib=ram_kib if c16 else 64, filename_ok=filename_ok, ntsc=args.ntsc, mode=args.mode, address=address,
                   payload_bytes=len(payload), bootstrap_bytes=len(stub.read_bytes())-2,
                   receiver_bytes=len(stage), stage_pages=stage_pages,
                   standard_rom_load=True, trap_device1=False,
@@ -154,7 +164,7 @@ for machine in (["c64", "c16", "plus4"] if args.machine == "all" else [args.mach
                   payload_ok=actual == payload,
                   executed=bool(re.search(rf'\.C:{args.expect_pc:04x}\b', text, re.I)) if args.prg else marker == bytes([90, 165]),
                   returncode=status, payload_sha256=hashlib.sha256(payload).hexdigest(), log=str(log))
-    result["passed"] = status == 0 and all(result[key] for key in ("signature_seen", "stage_ok", "payload_ok", "executed"))
+    result["passed"] = status == 0 and all(result[key] for key in ("signature_seen", "stage_ok", "payload_ok", "executed", "filename_ok"))
     results.append(result)
     print(json.dumps(result), flush=True)
 (out / "results.json").write_text(json.dumps(results, indent=2) + "\n")
