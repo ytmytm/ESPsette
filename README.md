@@ -12,7 +12,7 @@ Small as a *pesette* — a little scale for your LOADs.
 
 ## What works
 
-Hardware tests on **C64 PAL, 1–6 November 2026**:
+Hardware results: **C64 PAL, 1–6 November 2026**, and **C16 PAL, 11 November 2026**.
 
 | Feature | Status |
 | --- | --- |
@@ -22,9 +22,14 @@ Hardware tests on **C64 PAL, 1–6 November 2026**:
 | Built-in Circles demo | Passed in standard and fast modes |
 | WRITE filenames and command requests | Passed with an empty deck; EJECT first |
 | OTA updates on a 1 MB ESP-01 | Passed over IP, including playback after updating |
-| C16/Plus/4 and NTSC PRG loading and WRITE | Host/VICE tests pass; hardware tests pending |
+| C16 PAL fastloader with 64 KB RAM | Passed on hardware, 11 November 2026; measured 7.95 kB/s |
+| Other C16/Plus/4 and NTSC PRG loading and WRITE | Host/VICE tests pass; hardware tests pending |
 | C16/Plus/4 TAP playback and other TAP variants | Full hardware coverage pending |
 | IDX navigation and counter-based REW/FF | Host tests pass; hardware tests pending |
+
+**C16 startup remains unreliable on the current prototype.** Successful loading
+tests were performed after getting the ESP running; they do not establish
+reliable startup after power-on or reset.
 
 ## Load your first program
 
@@ -95,8 +100,11 @@ rest at fast speed. The web player starts it with BASIC `RUN`; machine-code
 programs need a BASIC starter for automatic launch.
 
 TAP files keep their recorded timing. The current firmware accepts fastloader
-load ranges of `$0801..$CFFF` on C64 and `$1001..$3FFF` on C16/Plus/4.
+load ranges of `$0801..$CFFF` on C64 and `$1001..$FCFF` on C16 with 64 KB RAM / Plus/4.
 Use standard loading for PRGs outside those ranges.
+
+Measured fastloader speed on real **C16 PAL hardware: 7.95 kB/s**
+(user-confirmed, 11 November 2026).
 
 During the fast stage:
 
@@ -285,6 +293,13 @@ Release packages target 1 MB modules. The `512k` profile inherits OTA settings;
 a build without OTA needs separate size and hardware checks.
 
 ## Hardware files
+
+This branch uses **SENSE on GPIO0, MOTOR on GPIO1, WRITE on GPIO2 and READ
+on GPIO3**. The updated schematic and PCB include isolation jumpers
+JP1–JP4 for those four signals, a 1 kΩ series resistor in MOTOR, and 10 kΩ
+pull-ups on GPIO0, GPIO2 and RESET. JP5 connects EN to 3.3 V and must remain
+closed for normal operation. These changes support prototype testing;
+the C16 startup issue above remains unresolved.
 
 - [Wiring and ESP-01 connections](kicad/WIRING.md)
 - [Schematic PDF](kicad/plots/espsette.pdf)
