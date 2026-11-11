@@ -6,8 +6,8 @@ sources are in `native/fastloader/`; `make native` builds both targets with ACME
 | Component | C64 | C16 / Plus/4 |
 | --- | --- | --- |
 | Autostart vector, standard data block | `$0302..$0303` | `$0302..$0303` |
-| Code inside standard header tail | `$0351`, 163 B | `$0347`, 153 B |
-| Full receiver | `$0400`, 482 B; send 512 B | `$0800`, 626 B; send 768 B |
+| Code inside standard header tail | `$0351`, 163 B | `$0347`, 157 B |
+| Full receiver | `$0400`, 482 B; send 512 B | `$0800`, 610 B; send 768 B |
 | Final ROM handoff trampoline | `$033C` | `$0333` |
 | Firmware PRG address range | `$0801..$CFFF` | `$1001..$3FFF` |
 
@@ -30,16 +30,19 @@ ordinary pilot lengths. Two hundred short tail pulses allow the ROM to finish
 the second data copy. The vector bytes are independent of the streamed PRG;
 the PRG ring remains retained at offset 2 until the GPIO payload stage.
 
-The first instructions are `SEI`, `LDA #DDR`, `STA $00`: WRITE is input after
-seven CPU cycles, using DDR `$27` on C64 and `$09` on TED. The bootstrap then
-blanks the screen; C64 additionally disables sprites and CIA interrupt sources.
+C64 starts with `SEI`, `LDA #$27`, `STA $00`, making WRITE input after seven
+CPU cycles. TED first writes zero to the port latch and sets DDR `$0B`:
+P1 must stay output low to release the external inverting 7406 sink. Setting
+P1 to input leaves that driver sinking the physical line. Physical WRITE
+returns through P6, shared with IEC CLK. The bootstrap then blanks the screen;
+C64 additionally disables sprites and CIA interrupt sources.
 
 ## Mode selection
 
 The stub temporarily makes WRITE an output and sends the physical word `$CA65`,
 MSB first, sampled by ESP on each MOTOR-on transition. Each MOTOR-off interval
 exceeds 1 ms even at fast TED NTSC speed. An additional MOTOR-on interval
-separates bits. The 7501 output inversion is accounted for in the stub.
+separates bits. The external 7406 output inversion is accounted for in the stub.
 
 The ESP keeps WRITE input throughout selection. Upon the `110` signature
 prefix, its MOTOR ISR stops the I2S transmitter and switches READ high to GPIO,
@@ -51,7 +54,8 @@ the receiver download. The final MOTOR-on is not itself a block request.
 Immediately after the final signature bit, the computer releases WRITE again,
 without the usual final MOTOR-on delay, and requests the first receiver page
 by changing MOTOR. ESP starts driving data only after that request and its
-settling delay. WRITE stays input on the computer throughout both downloads.
+settling delay. C64 keeps WRITE input throughout both downloads; TED keeps P1 output low
+and reads physical WRITE on P6.
 The full bootstrap receiver never repeats the cold monitor test's WRITE-output
 initialization.
 
@@ -106,8 +110,32 @@ The 32-case matrix covers three machines, both video standards, both launch
 paths, block/page boundaries, unaligned destinations, maximum RAM payloads and
 both C64 CIA variants. The ESP GPIO implementation and configurable delays also
 have host wire-order tests. C64 PAL fastloading was confirmed on real hardware
-on 2026-11-04; other hardware variants still need testing.
+on 2026-11-04; the user confirmed C16 hardware operation on 2026-11-11.
+Remaining hardware variants still need testing.
 
 There is no payload CRC or automatic retransmission. STOP releases the ESP
 outputs; reset the computer before retrying an interrupted receiver. The
 current ROM entry points target stock C64 BASIC and TED BASIC 3.5.
+
+## C16 electrical regression (2026-11-11)
+
+The local LittleSixteen schematic/netlist (`datasette.sch`, revision 4git,
+2024-08-11) shows cassette WRITE through FB17 and R29 (100 ohms) into P6,
+also the IEC CLK input. P1 controls IEC CLK through the inverting open-collector
+U9 7406. READ goes to P4; MOTOR uses P3 through U9/Q5. With default JP12 1-2,
+SENSE goes to the `$FD10` bit-2 path; JP12 2-3 reroutes it to P7 and is not the
+loader's supported configuration. A 6510 conversion with permanently enabled
+MOTOR is also outside this protocol, which requires MOTOR block requests.
+
+The previous VICE model injected WRITE directly into P1 and omitted the
+7406 sink, allowing a loader that could not work on this wiring to pass.
+The isolated patch now combines physical WRITE, the IEC CLK level and the
+computer's sink at P6. Against that model the old bootstrap detects CA65 but
+fails to download the receiver; the corrected bootstrap and payload receiver
+both read P6 and release the sink using P1 output low. The payload receiver
+uses the final READ poll's BIT overflow flag to sample P6 without an extra
+port read; the timing analyzer covers the slower WRITE-high branch.
+
+The user confirmed that the corrected C16 fastloader works on real hardware
+on 2026-11-11. VICE regression results: 33/33 complete bootstrap checks and
+39/39 transport checks, including expected failures with unsafe timings.

@@ -7,18 +7,20 @@ instructions, checks table/branch page crossings and validates continuous-time
 and rounded VICE-clock margins. Run without `--boot` for the direct test variant.
 
 The final descriptor/payload wire order is b4:b5, b6:b7, b0:b1, b2:b3.
-C64 reads both bits with mask `$18`; TED combines `$01` bit 1 and `$FD10` bit 2.
+C64 reads both bits with mask `$18`; TED samples `$01` bit 6 into V with the final READ `BIT` poll and combines
+it with `$FD10` bit 2. Its BVC/ORA path costs one cycle more for WRITE high;
+the table and analyzer use that worst case.
 A 16-entry aligned table merges the upper nibble. There is no per-byte JSR/RTS.
 Y is the destination index and block counter. A partial final block adjusts
 its base and initial Y so it also terminates on rollover.
 
 | Path | C64 cycles | TED cycles |
 | --- | ---: | ---: |
-| Pair 1 → pair 2 | 20 | 29 |
-| Pair 2 → pair 3 | 20 | 31 |
-| Pair 3 → pair 4 | 20 | 29 |
-| Last pair → next byte, payload | 33 | 44 |
-| Last pair → next byte, descriptor | 34 | 45 |
+| Pair 1 → pair 2 | 20 | 22 |
+| Pair 2 → pair 3 | 20 | 24 |
+| Pair 3 → pair 4 | 20 | 22 |
+| Last pair → next byte, payload | 33 | 37 |
+| Last pair → next byte, descriptor | 34 | 38 |
 
 The analyzer includes polling phase, latest data sample, branch costs and TED
 refresh allowance. C64 polls direct FLAG bit 4 with `LDA #$10 / BIT $DC0D / BEQ`;

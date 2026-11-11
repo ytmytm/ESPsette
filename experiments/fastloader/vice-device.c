@@ -84,7 +84,7 @@ static void fl_alarm_callback(CLOCK offset, void *unused)
     }
     fl_step(&fl);
     /* VICE uses active-low assertions for C64 WRITE/SENSE, but a physical
-     * input level for 7501 WRITE. C64 read_in(1) means a FLAG event. */
+     * input level for TED WRITE (routed to P6 by the integration patch). C64 read_in(1) means a FLAG event. */
     tapeport_set_write_in(fl.config.c16 ? fl.write_high : !fl.write_high, 0);
     tapeport_set_tape_sense(!fl.sense_high, 0);
     if (fl.read_high != old_read) {

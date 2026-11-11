@@ -125,8 +125,11 @@ static void checkAutostart(bool c16, bool ntsc, size_t codeLength,
   header[0] = 3;
   header[1] = 2; header[2] = 3;
   header[3] = 4; header[4] = 3;
-  header[5] = 147; header[6] = 5;
-  for (size_t i = 0; expectedName[i]; ++i) header[7 + i] = expectedName[i];
+  header[5] = 147;
+  if (!c16) header[6] = 5;
+  const size_t nameStart = c16 ? 6 : 7;
+  for (size_t i = 0; expectedName[i] && nameStart + i < 21; ++i)
+    header[nameStart + i] = expectedName[i];
   for (size_t i = 0; i < codeLength; ++i) header[21 + i] = code[i];
   std::vector<uint32_t> expected;
   referenceBlock(expected, header.data(), header.size(), true, true, t, c16);
@@ -159,7 +162,7 @@ int main() {
   checkMachine(PrgEncoder::Machine::C16, {448, 896, 1792}, true);
   checkMachine(PrgEncoder::Machine::C64, {384, 536, 680}, true);
   const struct { const char* name; const char* expected; } names[] = {
-    {"BOOT", "BOOT"}, {"abcdefghijklmnop", "ABCDEFGHIJKLMN"},
+    {"BOOT", "BOOT"}, {"abcdefghijklmnop", "ABCDEFGHIJKLMNOP"},
     {"", "PROGRAM"}, {"!!!", "PROGRAM"}
   };
   for (bool c16 : {false, true}) for (bool ntsc : {false, true})

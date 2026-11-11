@@ -73,9 +73,10 @@ for machine in (["c64", "c16", "plus4"] if args.machine == "all" else [args.mach
     subprocess.run(["acme", f"-DC16={int(c16)}", f"-DSTAGE_PAGES={stage_pages}",
                     f"-DSTAGE_ADDR={stage_address}", "-f", "cbm", "-o", str(stub),
                     str(ROOT.parents[1] / "native/fastloader/bootstrap.asm")], check=True)
-    early_input = bytes([0x78, 0xa9, 0x09 if c16 else 0x27, 0x85, 0x00])
-    if stub.read_bytes()[2:7] != early_input:
-        raise RuntimeError("bootstrap must release WRITE within its first seven CPU cycles")
+    early_input = (bytes.fromhex("78 a9 00 85 01 a9 0b 85 00") if c16 else
+                   bytes.fromhex("78 a9 27 85 00"))
+    if stub.read_bytes()[2:2 + len(early_input)] != early_input:
+        raise RuntimeError("bootstrap must release the physical WRITE driver immediately")
     periods, tap = case / "standard-periods.bin", case / "bootstrap.tap"
     subprocess.run([str(exporter), "c16" if c16 else "c64", "ntsc" if args.ntsc else "pal",
                     str(stub), str(periods), str(tap), "ESPSETTE BOOT"], check=True)

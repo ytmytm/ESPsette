@@ -21,24 +21,24 @@ write_bit = $ff
     lda #$10
 -   bit $01
     bne -                       ; first READ low
-    lda $01
-    and #$02
-    sta write_bit
+    ; The final READ poll also sampled physical WRITE at P6 into V.
     lda $fd10
-    and #$04
-    ora write_bit
+    and #$04                    ; SENSE remains bit 2
+    bvc +
+    ora #$02
++
     lsr
     sta result                  ; upper nibble bits 0/1
 
     lda #$10
 -   bit $01
     beq -                       ; second READ high
-    lda $01
-    and #$02
-    sta write_bit
+    ; The final READ poll also sampled physical WRITE at P6 into V.
     lda $fd10
-    and #$04
-    ora write_bit
+    and #$04                    ; SENSE remains bit 2
+    bvc +
+    ora #$02
++
     asl
     ora result
     tax                         ; complete upper nibble, 0..15
@@ -46,24 +46,24 @@ write_bit = $ff
     lda #$10
 -   bit $01
     bne -                       ; third READ low
-    lda $01
-    and #$02
-    sta write_bit
+    ; The final READ poll also sampled physical WRITE at P6 into V.
     lda $fd10
-    and #$04
-    ora write_bit
+    and #$04                    ; SENSE remains bit 2
+    bvc +
+    ora #$02
++
     lsr
     sta result                  ; lower nibble bits 0/1
 
     lda #$10
 -   bit $01
     beq -                       ; fourth READ high
-    lda $01
-    and #$02
-    sta write_bit
+    ; The final READ poll also sampled physical WRITE at P6 into V.
     lda $fd10
-    and #$04
-    ora write_bit
+    and #$04                    ; SENSE remains bit 2
+    bvc +
+    ora #$02
++
     asl
     ora result
     ora upper_table,x
@@ -108,7 +108,7 @@ write_bit = $ff
 start:
     sei
 !if BOOT {
-    !if C16 { lda #$09 } else { lda #$27 }
+    !if C16 { lda #$0b } else { lda #$27 }
     sta $00                     ; bootstrap already released WRITE
 }
     ldx #$ff
@@ -119,7 +119,7 @@ start:
     sta $ff06
     lda #$ff
     sta $fd10
-    lda #$09                    ; MOTOR output, WRITE input
+    lda #$0b                    ; P1 output low releases the 7406 WRITE sink
     sta $00
     lda #$00
     sta $01

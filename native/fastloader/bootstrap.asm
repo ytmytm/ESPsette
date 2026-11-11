@@ -1,6 +1,6 @@
 ; Autostart code carried in the standard tape HEADER; data body is only the
 ; two-byte $0302 vector. Downloads padded receiver pages to $0400 (C64) or
-; $0800 (TED), then jumps. WRITE is input after the first seven CPU cycles.
+; $0800 (TED), then jumps. TED releases the inverting WRITE driver with P1 output low.
 !cpu 6502
 !ifndef STAGE_PAGES { STAGE_PAGES = 3 }
 !ifndef STAGE_ADDR {
@@ -22,7 +22,11 @@ expected = $ff
 }
 start:
     sei
-!if C16 { lda #$09 } else { lda #$27 }
+!if C16 {
+    lda #0
+    sta $01                     ; P1 low releases the external 7406 WRITE sink
+    lda #$0b                    ; keep P1 output; physical WRITE is read at P6
+} else { lda #$27 }
     sta $00                     ; release WRITE immediately on autostart
     ldx #$ff
     txs
@@ -69,8 +73,8 @@ on_delay:
     jmp signature_loop
 signature_done:
 !if C16 {
-    lda #$09
-    sta $00                     ; release WRITE
+    lda #$0b
+    sta $00                     ; P1 stays output; the following latch is zero
     lda #0
     sta expected
 } else {
@@ -116,8 +120,8 @@ wait:
     and #$10
     bne wait
     lda $01
-    lsr
-    lsr
+    asl
+    asl                         ; physical WRITE at P6 -> carry
     rol result
     lda $fd10
     lsr

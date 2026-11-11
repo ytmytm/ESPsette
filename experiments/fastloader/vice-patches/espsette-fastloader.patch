@@ -39,3 +39,21 @@ diff --git a/vice/src/plus4/plus4pio1.c b/vice/src/plus4/plus4pio1.c
      }
  
      /*  Correct clock */
+diff --git a/vice/src/plus4/plus4mem.c b/vice/src/plus4/plus4mem.c
+--- a/vice/src/plus4/plus4mem.c
++++ b/vice/src/plus4/plus4mem.c
+@@ -270 +270 @@
+-        tapeport_toggle_write_bit(TAPEPORT_PORT_1, (~pport.dir | ~pport.data) & 0x02);
++        tapeport_toggle_write_bit(TAPEPORT_PORT_1, (pport.dir & ~pport.data) & 0x02);
+@@ -300,4 +300,7 @@
+-    if (tape_write_in) {
+-        input |= 0x02;
+-    } else {
+-        input &= ~0x02;
++    /* C16/LittleSixteen: WRITE shares IEC CLK input P6 through R29.
++     * P1 drives that line through an inverting 7406, never an input path.
++     * Keep the wired-AND IEC level and the computer's open-collector sink.
++     * A floating P1 (DDR input) is pulled high and also enables the sink. */
++    input |= 0x02;
++    if (!tape_write_in || !(pport.dir & 0x02) || (pport.data & 0x02)) {
++        input &= ~0x40;

@@ -11,7 +11,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parent
 # Opcode -> (length, base cycles). Indexed-table and branch pages checked below.
 OPS = {
-    0x05:(2,3), 0x0a:(1,2), 0x10:(2,2), 0x1d:(3,4), 0x20:(3,6),
+    0x09:(2,2), 0x50:(2,2), 0x05:(2,3), 0x0a:(1,2), 0x10:(2,2), 0x1d:(3,4), 0x20:(3,6),
     0x24:(2,3), 0x29:(2,2), 0x2c:(3,4), 0x45:(2,3), 0x49:(2,2),
     0x4a:(1,2), 0x4c:(3,3), 0x60:(1,6), 0x85:(2,3), 0x8d:(3,4),
     0x91:(2,6), 0x99:(3,5), 0xa2:(2,2), 0xa5:(2,3), 0xa9:(2,2),
@@ -65,9 +65,13 @@ def analyze(c16, directory, boot=False):
             if step and pc in reads: return cycles,samples,pages
             op,size,cost,arg=instruction(pc)
             following=pc+size
-            if op in (0x10,0xd0,0xf0):
+            if op in (0x10,0xd0,0xf0,0x50):
                 target=following+(arg if arg<128 else arg-256)
-                if target==start:
+                if op == 0x50:
+                    take=False  # WRITE high: untaken BVC + ORA costs 4, low costs 3.
+                    assert following + 2 == target
+                    assert following >> 8 == target >> 8
+                elif target==start:
                     take=False  # Current strobe has arrived.
                 elif target in (labels["load"],labels["header"]):
                     take=True
@@ -80,7 +84,7 @@ def analyze(c16, directory, boot=False):
             elif op in (0x20,0x60,0x4c):
                 raise AssertionError("A per-byte path unexpectedly contains a call/return/jump")
             cycles+=cost
-            if op in (0xa5,0x45) and arg==1 or op==0xad and arg==0xfd10:
+            if op in (0x24,0xa5,0x45) and arg==1 or op==0xad and arg==0xfd10:
                 samples.append(cycles)
             pc=following
         raise AssertionError("Path did not reach another poll")

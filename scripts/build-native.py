@@ -23,7 +23,9 @@ def build(output):
             subprocess.run(['acme', f'-DC16={ted}', f'-DSTAGE_PAGES={pages}', f'-DSTAGE_ADDR={address}',
                             '-f', 'cbm', '-o', str(stub), str(ROOT/'native/fastloader/bootstrap.asm')], check=True)
             code = stub.read_bytes()[2:]
-            assert code[:5] == bytes([0x78, 0xa9, 0x09 if ted else 0x27, 0x85, 0])
+            early_release = (bytes.fromhex('78 a9 00 85 01 a9 0b 85 00') if ted else
+                             bytes.fromhex('78 a9 27 85 00'))
+            assert code.startswith(early_release)
             for suffix, content in [('Bootstrap', code), ('Receiver', data.ljust(pages*256, b'\0'))]:
                 rows = [', '.join(f'0x{value:02x}' for value in content[i:i+16]) for i in range(0, len(content), 16)]
                 arrays.append(f'static const uint8_t {name}{suffix}[] PROGMEM = {{\n  ' + ',\n  '.join(rows) + '\n};\n')

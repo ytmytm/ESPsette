@@ -65,11 +65,12 @@ bool PrgEncoder::beginAutostart(const uint8_t* code, size_t length,
   autostartEntry_[0] = machine == Machine::C16 ? 0x47 : 0x51;
   autostartEntry_[1] = 3;
   header_[0] = 3; // Absolute load, independent of the current BASIC start.
-  // ROM prints the 16-byte filename: clear the screen, then show it in white.
-  // Keep 14 name characters and leave the bootstrap at byte 21 untouched.
-  memmove(header_ + 7, header_ + 5, 14);
+  // TED has a white background: retain its text color after clearing.
+  // Leave the bootstrap at byte 21 untouched on both machines.
+  const uint8_t controls = machine == Machine::C16 ? 1 : 2;
+  memmove(header_ + 5 + controls, header_ + 5, 16 - controls);
   header_[5] = 147; // PETSCII clear screen.
-  header_[6] = 5;   // PETSCII white.
+  if (controls == 2) header_[6] = 5; // PETSCII white, C64 only.
   memcpy(header_ + 21, code, length);
   headerChecksum_ = 0;
   for (uint8_t value : header_) headerChecksum_ ^= value;

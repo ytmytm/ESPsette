@@ -3,7 +3,11 @@
 `espsette-fastloader.patch` targets VICE revision
 `eaf9b61f5560f921ebaa25349b09e797f351eb1e`, following the separate-patch layout
 used in Parobek. It registers the fastloader and WRITE-capture tape-port devices and fixes the released
-SENSE input on C16 without a user port. The sender and adapter remain separate
+SENSE input on C16 without a user port. It also models the physical TED
+WRITE/IEC CLK connection to P6 and P1's external inverting open-collector
+7406 driver, including the sink when P1 is floating. No incoming tape data is
+injected into P1. This follows the LittleSixteen schematic's FB17/R29/P6
+path and prevents the old P1-reading loader from passing emulator tests. The sender and adapter remain separate
 in `sender.c`, `sender.h` and `vice-device.c`; the helper copies them into the
 disposable emulator source after applying the integration patch.
 The WRITE adapter is copied from `experiments/write/vice-device.c` as

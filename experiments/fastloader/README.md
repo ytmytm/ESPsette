@@ -4,10 +4,12 @@ The firmware supports a standard ROM bootstrap followed by a two-bit GPIO
 transfer. Enable **Use fastloader for PRG** in Playback settings; the default is
 off. Timing settings are stored in LittleFS. C64/C16/Plus/4 PAL and NTSC have
 passed host/VICE tests. C64 PAL fastloading was confirmed on real hardware on
-2026-11-04; other hardware variants and measured throughput await verification.
+2026-11-04. The user confirmed the corrected C16 fastloader on real hardware
+on 2026-11-11; remaining hardware variants and measured throughput await verification.
 
-The bootstrap header filename starts with PETSCII clear screen (147) and
-white (5), followed by up to 14 name characters. These bytes are only sent
+The bootstrap header filename starts with PETSCII clear screen (147).
+C64 adds white (5) and up to 14 name characters; C16/Plus/4 retains its
+text color on the white background and allows up to 15 name characters. These bytes are only sent
 to the computer; the web cassette label displays the filename without its
 `.prg` or `.tap` extension. Standard PRG header names are unchanged.
 
@@ -20,12 +22,14 @@ Native code is in [`native/fastloader/`](../../native/fastloader/).
 | Line | Fast-transfer direction | C64 input | C16/Plus/4 input |
 | --- | --- | --- | --- |
 | READ | ESP GPIO3 → computer, strobe | CIA1 `$DC0D`, FLAG bit 4 | CPU `$01`, bit 4 |
-| WRITE | ESP GPIO2 → computer, first bit of pair | CPU `$01`, bit 3 | CPU `$01`, bit 1 |
+| WRITE | ESP GPIO2 → computer, first bit of pair | CPU `$01`, bit 3 | CPU `$01`, bit 6 |
 | SENSE | ESP GPIO1 → computer, second bit of pair | CPU `$01`, bit 4 | `$FD10`, bit 2 |
 | MOTOR | Computer → ESP GPIO0, block request | Output latch `$01`, inverted bit 5 | Output latch `$01`, inverted bit 3 |
 
 READ is direct GPIO during both fast stages, with no I2S/DMA output. WRITE is
-released by the computer before ESP drives it. The mode signature temporarily
+released by the computer before ESP drives it. On TED, P1 stays an output
+with latch zero to release the external inverting 7406 driver; physical WRITE
+is read through P6 (shared with IEC CLK), not P1. The mode signature temporarily
 uses WRITE in the opposite direction; see [BOOTSTRAP.md](BOOTSTRAP.md).
 The [standard WRITE command receiver](../../docs/WRITE-COMMANDS.md) is suspended
 for the entire selected fastloader session, so ESP output cannot be decoded as
