@@ -43,7 +43,8 @@
   )
   (class "kicad_default"
     /VCC GND +3V3 "unconnected-(U2-Pad6)" "unconnected-(U2-NC-Pad3)" /~{RESET} "/CAS_SENSE" "/CAS_WRITE"
-    "/CAS_READ" "/CAS_MOTOR" "unconnected-(J3-Pin_2-Pad2)" "/GPIO0_FLASH" "Net-(R1-Pad2)"
+    "/CAS_READ" "/CAS_MOTOR" "unconnected-(J3-Pin_2-Pad2)" "/GPIO0_FLASH" "Net-(R1-Pad2)" "/GPIO1_TXD" "/GPIO3_RXD" "/MOTOR_3V3"
+    /GPIO2 "Net-(JP5-A)" "Net-(R2-Pad1)"
     (clearance_class "kicad_default")
     (via_rule "kicad_default")
     (rule
