@@ -4,6 +4,11 @@
 [experimental modification](#experimental-motorsense-swap--2026-11-09)
 before using this firmware. The base-board mapping below is historical.
 
+**2026-11-12 correction:** GPIO1/U0TXD also selects `chip_test_mode` at
+power-on and must be HIGH then. The experimental MOTOR pull-down can violate
+this requirement; its 1 kΩ series resistor only limits UART contention.
+See the [source review and manufacturer statement](KWERENDA_STARTU_ESP01.md).
+
 Status: KiCad schematic in progress. Hardware decisions confirmed by the author on 2026-11-02 are recorded in [PLAN_POLACZEN.md](PLAN_POLACZEN.md). The author reports successful physical tests of the selected MOTOR topology and direct READ connection with the current firmware on 2026-11-01. These decisions supersede the earlier alternative circuits.
 
 ## 1. ESP-01 and CAD assets
@@ -50,7 +55,18 @@ board described below: **MOTOR = GPIO1 through a 1 kΩ series resistor;
 SENSE = GPIO0 with its existing 10 kΩ pull-up to 3V3**. READ stays on GPIO3
 and bidirectional WRITE stays on GPIO2. The MOTOR 10 kΩ pull-down stays on
 the optocoupler side of the series resistor; MOTOR remains active HIGH.
-This branch has not yet been tested on hardware.
+Hardware update (2026-11-15, C16): disconnecting the MOTOR/GPIO1 branch at
+R6 permits startup after a manual button reset, but a manual reset is still
+required after power-on. Reconnect MOTOR during operation to read its state;
+JP2 on the schematic provides a place for the switch. The WRITE pull-up was
+present during this test. See the [experiment record](ANALIZA_STARTU_ESP01.md#eksperyment-sprzętowy--2026-11-15-c16)
+for the limits of this observation.
+
+Design conclusion for C16 (2026-11-15): an ESP-12 or Wemos D1 would provide
+additional GPIOs without boot-mode selection functions for MOTOR/SENSE/WRITE;
+READ would remain on GPIO3 for I2S. This is an alternative design direction,
+not a tested fix. Developing that variant is outside the current ESP-01
+project scope.
 
 Cut the old MOTOR/GPIO0 and SENSE/GPIO1 connections near the ESP and cross
 the two signal branches as described in

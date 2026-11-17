@@ -2,10 +2,27 @@
 
 ## Wariant testowy tej gałęzi — 2026-11-09
 
+**Korekta 2026-11-12:** GPIO1/U0TXD wybiera również chip_test_mode podczas
+włączania zasilania i wymaga wtedy HIGH. Poniższa zamiana pinów nie zapewnia
+bezpiecznego startu, gdy obwód MOTOR ściąga GPIO1. Rezystor szeregowy 1 kΩ
+ogranicza prąd konfliktu UART, lecz nie usuwa tego wymagania.
+Źródło producenta i przypadki użytkowników: [kwerenda](KWERENDA_STARTU_ESP01.md).
+
 Firmware na gałęzi `test/motor-gpio1-sense-gpio0` wymaga poniższej
 przeróbki istniejącej płytki. Zastępuje ona przypisanie MOTOR/SENSE opisane
 w dalszej części dokumentu; pozostałe połączenia pozostają zgodne z bazą.
-To wariant do testu, bez potwierdzenia działania na sprzęcie.
+Wyniki prób sprzętowych, w tym z C16 z 2026-11-15, zapisano w
+[analizie startu](ANALIZA_STARTU_ESP01.md#eksperyment-sprzętowy--2026-11-15-c16).
+Rozłączenie MOTOR przy R6 pozwala uruchomić ESP po ręcznym resecie, lecz
+nie zapewnia samoczynnego startu. Do odczytu MOTOR połączenie trzeba
+przywrócić podczas pracy; na schemacie przełącznik można wstawić w JP2.
+Próba obejmowała pull-up na WRITE.
+
+Wniosek projektowy dla C16 (2026-11-15): samoczynny start należałoby oprzeć
+raczej na ESP-12/Wemos D1 z dodatkowymi GPIO bez funkcji wyboru trybu
+startowego dla MOTOR/SENSE/WRITE; READ pozostaje na GPIO3 (I2S).
+To alternatywna konstrukcja poza obecnym zakresem projektu ESP-01,
+nie przetestowana poprawka obecnej płytki.
 
 - Rozciąć MOTOR→GPIO0 i SENSE→GPIO1 przy ESP.
 - Dawny MOTOR z emitera 4N35 podłączyć przez **1 kΩ do GPIO1**.
