@@ -311,6 +311,34 @@ the C16 startup issue above remains unresolved.
 
 ![ESPsette PCB — side view](media/02.pcbside.png)
 
+### Bill of materials
+
+Quantities are for one [ESPsette PCB](kicad/espsette.kicad_pcb) with both cassette connectors. The [KiCad production BOM](kicad/production/bom.csv) lists the exact footprint names.
+
+| Reference | Qty | Part | Package or mounting detail |
+| --- | ---: | --- | --- |
+| U1 | 1 | ESP8266 ESP-01 or ESP-01S module | Add one 2 × 4 female socket, 2.54 mm pitch |
+| U2 | 1 | 4N35 optocoupler | DIP-6, 7.62 mm row spacing |
+| R1 | 1 | 470 Ω resistor | Axial DIN0207, 7.62 mm lead spacing |
+| R2, R3, R4, R5 | 4 | 10 kΩ resistors | Axial DIN0207, 7.62 mm lead spacing |
+| R6 | 1 | 1 kΩ resistor | Axial DIN0207, 7.62 mm lead spacing |
+| C1 | 1 | 100 µF electrolytic capacitor, ≥6.3 V | Radial, Ø8 mm, 3.5 mm lead spacing |
+| BUT_RESET1 | 1 | Normally open momentary reset button | 6 × 6 mm, through-hole |
+| J1 | 1 | C64 female cassette-port edge connector | 2 × 6 contacts, 3.96 mm pitch |
+| J2 | 1 | C16 / Plus/4 7-pin mini-DIN socket | Shielded PCB type matching `Mini_DIN_round_7_canned` |
+| J3 | 1 | UART pin header | 1 × 6, vertical, 2.54 mm pitch |
+| J5 | 1 | External power pin header | 1 × 2, vertical, 2.54 mm pitch |
+| JP_FLASH1 | 1 | Flash-mode pin header | 1 × 2, vertical, 2.54 mm pitch. Add one removable shunt |
+| JP1, JP2, JP3, JP4, JP5 | 5 | Factory-bridged solder jumpers | Copper features included on the PCB |
+
+Choose **one** 3.3 V regulator option per board. C1 is common to both.
+
+| Option | Reference | Qty | Part and mounting detail |
+| --- | --- | ---: | --- |
+| A · module | J4 | 1 | AMS1117-3.3 regulator module with a 1 × 3 connection, 2.54 mm pitch. Match PCB pins 1 = VIN (+5 V), 2 = VOUT (3.3 V), 3 = GND |
+| B · SMD | U3 | 1 | AMS1117-3.3 regulator, SOT-223 with tab on pin 2 (LCSC C6186) |
+| B · SMD | C6, C7 | 2 | 10 µF polarized tantalum capacitors, EIA-3216-12, Kemet S footprint (LCSC C1969735) |
+
 <details>
 <summary>Local preview, tests and releases</summary>
 
